@@ -311,8 +311,84 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .menu-sec h2 { display: flex; align-items: center; gap: 10px; font-size: 18px; color: var(--muted); }
 .menu-sec h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .gcard { grid-template-columns: 64px minmax(0, 1fr); column-gap: 14px; align-items: center; box-shadow: var(--shadow); border-radius: 16px; position: relative; overflow: hidden; }
-.gcard .mini { grid-row: 1 / span 3; width: 64px; height: 64px; transition: transform .35s ease; }
-.gcard:hover .mini { transform: rotate(-18deg) scale(1.04); }
+/* Cards in a row share a height: description fills the middle, player count sits on the bottom edge */
+.gcard { grid-template-rows: auto 1fr auto; align-content: stretch; }
+.gcard .tile { grid-row: 1 / span 3; align-self: center; }
+.gcard .gname { align-self: end; }
+.gcard .gdesc { align-self: start; }
+.gcard .gmeta { align-self: end; }
+.gcard:hover .tile { transform: translateY(-2px) rotate(-3deg); }
+.tile {
+  width: 64px; height: 64px; border-radius: 16px; display: grid; place-items: center; flex-shrink: 0;
+  font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: .01em; line-height: 1;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .1), inset 0 -4px 0 rgba(0, 0, 0, .22), 0 6px 14px -8px rgba(0, 0, 0, .5);
+  transition: transform .25s ease;
+}
+.tile .sm { font-size: 19px; }
+.tile svg { width: 34px; height: 34px; }
+.tile .hearts { display: flex; gap: 1px; }
+.tile .hearts svg { width: 16px; height: 16px; }
+.tile-felt { background: linear-gradient(160deg, var(--felt), var(--felt-2)); color: var(--on-felt); }
+.tile-black { background: linear-gradient(160deg, #2a2d2b, #151716); color: var(--board-cream); }
+.tile-red { background: linear-gradient(160deg, #d8343c, #a51e26); color: #fff; }
+.tile-green { background: linear-gradient(160deg, #1a9558, #0e6a3c); color: #fff; }
+.tile-cream { background: linear-gradient(160deg, #f1e7cb, #dccfaa); color: #1b1d1c; box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .05), inset 0 -4px 0 rgba(0, 0, 0, .12), 0 6px 14px -8px rgba(0, 0, 0, .5); }
+
+/* Setup dialog: header, two columns (rules, players), Start always in view */
+.dialog.setup { width: min(860px, 100%); padding: 0; gap: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: 100%; overflow: hidden; }
+.setup-head { display: flex; gap: 14px; align-items: center; padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
+.setup-head h3 { margin: 0; font-family: var(--font-display); font-size: 28px; text-transform: uppercase; letter-spacing: .03em; line-height: 1; }
+.setup-head p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.setup-body { overflow-y: auto; padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: 18px 28px; align-content: start; }
+.setup-col { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.setup-col h4 { margin: 0; }
+.srows { display: grid; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.srow { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 8px 10px 8px 14px; min-height: 48px; flex-wrap: wrap; }
+.srow + .srow { border-top: 1px solid var(--line); }
+.slabel { font-weight: 600; font-size: 14px; }
+.sctl { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
+.sctl select, .sctl input[type=number] { font: inherit; font-weight: 600; padding: 6px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 100%; }
+.sctl input[type=number] { width: 96px; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 2px; gap: 2px; }
+.segb { border: 0; background: transparent; border-radius: 8px; padding: 5px 11px; font-weight: 600; font-size: 14px; color: var(--muted); white-space: nowrap; }
+.segb[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+.segb:hover:not([aria-pressed="true"]) { color: var(--ink); }
+.seg.small .segb { padding: 4px 9px; font-size: 13px; }
+.switch { width: 46px; height: 28px; border-radius: 999px; border: 0; background: var(--line); position: relative; padding: 0; transition: background .2s; }
+.switch span { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .2s; }
+.switch[aria-checked="true"] { background: var(--green); }
+.switch[aria-checked="true"] span { transform: translateX(18px); }
+.sentence { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.stepper button { border: 0; background: transparent; width: 32px; height: 32px; font-size: 18px; font-weight: 700; color: var(--muted); }
+.stepper button:hover { color: var(--ink); background: var(--surface-2); }
+.stepper output { min-width: 28px; text-align: center; font-size: 20px; font-weight: 700; }
+.unit { color: var(--muted); font-size: 14px; font-weight: 600; }
+.plist { display: grid; gap: 8px; }
+.prow { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); padding: 8px; display: grid; gap: 6px; min-width: 0; }
+.prow-top { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+.prow-top input[type=text] { flex: 1 1 0; width: 0; min-width: 0; font: inherit; font-weight: 600; padding: 6px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.xbtn { border: 0; background: transparent; width: 30px; height: 30px; border-radius: 8px; color: var(--muted); }
+.xbtn:hover { background: var(--surface); color: var(--red); }
+.avgrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 0 4px; }
+.avgrow input[type=range] { width: 100%; accent-color: var(--red); }
+.avgrow .avgval { font-size: 20px; min-width: 30px; text-align: right; }
+.avgrow .co { white-space: nowrap; }
+.addrow { display: flex; gap: 8px; }
+.addb { flex: 1; border: 1px dashed var(--line); background: transparent; border-radius: 10px; padding: 8px; font-weight: 600; color: var(--muted); }
+.addb:hover { border-color: var(--muted); color: var(--ink); }
+.howto { border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; background: var(--surface-2); }
+.howto summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 11px 0; list-style-position: inside; }
+.howto p { margin: 0 0 12px; font-size: 14px; }
+.setup-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--line); background: var(--surface); }
+.setup-foot .go { padding-inline: 22px; }
+@media (max-width: 480px) {
+  .setup-head { padding: 14px 16px 12px; }
+  .setup-head .tile { width: 48px; height: 48px; border-radius: 12px; font-size: 24px; }
+  .setup-body { padding: 12px 14px; }
+  .setup-foot { padding: 10px 14px; }
+  .avgrow .co { display: none; }
+}
 .gcard .gname, .gcard .gdesc, .gcard .gmeta { grid-column: 2; }
 .resume {
   background: radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--felt) 70%, #fff 8%), transparent 60%), linear-gradient(150deg, var(--felt), var(--felt-2));
@@ -2231,21 +2307,27 @@ function inProgress() {
   return S.matchWinner == null && S.legs.some(l => l.visits.length);
 }
 function modeTitle(mode) { return mode === 'x01' ? `${S.settings.start || 501}` : GAMES[mode].title; }
-// A small dartboard with some segments lit, for the menu cards, the logo and dialog headers
-const MINI_LIGHT = {
-  logo: () => true,
-  x01: (n, r) => (n === 20 && r === 'T') || r === 'D',
-  cricket: n => n >= 15,
-  killer: (n, r) => r === 'D' && [3, 7, 11, 14, 18].includes(n),
-  shanghai: n => n <= 7,
-  halveit: (n, r) => n === 20 || r === 'T',
-  c121: (n, r) => (n === 20 && r === 'T') || (n === 11 && r === 'T') || (n === 14 && r === 'D'),
-  atc: (n, r) => r === 'S' || n === 25,
-  bobs27: (n, r) => r === 'D' || r === 'DB',
-  doubles: (n, r) => r === 'D',
-  singles: (n, r) => r === 'S',
-  score: n => n === 20,
+// The logo: a small full-colour dartboard
+const MINI_LIGHT = { logo: () => true };
+// Each game's tile: a glyph that says what the game is about, on a board colour
+const HEART = '<svg viewBox="0 0 24 22" aria-hidden="true"><path d="M12 21.2 10.6 20C5.4 15.3 2 12.2 2 8.4 2 5.3 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.3 22 8.4c0 3.8-3.4 6.9-8.6 11.6L12 21.2z" fill="currentColor"/></svg>';
+const TILES = {
+  x01: ['felt', '501'],
+  cricket: ['black', () => markSVG(3)],
+  killer: ['red', () => `<span class="hearts">${HEART.repeat(3)}</span>`],
+  shanghai: ['black', '<span class="sm">S·D·T</span>'],
+  halveit: ['cream', '½'],
+  c121: ['green', '121'],
+  atc: ['black', '<span class="sm">1→20</span>'],
+  bobs27: ['red', '27'],
+  doubles: ['green', 'D'],
+  singles: ['cream', 'S'],
+  score: ['black', '180'],
 };
+function gameTile(mode) {
+  const [bg, glyph] = TILES[mode] || ['black', '?'];
+  return `<span class="tile tile-${bg}" aria-hidden="true">${typeof glyph === 'function' ? glyph() : glyph}</span>`;
+}
 const miniCache = {};
 function miniBoard(kind) {
   if (miniCache[kind]) return miniCache[kind];
@@ -2273,7 +2355,7 @@ function renderMenu() {
     const [lo, hi] = limitsFor(mode), best = getBest(mode);
     const who = hi === 1 ? 'Solo' : lo === hi ? `${lo} players` : `${lo}–${hi} players`;
     const bots = PLAYER_LIMITS[mode] ? ' · bots' : '';
-    return `<button class="gcard" type="button" data-menu="${mode}">${miniBoard(mode)}<span class="gname">${title}</span><span class="gdesc">${desc}</span><span class="gmeta"><span>${who}${bots}</span>${best != null ? `<span class="pb">Best ${best}</span>` : ''}</span></button>`;
+    return `<button class="gcard" type="button" data-menu="${mode}">${gameTile(mode)}<span class="gname">${title}</span><span class="gdesc">${desc}</span><span class="gmeta"><span>${who}${bots}</span>${best != null ? `<span class="pb">Best ${best}</span>` : ''}</span></button>`;
   }).join('')}</div></section>`).join('');
 }
 function goMenu() {
@@ -2294,7 +2376,9 @@ function openSetup(mode) {
   if (list.length > hi) list = list.slice(0, hi);
   while (list.length < lo) list.push({ name: 'Bot', type: 'bot', avg: 50 });
   const ov = $('overlay');
-  const avgText = a => `Average ${a} · checks out about ${Math.round(E.profileFor(a).co)}% at a double`;
+  const title = mode === 'x01' ? 'X01' : G.title;
+  const desc = MENU.flatMap(([, items]) => items).find(([m]) => m === mode)?.[2] || '';
+  const coText = a => `checks out ~${Math.round(E.profileFor(a).co)}%`;
   const renumber = () => {
     // Give duplicate default names a number: Bot, Bot 2, Bot 3…
     const seen = {};
@@ -2305,81 +2389,117 @@ function openSetup(mode) {
       p.name = seen[base] === 1 && base === 'Bot' ? 'Bot' : `${base} ${base === 'Player' ? list.indexOf(p) + 1 : seen[base]}`;
     });
   };
-  const rowHTML = (p, i) => `<div class="prow">
-      <div class="prow-top">
-        <input type="text" id="pn${i}" maxlength="16" value="${esc(p.name)}" aria-label="Player ${i + 1} name">
-        ${i > 0 ? `<div class="opts">${[['human', 'Human'], ['bot', 'Bot']].map(([v, l]) => `<button type="button" class="opt" data-set="ptype" data-i="${i}" data-v="${v}" aria-pressed="${p.type === v}">${l}</button>`).join('')}</div>` : '<span class="hint">Player 1</span>'}
-        ${i > 0 && list.length > lo ? `<button type="button" class="opt" data-set="premove" data-i="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : ''}
-      </div>
-      ${p.type === 'bot' ? `<label class="label" for="pa${i}">${avgText(p.avg)}</label><input type="range" id="pa${i}" data-i="${i}" min="${E.AVG_MIN}" max="${E.AVG_MAX}" step="1" value="${p.avg}">` : ''}
-    </div>`;
-  // A row of option buttons; scope 'x01' writes match settings, 'game' writes this game's options
-  const optRow = (label, key, choices, cur, scope) => `<div class="field"><span class="label">${label}</span><div class="opts">${choices.map(([v, l]) =>
-    `<button type="button" class="opt" data-set="o" data-scope="${scope}" data-key="${key}" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${l}</button>`).join('')}</div></div>`;
+
+  // ---- controls: one line per setting ----
+  // Two on/off choices become a switch; short choice lists a segmented control; long ones a dropdown.
+  const attrs = (scope, key) => `data-set="o" data-scope="${scope}" data-key="${key}"`;
+  const control = (label, key, choices, cur, scope) => {
+    const vals = choices.map(c => String(c[0]));
+    if (choices.length === 2 && ((vals.includes('on') && vals.includes('off')) || (vals.includes('true') && vals.includes('false')))) {
+      const on = String(cur) === 'on' || String(cur) === 'true';
+      const next = vals.includes('on') ? (on ? 'off' : 'on') : String(!on);
+      return `<button type="button" class="switch" role="switch" aria-checked="${on}" aria-label="${esc(label)}" ${attrs(scope, key)} data-v="${next}"><span></span></button>`;
+    }
+    const long = choices.length > 4 || choices.reduce((a, c) => a + String(c[1]).length, 0) > 28;
+    if (long) return `<select id="sel-${key}" ${attrs(scope, key)}>${choices.map(([v, l]) => `<option value="${v}" ${String(cur) === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+    return `<div class="seg" role="group" aria-label="${esc(label)}">${choices.map(([v, l]) => `<button type="button" class="segb" ${attrs(scope, key)} data-v="${v}" aria-pressed="${String(cur) === String(v)}">${l}</button>`).join('')}</div>`;
+  };
+  const row = (label, inner, forId = '') => `<div class="srow">${forId ? `<label class="slabel" for="${forId}">${label}</label>` : `<span class="slabel">${label}</span>`}<div class="sctl">${inner}</div></div>`;
+  const stepper = (key, value, unit) => `<span class="stepper"><button type="button" data-set="step" data-key="${key}" data-v="-1" aria-label="Fewer">−</button><output class="num" aria-live="polite">${value}</output><button type="button" data-set="step" data-key="${key}" data-v="1" aria-label="More">+</button></span>${unit ? `<span class="unit">${unit}</span>` : ''}`;
+
   const x01HTML = () => {
     const custom = ![301, 501, 701].includes(st.start);
-    const counts = st.kind === 'bestOf' ? range(0, 10).map(k => 2 * k + 1) : range(1, 15);
-    return optRow('Start score', 'startPick', [[301, '301'], [501, '501'], [701, '701'], ['custom', 'Custom']], custom ? 'custom' : st.start, 'x01')
-      + (custom ? `<div class="field"><label class="label" for="startIn">Custom start score (2 to 9999)</label><input type="number" id="startIn" min="2" max="9999" step="1" value="${st.start}"></div>` : '')
-      + optRow('Start rule', 'inRule', [['straight', 'Straight in'], ['double', 'Double in'], ['master', 'Master in']], st.inRule, 'x01')
-      + optRow('Finish rule', 'out', [['single', 'Straight out'], ['double', 'Double out'], ['master', 'Master out']], st.out, 'x01')
-      + optRow('Play in', 'unit', [['legs', 'Legs'], ['sets', 'Sets']], st.unit, 'x01')
-      + optRow('Format', 'kind', [['firstTo', 'First to'], ['bestOf', 'Best of']], st.kind, 'x01')
-      + `<div class="field"><label class="label" for="countSel">${st.kind === 'bestOf' ? 'Best of' : 'First to'}</label><select id="countSel">${counts.map(c => `<option value="${c}" ${st.count === c ? 'selected' : ''}>${c} ${st.unit === 'sets' ? 'set' : 'leg'}${c > 1 ? 's' : ''}</option>`).join('')}</select></div>`
-      + (st.unit === 'sets' ? `<div class="field"><label class="label" for="setLegsSel">Each set is first to</label><select id="setLegsSel">${range(1, 6).map(c => `<option value="${c}" ${st.setLegs === c ? 'selected' : ''}>${c} leg${c > 1 ? 's' : ''}</option>`).join('')}</select></div>` : '')
-      + optRow('Two clear legs', 'twoClear', [[false, 'Off'], [true, 'On']], st.twoClear, 'x01')
-      + optRow('Throws first', 'first', [['p1', 'Player 1'], ['random', 'Random']], st.first, 'x01');
+    const unitWord = (c, u) => `${u}${c > 1 ? 's' : ''}`;
+    return row('Start score', control('Start score', 'startPick', [[301, '301'], [501, '501'], [701, '701'], ['custom', 'Custom']], custom ? 'custom' : st.start, 'x01'))
+      + (custom ? row('Custom score', `<input type="number" id="startIn" min="2" max="9999" step="1" value="${st.start}">`, 'startIn') : '')
+      + row('In', control('In', 'inRule', [['straight', 'Straight'], ['double', 'Double'], ['master', 'Master']], st.inRule, 'x01'))
+      + row('Out', control('Out', 'out', [['single', 'Straight'], ['double', 'Double'], ['master', 'Master']], st.out, 'x01'))
+      + row('Match', `<span class="sentence"><select ${attrs('x01', 'kind')} aria-label="Match format"><option value="firstTo" ${st.kind === 'firstTo' ? 'selected' : ''}>First to</option><option value="bestOf" ${st.kind === 'bestOf' ? 'selected' : ''}>Best of</option></select>${stepper('count', st.count, '')}<select ${attrs('x01', 'unit')} aria-label="Legs or sets"><option value="legs" ${st.unit === 'legs' ? 'selected' : ''}>${unitWord(st.count, 'leg')}</option><option value="sets" ${st.unit === 'sets' ? 'selected' : ''}>${unitWord(st.count, 'set')}</option></select></span>`)
+      + (st.unit === 'sets' ? row('Each set', `<span class="sentence"><span class="unit">first to</span>${stepper('setLegs', st.setLegs, unitWord(st.setLegs, 'leg'))}</span>`) : '')
+      + row('Two clear legs', control('Two clear legs', 'twoClear', [[false, 'Off'], [true, 'On']], st.twoClear, 'x01'))
+      + row('Throws first', control('Throws first', 'first', [['p1', 'Player 1'], ['random', 'Random']], st.first, 'x01'));
   };
-  const gameHTML = () => (G?.options || []).map(d => optRow(d.label, d.key, d.choices, st.opts[mode]?.[d.key] ?? d.def, 'game')).join('');
+  const gameHTML = () => (G?.options || []).map(d => { const c = control(d.label, d.key, d.choices, st.opts[mode]?.[d.key] ?? d.def, 'game'); return row(d.label, c, c.startsWith('<select') ? `sel-${d.key}` : ''); }).join('');
+
+  const playerHTML = (p, i) => `<div class="prow${p.type === 'bot' ? ' isbot' : ''}">
+      <div class="prow-top">
+        <input type="text" id="pn${i}" maxlength="16" value="${esc(p.name)}" aria-label="Player ${i + 1} name">
+        ${i > 0 ? `<div class="seg small" role="group" aria-label="Player ${i + 1} type">${[['human', 'Human'], ['bot', 'Bot']].map(([v, l]) => `<button type="button" class="segb" data-set="ptype" data-i="${i}" data-v="${v}" aria-pressed="${p.type === v}">${l}</button>`).join('')}</div>` : ''}
+        ${i > 0 && list.length > lo ? `<button type="button" class="xbtn" data-set="premove" data-i="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : ''}
+      </div>
+      ${p.type === 'bot' ? `<div class="avgrow"><label class="unit" for="pa${i}">Avg</label><input type="range" id="pa${i}" data-i="${i}" min="${E.AVG_MIN}" max="${E.AVG_MAX}" step="1" value="${p.avg}"><b class="num avgval">${p.avg}</b><span class="hint co">${coText(p.avg)}</span></div>` : ''}
+    </div>`;
+
   const draw = () => {
     const x01 = mode === 'x01';
-    ov.innerHTML = `<form class="dialog" id="setupForm" aria-label="${esc(x01 ? 'X01' : G.title)} setup"><h3>${miniBoard(mode)}${esc(x01 ? 'X01' : G.title)}</h3>
-      ${x01 ? x01HTML() : gameHTML()}
-      <div class="field"><span class="label">${hi === 1 ? 'Player' : `Players (${lo === hi ? lo : `${lo}–${hi}`})`}</span>
-        <div class="plist">${list.map(rowHTML).join('')}</div>
-        ${list.length < hi ? `<div class="opts"><button type="button" class="opt" data-set="padd" data-v="bot">+ Add bot</button><button type="button" class="opt" data-set="padd" data-v="human">+ Add player</button></div>` : ''}
+    const rules = x01 ? x01HTML() : gameHTML();
+    const howto = !x01 ? `<details class="howto"><summary>How to play</summary><p class="rules">${G.rules}</p></details>` : '';
+    ov.innerHTML = `<form class="dialog setup" id="setupForm" aria-label="${esc(title)} setup">
+      <header class="setup-head">${gameTile(mode)}<div><h3>${esc(title)}</h3><p>${esc(desc)}</p></div></header>
+      <div class="setup-body">
+        ${rules || howto ? `<section class="setup-col"><h4 class="label">Rules</h4><div class="srows">${rules}</div>${howto}</section>` : ''}
+        <section class="setup-col"><h4 class="label">${hi === 1 ? 'Player' : `Players · ${lo === hi ? lo : `${lo}–${hi}`}`}</h4>
+          <div class="plist">${list.map(playerHTML).join('')}</div>
+          ${list.length < hi ? `<div class="addrow"><button type="button" class="addb" data-set="padd" data-v="bot">+ Bot</button><button type="button" class="addb" data-set="padd" data-v="human">+ Player</button></div>` : ''}
+        </section>
       </div>
-      ${!x01 ? `<p class="rules">${G.rules}</p>` : ''}
-      <div class="actions"><button type="button" class="btn" data-act="cancel">Cancel</button><button type="submit" class="btn primary">Start</button></div></form>`;
+      <footer class="setup-foot"><button type="button" class="btn" data-act="cancel">Cancel</button><button type="submit" class="btn primary go">Start ${esc(title)}</button></footer></form>`;
   };
   const sync = () => {
     if (!$('setupForm')) return;
-    if ($('countSel')) st.count = +$('countSel').value;
-    if ($('setLegsSel')) st.setLegs = +$('setLegsSel').value;
     if ($('startIn')) { const v = Math.round(+$('startIn').value); st.start = v >= 2 && v <= 9999 ? v : 501; }
     list.forEach((p, i) => {
       const nm = $('pn' + i); if (nm) p.name = nm.value.trim() || (i === 0 ? 'You' : p.type === 'bot' ? 'Bot' : `Player ${i + 1}`);
       const av = $('pa' + i); if (av) p.avg = +av.value;
     });
   };
+  const applyOpt = (scope, key, v) => {
+    const val = v === 'true' ? true : v === 'false' ? false : /^-?\d+$/.test(v) ? +v : v;
+    if (scope === 'game') st.opts[mode] = { ...(st.opts[mode] || {}), [key]: val };
+    else if (key === 'startPick') st.start = val === 'custom' ? ([301, 501, 701].includes(st.start) ? 1001 : st.start) : val;
+    else if (key === 'kind' && val !== st.kind) { st.count = val === 'bestOf' ? Math.min(21, 2 * st.count - 1) : Math.floor(st.count / 2) + 1; st.kind = val; }
+    else st[key] = val;
+  };
+  const redraw = focusSel => {
+    const body = ov.querySelector('.setup-body'), top = body ? body.scrollTop : 0;
+    draw();
+    const nb = ov.querySelector('.setup-body'); if (nb) nb.scrollTop = top;
+    (focusSel && ov.querySelector(focusSel) || ov.querySelector('[type=submit]'))?.focus();
+  };
   draw();
   ov.hidden = false; dialogOpen = true;
-  const close = () => { ov.hidden = true; ov.innerHTML = ''; ov.onclick = ov.oninput = ov.onsubmit = null; dialogOpen = false; dialogKey = null; };
+  const close = () => { ov.hidden = true; ov.innerHTML = ''; ov.onclick = ov.oninput = ov.onsubmit = ov.onchange = null; dialogOpen = false; dialogKey = null; };
   ov.onclick = e => {
     const b = e.target.closest('button');
     if (!b) { if (e.target === ov) close(); return; }
-    if (b.dataset.set) {
-      sync();
-      const v = b.dataset.v, i = +b.dataset.i, set = b.dataset.set;
-      if (set === 'o') {
-        const key = b.dataset.key, val = v === 'true' ? true : v === 'false' ? false : /^-?\d+$/.test(v) ? +v : v;
-        if (b.dataset.scope === 'game') st.opts[mode] = { ...(st.opts[mode] || {}), [key]: val };
-        else if (key === 'startPick') st.start = val === 'custom' ? ([301, 501, 701].includes(st.start) ? 1001 : st.start) : val;
-        else if (key === 'kind' && val !== st.kind) { st.count = val === 'bestOf' ? Math.min(21, 2 * st.count - 1) : Math.floor(st.count / 2) + 1; st.kind = val; }
-        else st[key] = val;
-      }
-      if (set === 'ptype') { list[i].type = v; if (isDefaultName(list[i].name)) list[i].name = v === 'bot' ? 'Bot' : 'Player'; renumber(); }
-      if (set === 'premove') { list.splice(i, 1); renumber(); }
-      if (set === 'padd') { list.push({ name: v === 'bot' ? 'Bot' : 'Player', type: v, avg: 50 }); renumber(); }
-      draw();
-      (ov.querySelector(`[data-set="${set}"][data-v="${v}"]${set === 'ptype' ? `[data-i="${i}"]` : set === 'o' ? `[data-key="${b.dataset.key}"]` : ''}`) || ov.querySelector('[type=submit]'))?.focus();
-    } else if (b.dataset.act === 'cancel') close();
+    if (!b.dataset.set) { if (b.dataset.act === 'cancel') close(); return; }
+    sync();
+    const v = b.dataset.v, i = +b.dataset.i, set = b.dataset.set, key = b.dataset.key;
+    if (set === 'o') applyOpt(b.dataset.scope, key, v);
+    if (set === 'step') {
+      const d = +v;
+      if (key === 'count') st.count = st.kind === 'bestOf' ? Math.max(1, Math.min(21, st.count + 2 * d)) : Math.max(1, Math.min(15, st.count + d));
+      if (key === 'setLegs') st.setLegs = Math.max(1, Math.min(6, st.setLegs + d));
+    }
+    if (set === 'ptype') { list[i].type = v; if (isDefaultName(list[i].name)) list[i].name = v === 'bot' ? 'Bot' : 'Player'; renumber(); }
+    if (set === 'premove') { list.splice(i, 1); renumber(); }
+    if (set === 'padd') { list.push({ name: v === 'bot' ? 'Bot' : 'Player', type: v, avg: 50 }); renumber(); }
+    redraw(set === 'o' ? `[data-key="${key}"]${b.classList.contains('switch') ? '' : `[data-v="${v}"]`}` : set === 'step' ? `[data-set="step"][data-key="${key}"][data-v="${v}"]` : set === 'ptype' ? `[data-set="ptype"][data-i="${i}"][data-v="${v}"]` : null);
+  };
+  ov.onchange = e => {
+    const t = e.target;
+    if (t.tagName !== 'SELECT' || t.dataset.set !== 'o') return;
+    sync();
+    applyOpt(t.dataset.scope, t.dataset.key, t.value);
+    redraw(`select[data-key="${t.dataset.key}"]`);
   };
   ov.oninput = e => {
     if (!e.target.id.startsWith('pa')) return;
-    const i = +e.target.dataset.i;
-    list[i].avg = +e.target.value;
-    e.target.previousElementSibling.textContent = avgText(list[i].avg);
+    const i = +e.target.dataset.i, a = +e.target.value;
+    list[i].avg = a;
+    const r = e.target.closest('.avgrow');
+    r.querySelector('.avgval').textContent = a;
+    r.querySelector('.co').textContent = coText(a);
   };
   ov.onsubmit = e => {
     e.preventDefault(); sync();
