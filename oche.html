@@ -1,22 +1,36 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Oche Scorer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=Caveat:wght@500;700&display=swap">
 <style>
-/* Layout: a pub-side scoreboard — players and keypad on the left, the board and the chalker's sheet on the right; stacks on phones. */
+/* Layout: a pub oche — players and keypad on the left; the board under a spotlight and the chalker's board on the right; stacks on phones.
+   Palette comes from the dartboard itself: felt green for whoever is throwing, board red for actions, board cream for numerals. */
 :root {
-  --bg: #eef1ed;
+  --bg: #eceee9;
+  --glow: rgba(255, 255, 255, .9);
   --surface: #ffffff;
-  --surface-2: #f6f8f5;
-  --ink: #131915;
-  --muted: #5a665f;
-  --line: #d6ddd7;
-  --red: #b8222c;
-  --green: #0d7340;
+  --surface-2: #f3f5f1;
+  --ink: #141a17;
+  --muted: #5b6761;
+  --line: #dce1dc;
+  --red: #bf2731;
+  --red-2: #9e1c25;
+  --green: #11804a;
   --on-ink: #f4f7f4;
   --warn: #9a5b00;
+  --felt: #17573d;
+  --felt-2: #0e3a28;
+  --on-felt: #f6eed6;
+  --cream: #efe2bd;
+  --wall: #e3e7e1;
+  --spot: rgba(255, 255, 255, .95);
+  --chalk-bg: #1f2725;
+  --chalk: #eef3ee;
+  --chalk-dim: #9fb1a7;
+  --shadow: 0 1px 2px rgba(20, 26, 23, .06), 0 8px 24px -16px rgba(20, 26, 23, .25);
   --board-black: #1b1d1c;
   --board-cream: #e8dcbc;
   --board-red: #c6262f;
@@ -28,20 +42,24 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0e1210; --surface: #161b18; --surface-2: #1c2320; --ink: #e7ede8; --muted: #94a199;
-    --line: #2a332e; --red: #ec5c64; --green: #43b97a; --on-ink: #0e1210; --warn: #e3a64a;
+    --bg: #0b100e; --glow: rgba(239, 226, 189, .07); --surface: #141b18; --surface-2: #1a231f; --ink: #e9eee9; --muted: #93a19a;
+    --line: #24302a; --red: #e04850; --red-2: #b82a32; --green: #3cb77a; --on-ink: #0e1210; --warn: #e3a64a;
+    --felt: #1a6146; --felt-2: #0e3b29; --wall: #0e1412; --spot: rgba(255, 236, 196, .13); --chalk-bg: #1a2220;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -18px rgba(0, 0, 0, .8);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0e1210; --surface: #161b18; --surface-2: #1c2320; --ink: #e7ede8; --muted: #94a199;
-  --line: #2a332e; --red: #ec5c64; --green: #43b97a; --on-ink: #0e1210; --warn: #e3a64a;
+  --bg: #0b100e; --glow: rgba(239, 226, 189, .07); --surface: #141b18; --surface-2: #1a231f; --ink: #e9eee9; --muted: #93a19a;
+  --line: #24302a; --red: #e04850; --red-2: #b82a32; --green: #3cb77a; --on-ink: #0e1210; --warn: #e3a64a;
+  --felt: #1a6146; --felt-2: #0e3b29; --wall: #0e1412; --spot: rgba(255, 236, 196, .13); --chalk-bg: #1a2220;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -18px rgba(0, 0, 0, .8);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body {
-  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45;
+  background: radial-gradient(1100px 420px at 50% -160px, var(--glow), transparent 70%) no-repeat, var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 16px 40px;
 }
@@ -52,29 +70,37 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 
 .wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 16px; }
 header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.brand h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: .02em; margin: 0; text-transform: uppercase; }
-.brand h1 span { color: var(--red); }
+.brand { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: .06em; margin: 0; text-transform: uppercase; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.brand .logo svg { width: 30px; height: 30px; display: block; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .3)); }
+.brand h1 .dot { color: var(--red); }
 .meta { color: var(--muted); font-size: 14px; }
 .btn {
-  border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; font-weight: 600;
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 8px 16px; font-weight: 600;
+  box-shadow: var(--shadow); transition: border-color .15s, transform .15s;
 }
 .btn:hover { border-color: var(--muted); }
+.btn:active { transform: translateY(1px); }
 .btn.primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 
 .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
 .col { display: grid; gap: 16px; min-width: 0; }
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; box-shadow: var(--shadow); }
 
 /* Scoreboard */
 .players { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .player {
-  border-radius: var(--radius); padding: 14px 14px 12px; background: var(--surface); border: 1px solid var(--line);
-  display: grid; gap: 4px; min-width: 0; transition: background .2s, color .2s;
+  border-radius: 14px; padding: 14px 16px 12px; background: var(--surface); border: 1px solid var(--line);
+  display: grid; gap: 4px; min-width: 0; transition: background .25s, color .25s, box-shadow .25s; box-shadow: var(--shadow);
 }
-.player.active { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
-.player.active .label, .player.active .sub { color: color-mix(in srgb, var(--on-ink) 70%, transparent); }
+.player .rem { color: color-mix(in srgb, var(--ink) 55%, transparent); transition: color .25s; }
+.player.active {
+  background: radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--felt) 70%, #fff 8%), transparent 70%), linear-gradient(160deg, var(--felt), var(--felt-2));
+  color: var(--on-felt); border-color: transparent; box-shadow: 0 14px 34px -16px rgba(9, 40, 27, .8), inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+.player.active .rem { color: var(--on-felt); text-shadow: 0 2px 0 rgba(0, 0, 0, .25); }
+.player.active .label, .player.active .sub { color: color-mix(in srgb, var(--on-felt) 72%, transparent); }
 .player .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .player .name { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pips { display: flex; gap: 4px; flex-shrink: 0; }
@@ -82,11 +108,11 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .pip.on { background: var(--red); border-color: var(--red); opacity: 1; }
 .setnum { font-family: var(--font-display); font-weight: 700; font-size: 16px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; display: inline-grid; place-items: center; line-height: 1; }
 .player .rem { font-size: clamp(64px, 11vw, 96px); line-height: .95; font-weight: 700; letter-spacing: -.01em; }
-.player .route { font-family: var(--font-display); font-weight: 600; font-size: 18px; letter-spacing: .03em; min-height: 24px; color: var(--green); }
-.player.active .route { color: color-mix(in srgb, var(--green) 55%, var(--on-ink)); }
+.player .route { font-family: var(--font-display); font-weight: 600; font-size: 16px; letter-spacing: .03em; min-height: 26px; color: var(--muted); display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.player.active .route { color: var(--on-felt); }
 .player .sub { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
 .player .sub b { font-family: var(--font-display); font-size: 16px; font-weight: 600; color: inherit; }
-.player.active .sub b { color: var(--on-ink); }
+.player.active .sub b { color: var(--on-felt); }
 .thinking { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
 .thinking::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--red); animation: blink 1s infinite; vertical-align: middle; }
 @keyframes blink { 50% { opacity: .15; } }
@@ -95,28 +121,32 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .entry { display: grid; gap: 12px; }
 .readout {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line);
-  background: var(--surface-2); border-radius: 8px; padding: 6px 14px; min-height: 64px;
+  background: var(--surface-2); border-radius: 12px; padding: 6px 16px; min-height: 70px; box-shadow: inset 0 2px 6px rgba(0, 0, 0, .08);
 }
-.readout .val { font-size: 46px; font-weight: 700; line-height: 1; }
+.readout .val { font-size: 52px; font-weight: 700; line-height: 1; }
 .readout .val.empty { color: var(--muted); font-size: 22px; font-weight: 500; font-family: var(--font-body); }
 .readout .who { text-align: right; font-size: 13px; color: var(--muted); }
 .msg { min-height: 20px; font-size: 13.5px; color: var(--red); font-weight: 500; }
 .quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .chip {
-  border: 1px solid var(--line); background: var(--surface-2); border-radius: 7px; padding: 8px 4px;
-  font-family: var(--font-display); font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums;
+  border: 1px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 7px 4px;
+  font-family: var(--font-display); font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; transition: border-color .15s, background .15s;
 }
-.chip:hover:not(:disabled) { border-color: var(--muted); }
-.chip.co { background: var(--green); color: #fff; border-color: var(--green); font-size: 16px; }
+.chip:hover:not(:disabled) { border-color: var(--muted); background: var(--surface); }
+.chip.co { background: linear-gradient(180deg, color-mix(in srgb, var(--green) 85%, #fff), var(--green)); color: #fff; border-color: var(--green); font-size: 16px; }
 .chip.zero { font-size: 15px; }
 .keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .key {
-  border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 12px 0;
-  font-family: var(--font-display); font-size: 28px; font-weight: 600;
+  border: 1px solid var(--line); background: linear-gradient(180deg, var(--surface), var(--surface-2)); border-radius: 12px; padding: 12px 0;
+  font-family: var(--font-display); font-size: 30px; font-weight: 600; box-shadow: inset 0 -3px 0 var(--line), 0 1px 2px rgba(0, 0, 0, .06);
+  transition: transform .06s, box-shadow .06s;
 }
 .key:hover:not(:disabled) { background: var(--surface-2); }
-.key:active:not(:disabled) { transform: translateY(1px); }
-.key.ok { background: var(--red); color: #fff; border-color: var(--red); font-size: 22px; letter-spacing: .05em; text-transform: uppercase; }
+.key:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 -1px 0 var(--line); }
+.key.ok {
+  background: linear-gradient(180deg, var(--red), var(--red-2)); color: #fff; border-color: var(--red-2); font-size: 22px; letter-spacing: .08em; text-transform: uppercase;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .25), 0 6px 16px -8px var(--red);
+}
 .key.fn { font-size: 18px; color: var(--muted); }
 button:disabled { opacity: .45; cursor: not-allowed; }
 .row-actions { display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; align-items: center; }
@@ -124,14 +154,17 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 kbd { font-family: var(--font-body); font-size: 11.5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
 
 /* Board */
-.board-panel { display: grid; gap: 10px; justify-items: center; }
+.board-panel {
+  display: grid; gap: 12px; justify-items: center;
+  background: radial-gradient(closest-side at 50% 52%, var(--spot), transparent 100%) no-repeat center / 115% 92%, var(--wall);
+}
 .board-panel .cap { width: 100%; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
 .cap-route { font-family: var(--font-display); font-weight: 600; font-size: 18px; letter-spacing: .03em; }
-svg.board { width: 100%; max-width: 360px; height: auto; display: block; }
+svg.board { width: 100%; max-width: 380px; height: auto; display: block; filter: drop-shadow(0 18px 26px rgba(0, 0, 0, .35)); }
 svg.board .seg { stroke: var(--board-wire); stroke-width: .7; transition: opacity .25s; }
 svg.board.focus .seg:not(.hl) { opacity: .28; }
 svg.board .seg.hl { stroke: #fff; stroke-width: 2.2; }
-svg.board .n { fill: #f1f1ee; font-family: var(--font-display); font-weight: 600; font-size: 17px; text-anchor: middle; dominant-baseline: central; }
+svg.board .n { fill: #f3e9cc; font-family: var(--font-display); font-weight: 600; font-size: 18px; text-anchor: middle; dominant-baseline: central; }
 svg.board .dart { animation: land .35s ease-out both; }
 @keyframes land { from { opacity: 0; transform: scale(2.2); } to { opacity: 1; transform: scale(1); } }
 .darts-legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); width: 100%; }
@@ -259,6 +292,86 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .prow-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .prow-top input[type=text] { flex: 1 1 140px; width: auto; min-width: 0; }
 .prow input[type=range] { width: 100%; accent-color: var(--red); }
+/* ===== Design pass ===== */
+/* Route chips: one per dart, coloured like the ring it aims at */
+.rchip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: .03em; border: 1px solid transparent; line-height: 1.4; }
+.rchip.r-T { background: var(--board-red); color: #fff; }
+.rchip.r-D { background: var(--board-green); color: #fff; }
+.rchip.r-S { background: var(--board-cream); color: #1b1d1c; }
+.rchip.r-SB { background: var(--board-green); color: #fff; }
+.rchip.r-DB { background: var(--board-red); color: #fff; }
+.cap-route { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.cap-route .rchip { font-size: 17px; }
+
+/* Menu */
+.menu-hero { display: grid; gap: 6px; padding-block: 8px 2px; }
+.menu-hero h2 { font-size: clamp(34px, 6vw, 52px); line-height: 1; margin: 0; letter-spacing: .02em; }
+.menu-hero h2 span { color: var(--red); }
+.menu-hero p { margin: 0; color: var(--muted); max-width: 60ch; font-size: 15.5px; }
+.menu-sec h2 { display: flex; align-items: center; gap: 10px; font-size: 18px; color: var(--muted); }
+.menu-sec h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.gcard { grid-template-columns: 64px minmax(0, 1fr); column-gap: 14px; align-items: center; box-shadow: var(--shadow); border-radius: 16px; position: relative; overflow: hidden; }
+.gcard .mini { grid-row: 1 / span 3; width: 64px; height: 64px; transition: transform .35s ease; }
+.gcard:hover .mini { transform: rotate(-18deg) scale(1.04); }
+.gcard .gname, .gcard .gdesc, .gcard .gmeta { grid-column: 2; }
+.resume {
+  background: radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--felt) 70%, #fff 8%), transparent 60%), linear-gradient(150deg, var(--felt), var(--felt-2));
+  color: var(--on-felt); border-color: transparent;
+}
+.resume .label { color: color-mix(in srgb, var(--on-felt) 70%, transparent); }
+.resume .btn.primary { background: var(--on-felt); color: var(--felt-2); border-color: var(--on-felt); }
+
+/* Chalker's board for the X01 score sheet */
+.panel.chalk {
+  background: radial-gradient(140% 100% at 30% 0%, rgba(255, 255, 255, .06), transparent 60%), var(--chalk-bg);
+  color: var(--chalk); border-color: #2c3633; box-shadow: inset 0 0 0 6px #3a2a1c, inset 0 0 0 7px #5a4330, var(--shadow);
+  padding: 20px 22px;
+}
+.panel.chalk h2 { color: var(--chalk); }
+.panel.chalk .label { color: var(--chalk-dim); }
+.chalk table th { color: var(--chalk-dim); border-bottom-color: rgba(255, 255, 255, .14); }
+.chalk table td { border-bottom-color: rgba(255, 255, 255, .06); }
+.chalk .sheet td.sc, .chalk .sheet td.lf { font-family: "Caveat", "Comic Sans MS", cursive; font-size: 25px; font-weight: 700; line-height: 1.05; }
+.chalk .sheet td.lf { color: var(--chalk-dim); }
+.chalk .sheet td.bust { color: #ff8a8f; }
+.chalk .sheet td.out { color: #8fe0b0; }
+.chalk .sheet td.rnd { color: var(--chalk-dim); }
+.chalk .sheet .sep { border-left-color: rgba(255, 255, 255, .14); }
+
+/* Stats: the better value gets a pill */
+.stats td.best span { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); border-radius: 999px; padding: 0 8px; }
+.stats tbody tr:nth-child(odd) td { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+
+/* Game screens: the status panel is felt, like the active player */
+.ghud {
+  background: radial-gradient(120% 90% at 15% 0%, color-mix(in srgb, var(--felt) 70%, #fff 8%), transparent 70%), linear-gradient(160deg, var(--felt), var(--felt-2));
+  color: var(--on-felt); border-color: transparent;
+}
+.ghud .label, .ghud .gsub, .ghud .hint { color: color-mix(in srgb, var(--on-felt) 72%, transparent); }
+.ghud .gtarget { color: var(--on-felt); text-shadow: 0 3px 0 rgba(0, 0, 0, .25); }
+.ghud .mp { border-color: rgba(255, 255, 255, .16); background: rgba(0, 0, 0, .12); }
+.ghud .mp .mps, .ghud .mp .label { color: color-mix(in srgb, var(--on-felt) 70%, transparent); }
+.ghud .mp.on { background: var(--on-felt); color: var(--felt-2); border-color: var(--on-felt); }
+.ghud .mp.on .mps, .ghud .mp.on .label { color: color-mix(in srgb, var(--felt-2) 70%, transparent); }
+.ghud .crtab th, .ghud .crtab td { color: var(--on-felt); border-bottom-color: rgba(255, 255, 255, .1); }
+.ghud .crtab th.on { color: #ffd88a; }
+.ghud .crtab .hint { color: color-mix(in srgb, var(--on-felt) 65%, transparent); }
+.gbtn { border-radius: 12px; background: linear-gradient(180deg, var(--surface), var(--surface-2)); box-shadow: inset 0 -3px 0 var(--line); transition: transform .06s; }
+.gbtn:active:not(:disabled) { transform: translateY(2px); }
+.gbtn.good { background: linear-gradient(180deg, color-mix(in srgb, var(--green) 85%, #fff), var(--green)); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .2); }
+.cell { border-radius: 10px; background: var(--surface-2); }
+.cell.now { background: var(--surface); }
+
+/* Dialogs and toast */
+.overlay { backdrop-filter: blur(3px); }
+.dialog { border-radius: 18px; box-shadow: 0 30px 80px -30px rgba(0, 0, 0, .6); }
+.dialog h3 { display: flex; align-items: center; gap: 12px; }
+.dialog h3 .mini { width: 40px; height: 40px; flex-shrink: 0; }
+.opt { border-radius: 999px; }
+.prow { border-radius: 12px; background: var(--surface-2); }
+.toast { border-radius: 999px; padding: 10px 20px; box-shadow: 0 16px 40px -16px rgba(0, 0, 0, .6); animation: toastIn .25s ease-out; }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 @media (max-width: 480px) {
   .quick { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -270,7 +383,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <h1>Oche<span>.</span></h1>
+      <h1 id="brand" title="Main menu"><span class="logo" id="logo"></span><span>Oche<span class="dot">.</span></span></h1>
       <div class="meta" id="meta"></div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -314,7 +427,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
       </section>
       <div class="col" id="gameRight" hidden></div>
       <div class="col" id="x01Right">
-      <section class="panel">
+      <section class="panel chalk">
         <div class="h2row"><h2 id="sheetTitle">Leg 1</h2><span class="label" id="sheetNote"></span></div>
         <div class="sheet-wrap"><table class="sheet" id="sheet"></table></div>
       </section>
@@ -1689,7 +1802,10 @@ function buildBoard() {
     return `M${x1} ${y1}A${r2} ${r2} 0 0 1 ${x2} ${y2}L${x3} ${y3}A${r1} ${r1} 0 0 0 ${x4} ${y4}Z`;
   };
   const el = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
-  svg.appendChild(el('circle', { cx: 0, cy: 0, r: 199, fill: 'var(--board-black)' }));
+  svg.innerHTML = `<defs><radialGradient id="shade" cx="50%" cy="45%" r="55%"><stop offset="60%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".28"/></radialGradient>
+    <radialGradient id="rim" cx="50%" cy="40%" r="60%"><stop offset="80%" stop-color="#2a2d2c"/><stop offset="100%" stop-color="#0d0e0e"/></radialGradient></defs>`;
+  svg.appendChild(el('circle', { cx: 0, cy: 0, r: 199, fill: 'url(#rim)' }));
+  svg.appendChild(el('circle', { cx: 0, cy: 0, r: 197.5, fill: 'none', stroke: 'rgba(255,255,255,.12)', 'stroke-width': 1.5 }));
   const R = E.R;
   E.ORDER.forEach((num, i) => {
     const a1 = i * 18 - 9, a2 = i * 18 + 9, even = i % 2 === 0;
@@ -1702,6 +1818,8 @@ function buildBoard() {
   });
   svg.appendChild(el('circle', { cx: 0, cy: 0, r: R.outerBull, fill: 'var(--board-green)', class: 'seg', 'data-k': '25' }));
   svg.appendChild(el('circle', { cx: 0, cy: 0, r: R.bull, fill: 'var(--board-red)', class: 'seg', 'data-k': 'BULL' }));
+  svg.appendChild(el('circle', { cx: 0, cy: 0, r: R.doubleOut, fill: 'url(#shade)', 'pointer-events': 'none' }));
+  svg.appendChild(el('circle', { cx: 0, cy: 0, r: R.doubleOut + 0.6, fill: 'none', stroke: '#b9bcb8', 'stroke-width': 1.2, opacity: .7 }));
   const g = el('g', { id: 'dartsLayer' });
   svg.appendChild(g);
 }
@@ -1769,7 +1887,7 @@ function render() {
     return `<article class="player${p === turn ? ' active' : ''}" aria-current="${p === turn}">
       <div class="head"><span class="name">${esc(pl.name)}${tag}</span><span class="pips" title="${st.unit === 'sets' ? `Sets ${sd.sets[p]}, legs this set ${sd.legs[p]}` : `Legs won: ${sd.legs[p]}`}">${pips}</span></div>
       <div class="rem num">${rem}</div>
-      <div class="route">${route ? route.map(E.label).join(' · ') : !opened(leg, p) ? `Open on a ${st.inRule === 'master' ? 'double or treble' : 'double'}` : status}</div>
+      <div class="route">${route ? routeChips(route) : !opened(leg, p) ? `Open on a ${st.inRule === 'master' ? 'double or treble' : 'double'}` : status}</div>
       <div class="sub"><span>Avg <b>${fmt(stats[p].avg)}</b></span><span>Last <b>${last ? (last.bust ? 'Bust' : last.score) : '–'}</b></span><span>Darts <b>${legDarts}</b></span></div>
     </article>`;
   }).join('');
@@ -1815,7 +1933,7 @@ function render() {
   const showDarts = lastVisit && lastVisit.darts && lastVisit.darts.length;
   drawDarts(showDarts ? lastVisit.darts : []);
   $('boardLabel').textContent = route ? `${players()[turn].name} checkout` : turn >= 0 ? `${players()[turn].name} needs ${rem}` : 'Final visit';
-  $('boardRoute').textContent = route ? route.map(E.label).join('  ') : turn >= 0 ? (!opened(leg, turn) ? `Open on a ${st.inRule === 'master' ? 'double or treble' : 'double'}` : rem > (st.out === 'double' ? 170 : 180) ? 'Scoring – aim T20' : 'No 3-dart finish') : '';
+  $('boardRoute').innerHTML = route ? routeChips(route) : turn >= 0 ? (!opened(leg, turn) ? `Open on a ${st.inRule === 'master' ? 'double or treble' : 'double'}` : rem > (st.out === 'double' ? 170 : 180) ? 'Scoring – aim T20' : 'No 3-dart finish') : '';
   $('legend').innerHTML = showDarts
     ? `<span>${esc(players()[lastVisit.p].name)}${lastVisit.live ? ' is throwing' : "'s last visit"}:</span> ${lastVisit.darts.map((d, i) => `<span>${i + 1}. <b>${dartLabel(d)}</b></span>`).join('')} <span>= <b>${lastVisit.bust ? 'Bust' : lastVisit.score}</b></span>`
     : `<span>Highlighted segments show the suggested finish.</span>`;
@@ -1874,7 +1992,7 @@ function renderStats(stats) {
       const vals = stats.map(get);
       const known = vals.filter(v => v != null && v !== 0);
       const best = better && pl.length > 1 && known.length > 1 ? (better === 'max' ? Math.max(...known) : Math.min(...known)) : null;
-      return `<tr><td>${name}</td>${vals.map((v, i) => `<td class="${best != null && v === best ? 'best' : ''}">${show(v, stats[i])}</td>`).join('')}</tr>`;
+      return `<tr><td>${name}</td>${vals.map((v, i) => `<td class="${best != null && v === best ? 'best' : ''}"><span>${show(v, stats[i])}</span></td>`).join('')}</tr>`;
     }).join('') + '</tbody>';
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -2113,15 +2231,49 @@ function inProgress() {
   return S.matchWinner == null && S.legs.some(l => l.visits.length);
 }
 function modeTitle(mode) { return mode === 'x01' ? `${S.settings.start || 501}` : GAMES[mode].title; }
+// A small dartboard with some segments lit, for the menu cards, the logo and dialog headers
+const MINI_LIGHT = {
+  logo: () => true,
+  x01: (n, r) => (n === 20 && r === 'T') || r === 'D',
+  cricket: n => n >= 15,
+  killer: (n, r) => r === 'D' && [3, 7, 11, 14, 18].includes(n),
+  shanghai: n => n <= 7,
+  halveit: (n, r) => n === 20 || r === 'T',
+  c121: (n, r) => (n === 20 && r === 'T') || (n === 11 && r === 'T') || (n === 14 && r === 'D'),
+  atc: (n, r) => r === 'S' || n === 25,
+  bobs27: (n, r) => r === 'D' || r === 'DB',
+  doubles: (n, r) => r === 'D',
+  singles: (n, r) => r === 'S',
+  score: n => n === 20,
+};
+const miniCache = {};
+function miniBoard(kind) {
+  if (miniCache[kind]) return miniCache[kind];
+  const lit = MINI_LIGHT[kind] || (() => true), R = E.R;
+  const pt = (r, a) => { const t = a * Math.PI / 180; return [(r * Math.sin(t)).toFixed(1), (-r * Math.cos(t)).toFixed(1)]; };
+  const sector = (r1, r2, a1, a2) => { const [x1, y1] = pt(r2, a1), [x2, y2] = pt(r2, a2), [x3, y3] = pt(r1, a2), [x4, y4] = pt(r1, a1); return `M${x1} ${y1}A${r2} ${r2} 0 0 1 ${x2} ${y2}L${x3} ${y3}A${r1} ${r1} 0 0 0 ${x4} ${y4}Z`; };
+  let out = '';
+  E.ORDER.forEach((n, i) => {
+    const even = i % 2 === 0;
+    [[R.outerBull, R.trebleIn, 'S'], [R.trebleIn, R.trebleOut, 'T'], [R.trebleOut, R.doubleIn, 'S'], [R.doubleIn, R.doubleOut, 'D']].forEach(([r1, r2, ring]) => {
+      const fill = ring === 'S' ? (even ? '#1b1d1c' : '#e8dcbc') : (even ? '#c6262f' : '#12814a');
+      out += `<path d="${sector(r1, r2, i * 18 - 9, i * 18 + 9)}" fill="${fill}" opacity="${lit(n, ring) ? 1 : 0.2}"/>`;
+    });
+  });
+  out += `<circle r="${R.outerBull}" fill="#12814a" opacity="${lit(25, 'SB') ? 1 : 0.2}"/><circle r="${R.bull}" fill="#c6262f" opacity="${lit(25, 'DB') ? 1 : 0.2}"/>`;
+  return (miniCache[kind] = `<svg class="mini" viewBox="-182 -182 364 364" aria-hidden="true"><circle r="181" fill="#151716"/><circle r="180" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="2"/>${out}</svg>`);
+}
+const routeChips = route => route.map(s => `<span class="rchip r-${s.ring}">${E.label(s)}</span>`).join('');
 function renderMenu() {
   const resume = inProgress()
     ? `<section class="panel resume"><div><span class="label">Game in progress</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><button class="btn primary" type="button" data-act="continue">Continue</button></section>`
     : '';
-  $('menu').innerHTML = resume + MENU.map(([group, items]) => `<section><h2>${group}</h2><div class="cards">${items.map(([mode, title, desc]) => {
+  const hero = `<section class="menu-hero"><h2 class="num">Step up to the oche<span>.</span></h2><p>Pick a game. Play friends on this device, or bots set to any average from 20 to 120.</p></section>`;
+  $('menu').innerHTML = hero + resume + MENU.map(([group, items]) => `<section class="menu-sec"><h2>${group}</h2><div class="cards">${items.map(([mode, title, desc]) => {
     const [lo, hi] = limitsFor(mode), best = getBest(mode);
     const who = hi === 1 ? 'Solo' : lo === hi ? `${lo} players` : `${lo}–${hi} players`;
     const bots = PLAYER_LIMITS[mode] ? ' · bots' : '';
-    return `<button class="gcard" type="button" data-menu="${mode}"><span class="gname">${title}</span><span class="gdesc">${desc}</span><span class="gmeta"><span>${who}${bots}</span>${best != null ? `<span class="pb">Best ${best}</span>` : ''}</span></button>`;
+    return `<button class="gcard" type="button" data-menu="${mode}">${miniBoard(mode)}<span class="gname">${title}</span><span class="gdesc">${desc}</span><span class="gmeta"><span>${who}${bots}</span>${best != null ? `<span class="pb">Best ${best}</span>` : ''}</span></button>`;
   }).join('')}</div></section>`).join('');
 }
 function goMenu() {
@@ -2181,7 +2333,7 @@ function openSetup(mode) {
   const gameHTML = () => (G?.options || []).map(d => optRow(d.label, d.key, d.choices, st.opts[mode]?.[d.key] ?? d.def, 'game')).join('');
   const draw = () => {
     const x01 = mode === 'x01';
-    ov.innerHTML = `<form class="dialog" id="setupForm" aria-label="${esc(x01 ? 'X01' : G.title)} setup"><h3>${esc(x01 ? 'X01' : G.title)}</h3>
+    ov.innerHTML = `<form class="dialog" id="setupForm" aria-label="${esc(x01 ? 'X01' : G.title)} setup"><h3>${miniBoard(mode)}${esc(x01 ? 'X01' : G.title)}</h3>
       ${x01 ? x01HTML() : gameHTML()}
       <div class="field"><span class="label">${hi === 1 ? 'Player' : `Players (${lo === hi ? lo : `${lo}–${hi}`})`}</span>
         <div class="plist">${list.map(rowHTML).join('')}</div>
@@ -2285,6 +2437,8 @@ document.addEventListener('keydown', e => {
 });
 $('undoBtn').addEventListener('click', undo);
 $('menuBtn').addEventListener('click', goMenu);
+$('brand').addEventListener('click', () => { if (S.screen !== 'menu' && !dialogOpen) goMenu(); });
+$('logo').innerHTML = miniBoard('logo');
 $('rematchBtn').addEventListener('click', () => startMatch(S.settings));
 
 // ---------- boot ----------
