@@ -1216,7 +1216,7 @@ function shBotVisit(g, st, ctxFor) {
 
 // ---- Halve It ----
 const HI_SETS = {
-  dc: [20, 'D', 19, 'T', 18, 'DIFF', 17, 'X', 16, 'SAME', 15, 'B'],
+  standard: [20, 'D', 19, 'T', 18, 'DIFF', 17, 'X', 16, 'SAME', 15, 'B'],
   classic: [15, 16, 'D', 17, 18, 'T', 19, 20, 'B'],
 };
 const isExact = t => typeof t === 'string' && t[0] === 'X';
@@ -1343,13 +1343,13 @@ Object.assign(GAMES, {
   halveit: {
     title: 'Halve It', players: [1, 6], keypad: true,
     options: [
-      { key: 'targets', label: 'Targets', choices: [['dc', 'Standard (12 rounds)'], ['classic', 'Classic (9 rounds)'], ['random', 'Random order']], def: 'dc' },
+      { key: 'targets', label: 'Targets', choices: [['standard', 'Standard (12 rounds)'], ['classic', 'Classic (9 rounds)'], ['random', 'Random order']], def: 'standard' },
     ],
     rules: 'Everyone starts on 40 points and every round has a target. Numbers, any double, any treble and the bull score the darts that hit them. Different colours: all three darts in different board colours (black, white, red, green) scores the visit. Same colour: all three in one colour. Exactly: the three darts must total that number. Miss a round and your score is cut in half. The highest score at the end wins.',
     hint: 'Type the points the round scored, then Enter. 0 halves your score. Ctrl+Z undoes.',
     init(st) {
       const o = resolveOpts(st);
-      const list = (o.targets === 'classic' ? HI_SETS.classic : o.targets === 'random' ? shuffled(HI_SETS.dc) : HI_SETS.dc).map(t => t === 'X' ? exactTarget() : t);
+      const list = (o.targets === 'classic' ? HI_SETS.classic : o.targets === 'random' ? shuffled(HI_SETS.standard) : HI_SETS.standard).map(t => t === 'X' ? exactTarget() : t);
       return { o, targets: list, pl: st.players.map(() => ({ score: 40, halves: 0, rounds: [] })), turn: 0, round: 1, winner: null, tied: null, log: [] };
     },
     done: g => g.winner != null,
