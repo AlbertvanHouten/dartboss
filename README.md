@@ -1,6 +1,10 @@
 # Oche Scorer
 
-A darts scoring app in a single HTML file. It needs no build step and no server: open `oche.html` in a browser.
+A darts scorer and trainer that runs as a website (installable, works offline) and as an iOS app, from one source file.
+
+- **`oche.html`** is the whole game. It also opens directly in a browser, and it is the version published as a Claude artifact.
+- **`npm run build`** wraps it into `dist/`: a full web app with manifest, icons, bundled fonts and an offline cache.
+- **Capacitor** puts `dist/` into the native iOS project in `ios/`, with haptics and native storage.
 
 ## Games
 
@@ -84,7 +88,76 @@ Cricket matches league figures for club players. Above about a 75 average it fol
 
 In X01 the bot throws dart by dart at a natural pace, pausing before a double.
 
+## Project layout
+
+| Path | What it is |
+|---|---|
+| `oche.html` | The game: engine, bots, games and interface in one file |
+| `web/` | Files for the standalone app: `native.js` (iOS bridge, offline cache), `sw.js`, `manifest.webmanifest`, `privacy.html`, icons, bundled fonts |
+| `scripts/build.mjs` | Builds `dist/` from `oche.html` and `web/` |
+| `scripts/test.mjs` | Checks without a browser: scripts parse, checkout routes, bot averages, every game finishes |
+| `scripts/screenshots.mjs` | App Store screenshots of `dist/` in Chrome at Apple's sizes |
+| `scripts/make-icons.swift` | Draws the app icon, maskable icon and launch image |
+| `scripts/fetch-fonts.mjs` | Downloads the Google Fonts into `web/fonts` (Open Font License) |
+| `capacitor.config.json` | App ID, name and web directory for the iOS app |
+| `ios/` | The Xcode project (Capacitor 8, Swift Package Manager) |
+| `store/` | App Store listing text, screenshots and launch image |
+| `netlify.toml` | Web hosting config |
+
+## Commands
+
+```bash
+npm install            # once
+npm test               # quick checks
+npm run serve          # build and serve dist/ at http://127.0.0.1:8765
+npm run ios:sync       # build and copy into the iOS project
+npm run ios:open       # open the project in Xcode
+npm run screenshots    # regenerate App Store screenshots
+npm run icons          # redraw icons and launch image
+```
+
+After changing `oche.html` or anything in `web/`, run `npm run ios:sync` before building in Xcode.
+
+## Web version
+
+Hosting from a private repo, with Netlify:
+
+1. On netlify.com, choose *Add new site → Import an existing project*, and connect GitHub and the `oche-darts` repo.
+2. Netlify reads `netlify.toml`: build command `npm run build`, publish directory `dist`. Deploy.
+3. Optional: add your own domain under *Domain management*.
+
+Cloudflare Pages works the same way, with build command `npm run build` and output directory `dist`.
+
+Every push to `main` redeploys. Installed copies pick up a new version on their next launch after it has downloaded.
+
+## iOS app
+
+### Already done
+
+- Capacitor iOS project with the Haptics and Preferences plugins (Swift Package Manager, no CocoaPods)
+- App icon (1024 px, no transparency) and a dark launch screen
+- `PrivacyInfo.xcprivacy`: no tracking, no data collected, UserDefaults access declared (reason CA92.1)
+- `ITSAppUsesNonExemptEncryption = NO`, so there's no export-compliance question on upload
+- Bundle ID `com.albertvanhouten.oche`, version 1.0 (1), iPhone and iPad, iOS 15+
+- Builds and runs in the Simulator: saving to native storage and haptics checked
+- Store listing text in `store/app-store.md`, screenshots in `store/screenshots/`
+
+### Your steps (signing onwards)
+
+1. Join the Apple Developer Program at developer.apple.com ($99 a year).
+2. In App Store Connect, under *Apps → +*, create the app: name, primary language, bundle ID `com.albertvanhouten.oche` (register it first under *Certificates, IDs & Profiles → Identifiers* if it isn't listed), and SKU `oche-scorer-ios`.
+3. Run `npm run ios:sync`, then `npm run ios:open`.
+4. In Xcode, select the **App** target → *Signing & Capabilities* → tick *Automatically manage signing* and choose your **Team**.
+5. Optional: try it on your own iPhone. Connect it, pick it as the run destination, and press Run.
+6. Set the destination to *Any iOS Device (arm64)*, then choose *Product → Archive*. In the Organizer, *Distribute App → App Store Connect → Upload*.
+7. In App Store Connect, fill in the listing from `store/app-store.md`, upload the screenshots, set App Privacy to *Data Not Collected*, add the privacy policy URL (`https://<your-site>/privacy.html`), pick the build, and *Submit for Review*.
+8. Optional: test with friends first through TestFlight, using the same uploaded build.
+
+### Releasing an update
+
+Bump `MARKETING_VERSION` (for example 1.1) and `CURRENT_PROJECT_VERSION` (+1 each upload) in Xcode under the target's *General* tab, then `npm run ios:sync`, archive and upload again.
+
 ## Notes
 
-- Scores, the match in progress and personal bests are saved in your browser's local storage. Nothing leaves your device.
-- The file contains the page content only, without its own `<html>`/`<head>` wrapper, because it was written for Claude's artifact hosting. Browsers still open it fine.
+- Scores, the match in progress and personal bests are saved on the device: in browser storage on the web, and also in native storage in the iOS app. Nothing leaves the device.
+- `oche.html` contains the page content only, without its own `<html>`/`<head>` wrapper, because it was written for Claude's artifact hosting. Browsers still open it fine; `npm run build` adds the full document.

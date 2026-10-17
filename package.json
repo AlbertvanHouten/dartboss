@@ -1,0 +1,27 @@
+{
+  "name": "oche-scorer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Darts scorer and trainer for the web and iOS",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "serve": "npm run build && python3 -m http.server 8765 --bind 127.0.0.1 --directory dist",
+    "ios:sync": "npm run build && cap sync ios",
+    "ios:open": "cap open ios",
+    "icons": "swift scripts/make-icons.swift icon 1024 web/icons/icon-1024.png && swift scripts/make-icons.swift mask 512 web/icons/maskable-512.png && swift scripts/make-icons.swift splash 2732 store/splash-2732.png",
+    "fonts": "node scripts/fetch-fonts.mjs",
+    "screenshots": "npm run build && node scripts/screenshots.mjs",
+    "test": "node scripts/test.mjs"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/preferences": "^8.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
+    "puppeteer-core": "^25.14.0"
+  }
+}

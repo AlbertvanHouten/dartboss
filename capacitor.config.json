@@ -1,0 +1,11 @@
+{
+  "appId": "com.albertvanhouten.oche",
+  "appName": "Oche Scorer",
+  "webDir": "dist",
+  "backgroundColor": "#0b100e",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0b100e",
+    "allowsLinkPreview": false
+  }
+}

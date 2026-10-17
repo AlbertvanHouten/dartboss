@@ -63,7 +63,8 @@ body {
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 16px 40px;
 }
-button { font: inherit; color: inherit; cursor: pointer; }
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.keys, .quick, .gpad, .crpad, .seg, .stepper { -webkit-user-select: none; user-select: none; }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .num { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
 .label { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
@@ -75,11 +76,12 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .brand .logo svg { width: 30px; height: 30px; display: block; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .3)); }
 .brand h1 .dot { color: var(--red); }
 .meta { color: var(--muted); font-size: 14px; }
+.hbtns { display: flex; gap: 8px; flex-shrink: 0; }
 .btn {
   border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 8px 16px; font-weight: 600;
   box-shadow: var(--shadow); transition: border-color .15s, transform .15s;
 }
-.btn:hover { border-color: var(--muted); }
+@media (hover: hover) { .btn:hover { border-color: var(--muted); } }
 .btn:active { transform: translateY(1px); }
 .btn.primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 
@@ -126,13 +128,14 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .readout .val { font-size: 52px; font-weight: 700; line-height: 1; }
 .readout .val.empty { color: var(--muted); font-size: 22px; font-weight: 500; font-family: var(--font-body); }
 .readout .who { text-align: right; font-size: 13px; color: var(--muted); }
+.readout .rco { padding: 9px 16px; font-size: 18px; white-space: nowrap; }
 .msg { min-height: 20px; font-size: 13.5px; color: var(--red); font-weight: 500; }
 .quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .chip {
   border: 1px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 7px 4px;
   font-family: var(--font-display); font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; transition: border-color .15s, background .15s;
 }
-.chip:hover:not(:disabled) { border-color: var(--muted); background: var(--surface); }
+@media (hover: hover) { .chip:hover:not(:disabled) { border-color: var(--muted); background: var(--surface); } }
 .chip.co { background: linear-gradient(180deg, color-mix(in srgb, var(--green) 85%, #fff), var(--green)); color: #fff; border-color: var(--green); font-size: 16px; }
 .chip.zero { font-size: 15px; }
 .keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
@@ -141,7 +144,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   font-family: var(--font-display); font-size: 30px; font-weight: 600; box-shadow: inset 0 -3px 0 var(--line), 0 1px 2px rgba(0, 0, 0, .06);
   transition: transform .06s, box-shadow .06s;
 }
-.key:hover:not(:disabled) { background: var(--surface-2); }
+@media (hover: hover) { .key:hover:not(:disabled) { background: var(--surface-2); } }
 .key:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 -1px 0 var(--line); }
 .key.ok {
   background: linear-gradient(180deg, var(--red), var(--red-2)); color: #fff; border-color: var(--red-2); font-size: 22px; letter-spacing: .08em; text-transform: uppercase;
@@ -227,7 +230,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
   border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 14px 6px;
   font-family: var(--font-display); font-size: 24px; font-weight: 600; display: grid; justify-items: center; gap: 2px;
 }
-.gbtn:hover:not(:disabled) { border-color: var(--muted); }
+@media (hover: hover) { .gbtn:hover:not(:disabled) { border-color: var(--muted); } }
 .gbtn kbd { font-size: 10.5px; color: var(--muted); font-weight: 500; }
 .gbtn.good { background: var(--green); border-color: var(--green); color: #fff; }
 .gbtn.good kbd { color: inherit; border-color: currentColor; opacity: .85; }
@@ -263,7 +266,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
   text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius);
   padding: 16px; display: grid; gap: 6px; align-content: start; transition: border-color .15s, transform .15s;
 }
-.gcard:hover { border-color: var(--ink); transform: translateY(-1px); }
+@media (hover: hover) { .gcard:hover { border-color: var(--ink); transform: translateY(-1px); } }
 .gcard .gname { font-family: var(--font-display); font-size: 26px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; line-height: 1; }
 .gcard .gdesc { color: var(--muted); font-size: 14px; }
 .gcard .gmeta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
@@ -293,6 +296,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .prow-top input[type=text] { flex: 1 1 140px; width: auto; min-width: 0; }
 .prow input[type=range] { width: 100%; accent-color: var(--red); }
 /* ===== Design pass ===== */
+/* Hover effects only on devices with a pointer; on touch screens a hover change would swallow the first tap */
 /* Route chips: one per dart, coloured like the ring it aims at */
 .rchip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: .03em; border: 1px solid transparent; line-height: 1.4; }
 .rchip.r-T { background: var(--board-red); color: #fff; }
@@ -317,7 +321,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .gcard .gname { align-self: end; }
 .gcard .gdesc { align-self: start; }
 .gcard .gmeta { align-self: end; }
-.gcard:hover .tile { transform: translateY(-2px) rotate(-3deg); }
+@media (hover: hover) { .gcard:hover .tile { transform: translateY(-2px) rotate(-3deg); } }
 .tile {
   width: 64px; height: 64px; border-radius: 16px; display: grid; place-items: center; flex-shrink: 0;
   font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: .01em; line-height: 1;
@@ -352,7 +356,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 2px; gap: 2px; }
 .segb { border: 0; background: transparent; border-radius: 8px; padding: 5px 11px; font-weight: 600; font-size: 14px; color: var(--muted); white-space: nowrap; }
 .segb[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
-.segb:hover:not([aria-pressed="true"]) { color: var(--ink); }
+@media (hover: hover) { .segb:hover:not([aria-pressed="true"]) { color: var(--ink); } }
 .seg.small .segb { padding: 4px 9px; font-size: 13px; }
 .switch { width: 46px; height: 28px; border-radius: 999px; border: 0; background: var(--line); position: relative; padding: 0; transition: background .2s; }
 .switch span { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .2s; }
@@ -361,7 +365,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .sentence { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
 .stepper button { border: 0; background: transparent; width: 32px; height: 32px; font-size: 18px; font-weight: 700; color: var(--muted); }
-.stepper button:hover { color: var(--ink); background: var(--surface-2); }
+@media (hover: hover) { .stepper button:hover { color: var(--ink); background: var(--surface-2); } }
 .stepper output { min-width: 28px; text-align: center; font-size: 20px; font-weight: 700; }
 .unit { color: var(--muted); font-size: 14px; font-weight: 600; }
 .plist { display: grid; gap: 8px; }
@@ -369,14 +373,14 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .prow-top { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
 .prow-top input[type=text] { flex: 1 1 0; width: 0; min-width: 0; font: inherit; font-weight: 600; padding: 6px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .xbtn { border: 0; background: transparent; width: 30px; height: 30px; border-radius: 8px; color: var(--muted); }
-.xbtn:hover { background: var(--surface); color: var(--red); }
+@media (hover: hover) { .xbtn:hover { background: var(--surface); color: var(--red); } }
 .avgrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 0 4px; }
 .avgrow input[type=range] { width: 100%; accent-color: var(--red); }
 .avgrow .avgval { font-size: 20px; min-width: 30px; text-align: right; }
 .avgrow .co { white-space: nowrap; }
 .addrow { display: flex; gap: 8px; }
 .addb { flex: 1; border: 1px dashed var(--line); background: transparent; border-radius: 10px; padding: 8px; font-weight: 600; color: var(--muted); }
-.addb:hover { border-color: var(--muted); color: var(--ink); }
+@media (hover: hover) { .addb:hover { border-color: var(--muted); color: var(--ink); } }
 .howto { border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; background: var(--surface-2); }
 .howto summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 11px 0; list-style-position: inside; }
 .howto p { margin: 0 0 12px; font-size: 14px; }
@@ -450,9 +454,49 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 @media (max-width: 480px) {
-  .quick { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .player { padding: 12px 10px 10px; }
   .player .route { font-size: 15px; }
+}
+/* Phones: the whole X01 scoring area (both players and the full keypad) fits on one screen */
+@media (max-width: 600px) {
+  body { padding-block: 8px 24px; }
+  .wrap, .grid, .col { gap: 10px; }
+  header.top { flex-wrap: nowrap; align-items: flex-start; }
+  .brand { flex: 1 1 auto; min-width: 0; gap: 0 10px; }
+  .brand h1 { font-size: 24px; gap: 8px; }
+  .brand .logo svg { width: 24px; height: 24px; }
+  .meta { flex-basis: 100%; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header.top .btn { padding: 6px 12px; font-size: 14px; }
+  .players { gap: 8px; }
+  .player { padding: 10px 12px 8px; gap: 2px; }
+  .player .rem { font-size: 56px; }
+  .player .route { min-height: 22px; }
+  .player .sub { gap: 10px; flex-wrap: nowrap; font-size: 12px; white-space: nowrap; overflow: hidden; }
+  .player .sub b { font-size: 14px; }
+  .panel.entry { padding: 12px; gap: 8px; }
+  .readout { min-height: 54px; padding: 4px 12px; }
+  .readout .val { font-size: 40px; }
+  .readout .val.empty { font-size: 19px; }
+  .msg { min-height: 0; }
+  .quick { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+  .chip { padding: 6px 2px; font-size: 17px; }
+  .chip.zero { font-size: 12.5px; }
+  .chip.co { font-size: 14px; }
+  .keys { gap: 5px; }
+  .key { padding: 9px 0; font-size: 26px; border-radius: 10px; }
+  .key.ok { font-size: 18px; }
+}
+/* Short phones (iPhone SE and similar) */
+@media (max-width: 600px) and (max-height: 740px) {
+  .player .rem { font-size: 46px; }
+  .player .sub b { font-size: 13px; }
+  .readout { min-height: 46px; }
+  .readout .val { font-size: 32px; }
+  .chip { padding: 4px 2px; font-size: 16px; }
+  .key { padding: 6px 0; font-size: 23px; }
+}
+/* Keyboard shortcuts mean nothing on a touch screen */
+@media (hover: none) {
+  .entry .row-actions .hint { display: none; }
 }
 </style>
 
@@ -462,7 +506,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
       <h1 id="brand" title="Main menu"><span class="logo" id="logo"></span><span>Oche<span class="dot">.</span></span></h1>
       <div class="meta" id="meta"></div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div class="hbtns">
       <button class="btn" id="rematchBtn" type="button">Restart</button>
       <button class="btn primary" id="menuBtn" type="button">Menu</button>
     </div>
@@ -965,6 +1009,7 @@ function recordBest(m, v, better) {
   if (old != null && (better === 'min' ? v >= old : v <= old)) return null;
   b[m] = v;
   try { localStorage.setItem('oche-bests', JSON.stringify(b)); } catch (e) {}
+  window.ocheNative?.persist('oche-bests', JSON.stringify(b));
   return old == null ? 'first' : 'beaten';
 }
 
@@ -1859,7 +1904,12 @@ function isBotTurn() {
 }
 const fmt = (x, d = 1) => x == null ? '–' : x.toFixed(d);
 
-function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) {} }
+// Saved in the browser; inside the iOS app also mirrored to native storage (see native.js)
+function save() {
+  const json = JSON.stringify(S);
+  try { localStorage.setItem(STORE_KEY, json); } catch (e) {}
+  window.ocheNative?.persist(STORE_KEY, json);
+}
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
@@ -1988,13 +2038,14 @@ function render() {
   const liveScore = live ? live.darts.reduce((a, d) => a + d.v, 0) : 0;
   ro.textContent = buffer || (live && live.darts.length ? String(liveScore) : human ? 'Enter score' : S.matchWinner != null ? 'Match over' : 'Bot throwing…');
   ro.classList.toggle('empty', !buffer && !(live && live.darts.length));
-  $('who').innerHTML = turn >= 0 ? `<span class="label">To throw</span><br><b>${esc(players()[turn].name)}</b> needs ${rem}` : '';
   const canCO = human && E.minDarts(rem, st.out) <= 3 && (opened(leg, turn) || OPEN_SETS[st.inRule]?.has(rem));
+  // With a finish on, the readout offers a one-tap checkout instead of showing who is throwing
+  $('who').innerHTML = canCO && !buffer ? `<button class="chip co rco" type="button" data-score="${rem}">Checkout ${rem}</button>`
+    : turn >= 0 ? `<span class="label">To throw</span><br><b>${esc(players()[turn].name)}</b> needs ${rem}` : '';
   const quick = [26, 41, 45, 60, 81, 85, 100, 140, 180];
   $('quick').innerHTML =
     `<button class="chip zero" type="button" data-score="0" ${human ? '' : 'disabled'}>No score</button>` +
-    quick.map(q => `<button class="chip" type="button" data-score="${q}" ${human ? '' : 'disabled'}>${q}</button>`).join('') +
-    (canCO ? `<button class="chip co" type="button" data-score="${rem}" style="grid-column: span 2">Checkout ${rem}</button>` : '');
+    quick.map(q => `<button class="chip" type="button" data-score="${q}" ${human ? '' : 'disabled'}>${q}</button>`).join('');
   $('keys').innerHTML = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'].map(k =>
     `<button class="key ${k === 'ok' ? 'ok' : k === 'del' ? 'fn' : ''}" type="button" data-key="${k}" ${human ? '' : 'disabled'} aria-label="${k === 'del' ? 'Delete digit' : k === 'ok' ? 'Submit score' : k}">${k === 'del' ? '⌫' : k === 'ok' ? 'Score' : k}</button>`).join('');
   $('undoBtn').disabled = !hasHumanVisit() || botBusy;
@@ -2092,6 +2143,7 @@ function commitVisit(v) {
   leg.visits.push(v);
   buffer = '';
   $('msg').textContent = '';
+  if (v.checkout || v.score === 180) window.ocheNative?.celebrate();
   if (v.checkout) {
     leg.winner = v.p;
     const darts = leg.visits.filter(x => x.p === v.p).reduce((a, x) => a + x.dartsUsed, 0);
@@ -2576,5 +2628,7 @@ function start(data) {
   maybeBot();
 }
 window.claude?.hot?.snapshot?.(() => ({ S }));
-window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+const boot = () => window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+// In the iOS app, wait for saved games to come back from native storage first
+window.ocheReady ? window.ocheReady.then(boot, boot) : boot();
 </script>
