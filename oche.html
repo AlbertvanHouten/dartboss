@@ -1,0 +1,1737 @@
+<meta charset="utf-8">
+<title>Oche Scorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: a pub-side scoreboard — players and keypad on the left, the board and the chalker's sheet on the right; stacks on phones. */
+:root {
+  --bg: #eef1ed;
+  --surface: #ffffff;
+  --surface-2: #f6f8f5;
+  --ink: #131915;
+  --muted: #5a665f;
+  --line: #d6ddd7;
+  --red: #b8222c;
+  --green: #0d7340;
+  --on-ink: #f4f7f4;
+  --warn: #9a5b00;
+  --board-black: #1b1d1c;
+  --board-cream: #e8dcbc;
+  --board-red: #c6262f;
+  --board-green: #12814a;
+  --board-wire: #9a9d9b;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --font-body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1210; --surface: #161b18; --surface-2: #1c2320; --ink: #e7ede8; --muted: #94a199;
+    --line: #2a332e; --red: #ec5c64; --green: #43b97a; --on-ink: #0e1210; --warn: #e3a64a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1210; --surface: #161b18; --surface-2: #1c2320; --ink: #e7ede8; --muted: #94a199;
+  --line: #2a332e; --red: #ec5c64; --green: #43b97a; --on-ink: #0e1210; --warn: #e3a64a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 40px;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.num { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
+.label { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 16px; }
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.brand h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: .02em; margin: 0; text-transform: uppercase; }
+.brand h1 span { color: var(--red); }
+.meta { color: var(--muted); font-size: 14px; }
+.btn {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; font-weight: 600;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.col { display: grid; gap: 16px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-width: 0; }
+
+/* Scoreboard */
+.players { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.player {
+  border-radius: var(--radius); padding: 14px 14px 12px; background: var(--surface); border: 1px solid var(--line);
+  display: grid; gap: 4px; min-width: 0; transition: background .2s, color .2s;
+}
+.player.active { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.player.active .label, .player.active .sub { color: color-mix(in srgb, var(--on-ink) 70%, transparent); }
+.player .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.player .name { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pips { display: flex; gap: 4px; flex-shrink: 0; }
+.pip { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid currentColor; opacity: .55; }
+.pip.on { background: var(--red); border-color: var(--red); opacity: 1; }
+.player .rem { font-size: clamp(64px, 11vw, 96px); line-height: .95; font-weight: 700; letter-spacing: -.01em; }
+.player .route { font-family: var(--font-display); font-weight: 600; font-size: 18px; letter-spacing: .03em; min-height: 24px; color: var(--green); }
+.player.active .route { color: color-mix(in srgb, var(--green) 55%, var(--on-ink)); }
+.player .sub { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.player .sub b { font-family: var(--font-display); font-size: 16px; font-weight: 600; color: inherit; }
+.player.active .sub b { color: var(--on-ink); }
+.thinking { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.thinking::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--red); animation: blink 1s infinite; vertical-align: middle; }
+@keyframes blink { 50% { opacity: .15; } }
+
+/* Input */
+.entry { display: grid; gap: 12px; }
+.readout {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line);
+  background: var(--surface-2); border-radius: 8px; padding: 6px 14px; min-height: 64px;
+}
+.readout .val { font-size: 46px; font-weight: 700; line-height: 1; }
+.readout .val.empty { color: var(--muted); font-size: 22px; font-weight: 500; font-family: var(--font-body); }
+.readout .who { text-align: right; font-size: 13px; color: var(--muted); }
+.msg { min-height: 20px; font-size: 13.5px; color: var(--red); font-weight: 500; }
+.quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.chip {
+  border: 1px solid var(--line); background: var(--surface-2); border-radius: 7px; padding: 8px 4px;
+  font-family: var(--font-display); font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.chip:hover:not(:disabled) { border-color: var(--muted); }
+.chip.co { background: var(--green); color: #fff; border-color: var(--green); font-size: 16px; }
+.chip.zero { font-size: 15px; }
+.keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.key {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 12px 0;
+  font-family: var(--font-display); font-size: 28px; font-weight: 600;
+}
+.key:hover:not(:disabled) { background: var(--surface-2); }
+.key:active:not(:disabled) { transform: translateY(1px); }
+.key.ok { background: var(--red); color: #fff; border-color: var(--red); font-size: 22px; letter-spacing: .05em; text-transform: uppercase; }
+.key.fn { font-size: 18px; color: var(--muted); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.row-actions { display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; align-items: center; }
+.hint { font-size: 12.5px; color: var(--muted); }
+kbd { font-family: var(--font-body); font-size: 11.5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+
+/* Board */
+.board-panel { display: grid; gap: 10px; justify-items: center; }
+.board-panel .cap { width: 100%; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+.cap-route { font-family: var(--font-display); font-weight: 600; font-size: 18px; letter-spacing: .03em; }
+svg.board { width: 100%; max-width: 360px; height: auto; display: block; }
+svg.board .seg { stroke: var(--board-wire); stroke-width: .7; transition: opacity .25s; }
+svg.board.focus .seg:not(.hl) { opacity: .28; }
+svg.board .seg.hl { stroke: #fff; stroke-width: 2.2; }
+svg.board .n { fill: #f1f1ee; font-family: var(--font-display); font-weight: 600; font-size: 17px; text-anchor: middle; dominant-baseline: central; }
+svg.board .dart { animation: land .35s ease-out both; }
+@keyframes land { from { opacity: 0; transform: scale(2.2); } to { opacity: 1; transform: scale(1); } }
+.darts-legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); width: 100%; }
+.darts-legend b { color: var(--ink); font-family: var(--font-display); font-size: 16px; }
+
+/* Chalk sheet */
+.sheet-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+th:first-child, td:first-child { text-align: left; }
+.sheet td.sc { font-family: var(--font-display); font-size: 18px; font-weight: 600; }
+.sheet td.lf { font-family: var(--font-display); font-size: 18px; color: var(--muted); }
+.sheet td.bust { color: var(--red); }
+.sheet td.out { color: var(--green); }
+.sheet tr td.rnd { color: var(--muted); font-size: 12px; }
+.sheet .sep { border-left: 1px solid var(--line); }
+.stats td { font-family: var(--font-display); font-size: 18px; font-weight: 600; }
+.stats td:first-child { font-family: var(--font-body); font-size: 14px; font-weight: 500; color: var(--muted); }
+.stats td.best { color: var(--green); }
+h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin: 0 0 10px; text-wrap: balance; }
+.h2row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.h2row h2 { margin-bottom: 10px; }
+
+/* Overlays */
+.overlay {
+  position: fixed; inset: 0; background: color-mix(in srgb, var(--ink) 45%, transparent); display: grid; place-items: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  z-index: 20;
+}
+.dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; width: min(440px, 100%); display: grid; gap: 16px; max-height: 100%; overflow-y: auto; }
+.dialog h3 { margin: 0; font-family: var(--font-display); font-size: 24px; text-transform: uppercase; letter-spacing: .03em; }
+.dialog p { margin: 0; color: var(--muted); }
+.opts { display: flex; gap: 6px; flex-wrap: wrap; }
+.opt { border: 1px solid var(--line); background: var(--surface-2); border-radius: 7px; padding: 8px 14px; font-weight: 600; min-width: 46px; }
+.opt[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.field { display: grid; gap: 6px; }
+.field input[type=text], .field select { font: inherit; padding: 8px 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); width: 100%; }
+.field input[type=range] { width: 100%; accent-color: var(--red); }
+.dialog .actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--ink); color: var(--on-ink); padding: 10px 16px; border-radius: 8px; font-weight: 600; z-index: 30;
+  max-width: calc(100% - 32px); text-align: center;
+}
+.winner { border: 2px solid var(--green); }
+.winner h2 { color: var(--green); }
+.shake { animation: shake .3s; }
+@keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+/* Training games */
+.ghud { display: grid; gap: 6px; }
+.gtarget { font-size: clamp(72px, 14vw, 120px); line-height: .9; font-weight: 700; }
+.gsub { color: var(--muted); font-size: 14px; }
+.gstats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 6px; }
+.gstats div { display: grid; }
+.gstats b { font-size: 26px; font-weight: 600; }
+.gpadwrap { display: grid; gap: 10px; }
+.gpad { display: grid; gap: 8px; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); }
+.gbtn {
+  border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 14px 6px;
+  font-family: var(--font-display); font-size: 24px; font-weight: 600; display: grid; justify-items: center; gap: 2px;
+}
+.gbtn:hover:not(:disabled) { border-color: var(--muted); }
+.gbtn kbd { font-size: 10.5px; color: var(--muted); font-weight: 500; }
+.gbtn.good { background: var(--green); border-color: var(--green); color: #fff; }
+.gbtn.good kbd { color: inherit; border-color: currentColor; opacity: .85; }
+.gbtn small { font-family: var(--font-body); font-size: 11.5px; color: var(--muted); font-weight: 500; }
+.gbtn.good small { color: inherit; opacity: .85; }
+.cells { display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 6px; }
+.cell { border: 1px solid var(--line); border-radius: 7px; padding: 4px 6px; display: grid; text-align: center; min-height: 52px; align-content: center; }
+.cell span { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.cell b { font-size: 20px; font-weight: 600; min-height: 24px; }
+.cell.now { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.cell.ok b { color: var(--green); }
+.cell.bad b { color: var(--red); }
+.rules { margin: 0; color: var(--muted); max-width: 62ch; }
+.crtab th, .crtab td, .crtab th:first-child, .crtab td:first-child { text-align: center; }
+.crtab td { padding: 3px 6px; }
+.crtab td.crnum { font-family: var(--font-display); font-size: 24px; font-weight: 700; width: 64px; }
+.crtab tr.closed td { opacity: .3; }
+.crtab .mk svg { width: 26px; height: 26px; display: block; margin: 0 auto; }
+.crtab th { text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--ink); width: 42%; }
+.crtab th b { display: block; font-family: var(--font-display); font-size: 40px; line-height: 1.1; }
+.crtab th .hint { display: block; font-weight: 500; }
+.crtab th.on { color: var(--red); }
+.crpad { display: grid; grid-template-columns: 44px repeat(3, minmax(0, 1fr)); gap: 6px; align-items: center; }
+.crpad .crn { font-family: var(--font-display); font-size: 22px; font-weight: 700; text-align: center; }
+.crpad .gbtn { padding: 8px 4px; font-size: 19px; }
+.visit-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.vchip { border: 1px dashed var(--line); border-radius: 6px; padding: 3px 10px; font-family: var(--font-display); font-size: 18px; min-width: 60px; text-align: center; color: var(--muted); }
+.vchip.set { border-style: solid; color: var(--ink); }
+/* Menu */
+.menu { display: grid; gap: 24px; }
+.cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); }
+.gcard {
+  text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius);
+  padding: 16px; display: grid; gap: 6px; align-content: start; transition: border-color .15s, transform .15s;
+}
+.gcard:hover { border-color: var(--ink); transform: translateY(-1px); }
+.gcard .gname { font-family: var(--font-display); font-size: 26px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; line-height: 1; }
+.gcard .gdesc { color: var(--muted); font-size: 14px; }
+.gcard .gmeta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.gcard .gmeta .pb { color: var(--green); }
+.resume { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.resume b { display: block; font-size: 18px; margin-top: 2px; }
+/* Multi-player scoreboard */
+.mplayers { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); margin-top: 6px; }
+.mp { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 2px; min-width: 0; }
+.mp.on { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.mp.on .label, .mp.on .mps { color: color-mix(in srgb, var(--on-ink) 70%, transparent); }
+.mp .mpn { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp b { font-size: 40px; line-height: 1.05; font-weight: 700; color: inherit; }
+.mp .mps { font-size: 13px; color: var(--muted); }
+.mp.out { opacity: .45; }
+.gtarget.long { font-size: clamp(44px, 8vw, 72px); }
+.chip.wide { grid-column: span 2; }
+.sheet.tally td { font-family: var(--font-display); font-size: 18px; }
+.sheet.tally td:first-child { font-family: var(--font-body); font-size: 14px; color: var(--muted); }
+.sheet.tally tr.nowrow td { background: var(--surface-2); }
+.sheet.tally tr.tot td { font-weight: 700; border-top: 2px solid var(--ink); }
+.sheet td.bust { color: var(--red); }
+/* Setup player list */
+.plist { display: grid; gap: 8px; }
+.prow { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.prow-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.prow-top input[type=text] { flex: 1 1 140px; width: auto; min-width: 0; }
+.prow input[type=range] { width: 100%; accent-color: var(--red); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+@media (max-width: 480px) {
+  .quick { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .player { padding: 12px 10px 10px; }
+  .player .route { font-size: 15px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Oche<span>.</span></h1>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="rematchBtn" type="button">Restart</button>
+      <button class="btn primary" id="menuBtn" type="button">Menu</button>
+    </div>
+  </header>
+
+  <div class="menu" id="menu" hidden></div>
+
+  <div class="grid" id="play">
+    <div class="col">
+      <div class="col" id="gameLeft" hidden></div>
+      <div class="col" id="x01Left">
+      <section class="players" id="players" aria-label="Scoreboard"></section>
+      <section class="panel" id="winnerPanel" hidden></section>
+      <section class="panel entry" aria-label="Score entry">
+        <div class="readout">
+          <div class="val num" id="readout"></div>
+          <div class="who" id="who"></div>
+        </div>
+        <div class="msg" id="msg" role="status" aria-live="polite"></div>
+        <div class="quick" id="quick"></div>
+        <div class="keys" id="keys"></div>
+        <div class="row-actions">
+          <button class="btn" id="undoBtn" type="button">Undo last visit</button>
+          <span class="hint">Type the visit total, then <kbd>Enter</kbd>. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.</span>
+        </div>
+      </section>
+      </div>
+    </div>
+
+    <div class="col">
+      <section class="panel board-panel" aria-label="Dartboard">
+        <div class="cap">
+          <span class="label" id="boardLabel">Checkout route</span>
+          <span class="cap-route" id="boardRoute"></span>
+        </div>
+        <svg class="board" id="board" viewBox="-200 -200 400 400" role="img" aria-label="Dartboard"></svg>
+        <div class="darts-legend" id="legend"></div>
+      </section>
+      <div class="col" id="gameRight" hidden></div>
+      <div class="col" id="x01Right">
+      <section class="panel">
+        <div class="h2row"><h2 id="sheetTitle">Leg 1</h2><span class="label" id="sheetNote"></span></div>
+        <div class="sheet-wrap"><table class="sheet" id="sheet"></table></div>
+      </section>
+      <section class="panel">
+        <h2>Match stats</h2>
+        <div class="sheet-wrap"><table class="stats" id="stats"></table></div>
+      </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<script id="engine">
+// ===== Darts engine: board geometry, checkout routes, bot throwing, stats =====
+const E = (() => {
+  const ORDER = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+  const SEGS = [], BY = {};
+  for (let n = 1; n <= 20; n++) {
+    for (const [ring, m] of [['S', 1], ['D', 2], ['T', 3]]) {
+      const s = { k: ring + n, n, ring, v: n * m, dbl: ring === 'D' };
+      SEGS.push(s); BY[s.k] = s;
+    }
+  }
+  BY['25'] = { k: '25', n: 25, ring: 'SB', v: 25, dbl: false };
+  BY.BULL = { k: 'BULL', n: 25, ring: 'DB', v: 50, dbl: true };
+  SEGS.push(BY['25'], BY.BULL);
+  const MISS = { k: 'MISS', n: 0, ring: 'X', v: 0, dbl: false };
+  BY.MISS = MISS;
+
+  // Board dimensions in mm (regulation board)
+  const R = { bull: 6.35, outerBull: 15.9, trebleIn: 99, trebleOut: 107, doubleIn: 162, doubleOut: 170 };
+
+  const IMPOSSIBLE = new Set([163, 166, 169, 172, 173, 175, 176, 178, 179]);
+  const validVisit = s => Number.isInteger(s) && s >= 0 && s <= 180 && !IMPOSSIBLE.has(s);
+  const label = s => s.k === 'BULL' ? 'Bull' : s.k === 'MISS' ? 'Miss' : s.k;
+
+  // Route preferences: favourite doubles first, big trebles for set-up, singles are big targets
+  const DBL_COST = { 16: 0, 20: 0.05, 8: 0.2, 18: 0.3, 12: 0.35, 10: 0.45, 14: 0.5, 4: 0.55, 6: 0.6, 2: 0.7, 1: 1.3 };
+  const TRE_COST = { 20: 0, 19: 0.1, 18: 0.2, 17: 0.3, 16: 0.35 };
+  function finishCost(s, out) {
+    if (out === 'double') {
+      if (!s.dbl) return null;
+      return s.k === 'BULL' ? 1.0 : (DBL_COST[s.n] ?? 0.8);
+    }
+    return s.ring === 'S' ? 0 : s.ring === 'T' ? 0.3 : s.ring === 'D' ? 0.5 : s.k === 'BULL' ? 0.9 : 0.6;
+  }
+  function setupCost(s) {
+    if (s.ring === 'T') return TRE_COST[s.n] ?? 0.6;
+    if (s.ring === 'S') return 0.15 + (s.n < 5 ? 0.05 : 0);
+    if (s.k === '25') return 0.5;
+    if (s.k === 'BULL') return 0.9;
+    return 1.5;
+  }
+
+  const memo = new Map();
+  function exactRoute(r, n, out) {
+    let best = null, bc = Infinity;
+    const rec = (rem, left, path, cost) => {
+      if (cost >= bc) return;
+      if (left === 1) {
+        for (const s of SEGS) if (s.v === rem) {
+          const fc = finishCost(s, out);
+          if (fc != null && cost + fc < bc) { bc = cost + fc; best = [...path, s]; }
+        }
+        return;
+      }
+      for (const s of SEGS) {
+        if (s.v >= rem) continue;
+        const nx = rem - s.v;
+        if (out === 'double' && nx < 2) continue;
+        rec(nx, left - 1, [...path, s], cost + setupCost(s));
+      }
+    };
+    rec(r, n, [], 0);
+    return best;
+  }
+  // Fewest darts first, then the most comfortable route
+  function bestRoute(r, darts = 3, out = 'double') {
+    if (r <= 0 || r > 180) return null;
+    if (out === 'double' && r > 170) return null;
+    const key = r + '|' + darts + '|' + out;
+    if (memo.has(key)) return memo.get(key);
+    let res = null;
+    for (let n = 1; n <= darts && !res; n++) res = exactRoute(r, n, out);
+    if (res && res.length > 2) res = [...res.slice(0, -1).sort((a, b) => setupCost(a) - setupCost(b)), res[res.length - 1]];
+    memo.set(key, res);
+    return res;
+  }
+  const minDarts = (r, out) => { const rt = bestRoute(r, 3, out); return rt ? rt.length : Infinity; };
+
+  // ---- Bot ----
+  function aimPoint(s) {
+    if (s.k === 'BULL') return [0, 0];
+    if (s.k === '25') return [0, 11];
+    const t = ORDER.indexOf(s.n) * 18 * Math.PI / 180;
+    const r = { T: 103, D: 166, S: 134 }[s.ring];
+    return [r * Math.sin(t), r * Math.cos(t)];
+  }
+  function hitAt(x, y) {
+    const r = Math.hypot(x, y);
+    if (r <= R.bull) return BY.BULL;
+    if (r <= R.outerBull) return BY['25'];
+    if (r > R.doubleOut) return MISS;
+    const deg = (Math.atan2(x, y) * 180 / Math.PI + 369) % 360;
+    const n = ORDER[Math.floor(deg / 18) % 20];
+    const ring = r >= R.doubleIn ? 'D' : (r >= R.trebleIn && r <= R.trebleOut) ? 'T' : 'S';
+    return BY[ring + n];
+  }
+  const BOGEY = new Set([169, 168, 166, 165, 163, 162, 159]);
+  const GOOD_LEAVES = [32, 40, 36, 16, 24, 20, 8, 12, 28, 18, 10, 4];
+  function chooseTarget(rem, dartsLeft, out) {
+    const route = bestRoute(rem, dartsLeft, out);
+    if (route) return route[0];
+    if (out === 'single') return rem >= 60 ? BY.T20 : (SEGS.filter(s => s.ring === 'S' && s.v <= rem).pop() || BY.S1);
+    if (rem >= 100 || rem - 60 >= 41) return BOGEY.has(rem - 60) ? BY.T19 : BY.T20;
+    for (const leave of GOOD_LEAVES) {
+      const want = rem - leave;
+      if (want <= 0) continue;
+      const s = (want <= 20 && BY['S' + want]) || (want === 25 && BY['25']) || (want % 3 === 0 && want / 3 <= 20 && BY['T' + want / 3]);
+      if (s) return s;
+    }
+    return BY.S20.v <= rem - 2 ? BY.S20 : BY['S' + Math.max(1, rem - 2)];
+  }
+  function gauss() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+  // Bot model. Each dart lands with Gaussian scatter around the aim point, much more up-and-down
+  // than side-to-side, as real throws are, so darts at T20 stay in the 20, 1 and 5 beds. Form drifts a little from visit to visit. Darts at a
+  // finishing double get extra scatter (the "dbl" factor), which is large for weak players and almost
+  // gone for strong ones, so lower bots score their way down quickly and then struggle to finish.
+  // CAL maps a target 3-dart average to [scatter mm, double factor]. It was fitted by simulating full
+  // 501 double-out legs, matching both the average and a typical checkout % for that average.
+  const CAL = [[20,33.4,1.247], [25,29.39,1.234], [30,23.75,1.322], [35,21.51,1.259], [40,20.06,1.197], [45,17.57,1.216], [50,15.56,1.228], [55,14.42,1.191], [60,12.05,1.303], [65,10.87,1.259], [70,9.56,1.403], [75,7.97,1.509], [80,7.07,1.559], [85,6.22,1.666], [90,5.36,1.872], [95,4.61,2.009], [100,4.32,2.009], [105,3.99,2.047], [110,3.36,2.403], [115,3.11,2.391], [120,2.82,2.484]];
+  const AVG_MIN = CAL[0][0], AVG_MAX = CAL[CAL.length - 1][0];
+  // Typical checkout % (doubles hit / darts at double) by 3-dart average, from amateur to pro
+  const CO_CURVE = [[20, 3.8], [30, 6.5], [40, 10], [50, 14], [60, 18.5], [70, 23], [80, 27.5], [90, 32], [100, 36.5], [110, 40.5], [120, 44]];
+  const lerpCurve = (curve, x) => {
+    if (x <= curve[0][0]) return curve[0][1];
+    for (let i = 1; i < curve.length; i++) if (x <= curve[i][0]) {
+      const [x0, y0] = curve[i - 1], [x1, y1] = curve[i];
+      return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+    }
+    return curve[curve.length - 1][1];
+  };
+  function profileFor(avg) {
+    const a = Math.max(AVG_MIN, Math.min(AVG_MAX, +avg || 50));
+    let i = 0;
+    while (i < CAL.length - 2 && CAL[i + 1][0] < a) i++;
+    const [a0, s0, k0] = CAL[i], [a1, s1, k1] = CAL[i + 1], t = (a - a0) / (a1 - a0);
+    return { avg: a, sigma: Math.exp(Math.log(s0) + t * (Math.log(s1) - Math.log(s0))), dbl: k0 + t * (k1 - k0), wide: wideFor(a), co: lerpCurve(CO_CURVE, a) };
+  }
+
+  // Share of darts that drift sideways badly, falling with skill
+  const wideFor = avg => 0.12 - 0.11 * (Math.max(20, Math.min(120, avg)) - 20) / 100;
+  function throwAt(t, sigma, pWide = 0) {
+    const [ax, ay] = aimPoint(t);
+    // Misses go mostly up and down (release timing). Sideways error (alignment) is usually tight,
+    // but now and then a dart drifts wide into a neighbouring bed.
+    const side = Math.random() < pWide ? 1.4 : 0.6;
+    const x = ax + gauss() * sigma * side, y = ay + gauss() * sigma * 1.35;
+    return { h: hitAt(x, y), x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+  }
+
+  function simulateVisit(rem, out, prof) {
+    const darts = [];
+    const form = Math.exp(gauss() * 0.08);
+    let cur = rem, atDouble = 0;
+    for (let i = 0; i < 3; i++) {
+      const t = chooseTarget(cur, 3 - i, out);
+      const finishing = t.v === cur && (out !== 'double' || t.dbl);
+      if (out === 'double' && finishing) atDouble++;
+      const r = throwAt(t, prof.sigma * form * (finishing && out === 'double' ? prof.dbl : 1), prof.wide || 0);
+      const h = r.h;
+      darts.push({ aim: t.k, k: h.k, v: h.v, x: r.x, y: r.y });
+      const nr = cur - h.v;
+      if (nr === 0 && (out !== 'double' || h.dbl)) return { score: rem, dartsUsed: i + 1, dartsAtDouble: atDouble, checkout: true, bust: false, darts };
+      if (nr < 0 || (out === 'double' && nr <= 1)) return { score: 0, dartsUsed: 3, dartsAtDouble: atDouble, checkout: false, bust: true, darts };
+      cur = nr;
+    }
+    return { score: rem - cur, dartsUsed: 3, dartsAtDouble: atDouble, checkout: false, bust: false, darts };
+  }
+
+  // ---- Stats from the visit log ----
+  function stats(legs, nPlayers) {
+    const out = [];
+    for (let p = 0; p < nPlayers; p++) {
+      const s = { score: 0, darts: 0, f9score: 0, f9darts: 0, atDouble: 0, checkouts: 0, highFinish: 0, bestLeg: null, t100: 0, t140: 0, t180: 0, legsWon: 0, highVisit: 0 };
+      for (const leg of legs) {
+        const mine = leg.visits.filter(v => v.p === p);
+        let legDarts = 0;
+        mine.forEach((v, i) => {
+          s.score += v.score; s.darts += v.dartsUsed; legDarts += v.dartsUsed;
+          if (i < 3) { s.f9score += v.score; s.f9darts += v.dartsUsed; }
+          s.atDouble += v.dartsAtDouble || 0;
+          if (v.score >= 180) s.t180++; else if (v.score >= 140) s.t140++; else if (v.score >= 100) s.t100++;
+          if (v.score > s.highVisit) s.highVisit = v.score;
+          if (v.checkout) { s.checkouts++; s.highFinish = Math.max(s.highFinish, v.score); }
+        });
+        if (leg.winner === p) { s.legsWon++; s.bestLeg = s.bestLeg == null ? legDarts : Math.min(s.bestLeg, legDarts); }
+      }
+      s.avg = s.darts ? s.score / s.darts * 3 : null;
+      s.f9 = s.f9darts ? s.f9score / s.f9darts * 3 : null;
+      s.coPct = s.atDouble ? s.checkouts / s.atDouble * 100 : null;
+      out.push(s);
+    }
+    return out;
+  }
+
+  return { ORDER, SEGS, BY, R, validVisit, label, bestRoute, minDarts, aimPoint, hitAt, chooseTarget, simulateVisit, throwAt, profileFor, wideFor, AVG_MIN, AVG_MAX, CO_CURVE, lerpCurve, stats, IMPOSSIBLE };
+})();
+</script>
+
+<script id="games">
+// ===== Cricket and training games =====
+// Each game: init(settings), act(g, action, value, settings), done(g), plus render hooks hud/pad/board/log/result.
+const T21 = Array.from({ length: 20 }, (_, i) => i + 1).concat(25);
+const tName = n => n === 25 ? 'Bull' : String(n);
+const dName = n => n === 25 ? 'Bull' : 'D' + n;
+const keysFor = (n, rings = ['S', 'D', 'T']) => n === 25 ? (rings.length === 1 ? [rings[0] === 'D' ? 'BULL' : '25'] : ['25', 'BULL']) : rings.map(r => r + n);
+const sumOf = a => a.reduce((x, y) => x + y, 0);
+const pctOf = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
+const htmlEsc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Bot strength is a target 3-dart average; older saves stored a 1-10 level
+const botAvg = p => p.avg ?? [0, 25, 35, 45, 55, 62, 70, 78, 86, 94, 102][p.level || 5];
+
+// ---- Cricket rules ----
+const CR = [20, 19, 18, 17, 16, 15, 25];
+const CR_ROUNDS = 20;
+function crLabel(d) {
+  if (d.k) return E.label(E.BY[d.k]);
+  if (!d.n) return 'Miss';
+  if (d.n === 25) return d.mult === 2 ? 'Bull' : '25';
+  return ['', 'S', 'D', 'T'][d.mult] + d.n;
+}
+function crDart(g, n, mult, extra = {}) {
+  const me = g.pl[g.turn];
+  me.darts++;
+  g.cur.push({ n, mult, ...extra });
+  if (n) {
+    const close = Math.min(mult, 3 - me.m[n]), over = mult - close;
+    me.m[n] += close;
+    const scoring = over > 0 && g.pl.some((o, i) => i !== g.turn && o.m[n] < 3);
+    if (scoring) me.pts += over * n;
+    me.marks += close + (scoring ? over : 0);
+  }
+  const allClosed = CR.every(x => me.m[x] >= 3);
+  if (allClosed && g.pl.every((o, i) => i === g.turn || me.pts >= o.pts)) g.winner = g.turn;
+  if (g.winner != null || g.cur.length === 3) crEndVisit(g);
+}
+function crEndVisit(g) {
+  g.log.push({ p: g.turn, round: g.round, darts: g.cur });
+  g.cur = [];
+  if (g.winner != null) return;
+  g.turn = (g.turn + 1) % g.pl.length;
+  if (g.turn === 0) g.round++;
+  if (g.round > CR_ROUNDS) {
+    // Round limit: most points wins, then most marks
+    let best = 0;
+    g.pl.forEach((p, i) => { const b = g.pl[best]; if (p.pts > b.pts || (p.pts === b.pts && p.marks > b.marks)) best = i; });
+    g.winner = best; g.capped = true; g.round = CR_ROUNDS;
+  }
+}
+// Bot strategy: cover numbers the opponent can score on, score while behind, otherwise close the highest open number
+function crTarget(g) {
+  const me = g.pl[g.turn], op = g.pl[(g.turn + 1) % g.pl.length];
+  const threat = CR.filter(n => op.m[n] >= 3 && me.m[n] < 3);
+  if (threat.length && op.pts >= me.pts) return threat[0];
+  const scoreOn = CR.filter(n => me.m[n] >= 3 && op.m[n] < 3);
+  if (me.pts <= op.pts && scoreOn.length) return scoreOn[0];
+  const mine = CR.filter(n => me.m[n] < 3);
+  if (mine.length) return mine[0];
+  return scoreOn[0] ?? 20;
+}
+function crBotVisit(g, st) {
+  const prof = E.profileFor(botAvg(st.players[g.turn]));
+  const p = g.turn;
+  while (g.winner == null && g.turn === p) {
+    const n = crTarget(g);
+    const r = E.throwAt(n === 25 ? E.BY.BULL : E.BY['T' + n], prof.sigma, prof.wide);
+    const h = r.h;
+    const mult = CR.includes(h.n) ? { S: 1, D: 2, T: 3, SB: 1, DB: 2 }[h.ring] : 0;
+    crDart(g, mult ? h.n : 0, mult, { k: h.k, x: r.x, y: r.y });
+  }
+}
+const markSVG = m => m <= 0 ? '' : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" role="img" aria-label="${m} mark${m > 1 ? 's' : ''}"><path d="M6 18L18 6"/>${m >= 2 ? '<path d="M6 6l12 12"/>' : ''}${m >= 3 ? '<circle cx="12" cy="12" r="10.4" stroke-width="2"/>' : ''}</svg>`;
+
+// ---- shared render helpers ----
+function hudHTML({ eyebrow, target, sub, stats }) {
+  return `<section class="panel ghud"><div class="label">${eyebrow}</div>
+    <div class="gtarget num">${target}</div>${sub ? `<div class="gsub">${sub}</div>` : ''}
+    <div class="gstats">${stats.map(([l, v]) => `<div><span class="label">${l}</span><b class="num">${v}</b></div>`).join('')}</div></section>`;
+}
+const cellsHTML = (items, cur) => `<div class="cells">${items.map((it, i) =>
+  `<div class="cell${i === cur ? ' now' : ''}${it.cls ? ' ' + it.cls : ''}"><span>${it.h}</span><b class="num">${it.v}</b></div>`).join('')}</div>`;
+const gb = (ga, label, { v = '', hot = '', cls = '', dis = false, small = '' } = {}) =>
+  `<button type="button" class="gbtn ${cls}" data-ga="${ga}" data-v="${v}"${hot ? ` data-hot="${hot}"` : ''}${dis ? ' disabled' : ''}>${label}${small ? `<small>${small}</small>` : ''}${hot ? `<kbd>${hot.toUpperCase()}</kbd>` : ''}</button>`;
+const hitsPad = () => `<div class="label">Doubles hit this round</div><div class="gpad">${[0, 1, 2, 3].map(h => gb('hits', h, { v: h, hot: String(h), cls: h ? 'good' : '' })).join('')}</div>`;
+const getBest = m => { try { return (JSON.parse(localStorage.getItem('oche-bests')) || {})[m] ?? null; } catch (e) { return null; } };
+function recordBest(m, v, better) {
+  let b = {};
+  try { b = JSON.parse(localStorage.getItem('oche-bests')) || {}; } catch (e) {}
+  const old = b[m];
+  if (old != null && (better === 'min' ? v >= old : v <= old)) return null;
+  b[m] = v;
+  try { localStorage.setItem('oche-bests', JSON.stringify(b)); } catch (e) {}
+  return old == null ? 'first' : 'beaten';
+}
+
+const GAMES = {
+  cricket: {
+    title: 'Cricket', opponent: true,
+    rules: 'Close 15 to 20 and the bull with three marks each: a single is one mark, a double two, a treble three. Once you have closed a number, extra marks on it score its value until your opponent closes it too. Close everything while level or ahead on points to win. After 20 rounds the most points wins.',
+    hint: 'Tap each dart as you throw it. M records a miss. Ctrl+Z undoes.',
+    init: st => ({ pl: st.players.map(() => ({ m: { 15: 0, 16: 0, 17: 0, 18: 0, 19: 0, 20: 0, 25: 0 }, pts: 0, marks: 0, darts: 0 })), turn: 0, cur: [], round: 1, winner: null, log: [] }),
+    done: g => g.winner != null,
+    act(g, a, v) { const [n, m] = String(v).split(':').map(Number); crDart(g, n, m); },
+    hud(g, st) {
+      const done = g.winner != null;
+      const mpr = i => g.pl[i].darts ? (g.pl[i].marks / g.pl[i].darts * 3).toFixed(2) : '–';
+      const head = st.players.map((p, i) => `<th class="${!done && i === g.turn ? 'on' : ''}">${htmlEsc(p.name)}${p.type === 'bot' ? ` · ${botAvg(p)} avg` : ''}<b class="num">${g.pl[i].pts}</b><span class="hint">MPR ${mpr(i)}</span></th>`);
+      const rows = CR.map(n => `<tr class="${g.pl.every(x => x.m[n] >= 3) ? 'closed' : ''}"><td class="mk">${markSVG(g.pl[0].m[n])}</td><td class="crnum">${n === 25 ? 'Bull' : n}</td><td class="mk">${markSVG(g.pl[1].m[n])}</td></tr>`).join('');
+      return `<section class="panel ghud"><div class="label">Round ${g.round} of ${CR_ROUNDS}${!done && isBotTurn() ? ' · <span class="thinking">Bot throwing</span>' : ''}</div>
+        <table class="crtab"><thead><tr>${head[0]}<th></th>${head[1]}</tr></thead><tbody>${rows}</tbody></table></section>`;
+    },
+    pad(g, st) {
+      const dis = isBotTurn();
+      const chips = [0, 1, 2].map(i => g.cur[i] ? `<span class="vchip set">${crLabel(g.cur[i])}</span>` : `<span class="vchip">Dart ${i + 1}</span>`).join('');
+      const rows = CR.map(n => `<span class="crn">${n === 25 ? 'B' : n}</span>` + (n === 25
+        ? gb('dart', '25', { v: '25:1', dis }) + gb('dart', 'Bull', { v: '25:2', dis }) + '<span></span>'
+        : gb('dart', 'S', { v: `${n}:1`, dis }) + gb('dart', 'D', { v: `${n}:2`, dis }) + gb('dart', 'T', { v: `${n}:3`, dis }))).join('');
+      return `<div class="label">${htmlEsc(st.players[g.turn].name)} to throw</div><div class="visit-chips">${chips}</div>
+        <div class="crpad">${rows}</div>${gb('dart', 'Miss', { v: '0:0', hot: 'm', dis })}`;
+    },
+    board(g, st) {
+      const open = CR.filter(n => g.pl.some(p => p.m[n] < 3));
+      const last = g.log[g.log.length - 1];
+      const botLast = last && last.darts.length && last.darts[0].x != null ? last : null;
+      return {
+        label: 'Open numbers', text: open.map(tName).join(' '), keys: open.flatMap(n => keysFor(n)),
+        darts: botLast ? botLast.darts.map(d => ({ k: d.k, x: d.x, y: d.y })) : [],
+        legend: botLast ? `<span>${htmlEsc(st.players[botLast.p].name)}'s last visit:</span> ${botLast.darts.map((d, i) => `<span>${i + 1}. <b>${crLabel(d)}</b></span>`).join('')}` : null,
+      };
+    },
+    log(g, st) {
+      const rows = g.log.slice(-14).reverse().map(v => {
+        const marks = v.darts.reduce((a, d) => a + (d.n ? d.mult : 0), 0);
+        return `<tr><td>${v.round}</td><td>${htmlEsc(st.players[v.p].name)}</td><td>${v.darts.map(crLabel).join(' · ')}</td><td>${marks}</td></tr>`;
+      }).join('') || '<tr><td colspan="4" style="text-align:left;color:var(--muted)">No darts thrown yet.</td></tr>';
+      return `<section class="panel"><h2>Visits</h2><div class="sheet-wrap"><table class="sheet"><thead><tr><th>Round</th><th>Player</th><th>Darts</th><th>Hit marks</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    },
+    result(g, st) {
+      const w = g.winner, o = (w + 1) % 2, mpr = g.pl[w].darts ? g.pl[w].marks / g.pl[w].darts * 3 : 0;
+      return { headline: `${st.players[w].name} wins`, detail: `${g.pl[w].pts} points to ${g.pl[o].pts}, ${mpr.toFixed(2)} marks per round${g.capped ? ', decided at the 20-round limit' : ''}.`, best: null };
+    },
+  },
+
+  atc: {
+    title: 'Around the Clock',
+    rules: 'Hit 1 to 20 in order, then the bull. A single, double or treble of the number all count. Record every dart as a hit or a miss. Fewer darts is better.',
+    hint: 'Keys: H for a hit, M for a miss. Ctrl+Z undoes.',
+    init: () => ({ i: 0, darts: 0, per: Array(21).fill(0) }),
+    done: g => g.i >= 21,
+    act(g, a) { g.darts++; g.per[g.i]++; if (a === 'hit') g.i++; },
+    hud: g => hudHTML({
+      eyebrow: `Around the Clock · target ${Math.min(g.i + 1, 21)} of 21`, target: g.i >= 21 ? 'Done' : tName(T21[g.i]),
+      sub: g.i >= 21 ? 'Every number hit.' : `Dart ${g.darts % 3 + 1} of this visit`,
+      stats: [['Darts', g.darts], ['Hit rate', pctOf(g.i, g.darts)], ['Best', getBest('atc') ?? '–']],
+    }),
+    pad: () => `<div class="gpad" style="--cols:2">${gb('hit', 'Hit', { hot: 'h', cls: 'good' })}${gb('miss', 'Miss', { hot: 'm' })}</div>`,
+    board: g => g.i >= 21 ? { label: 'Finished', text: '', keys: [] } : { label: 'Target', text: tName(T21[g.i]), keys: keysFor(T21[g.i]) },
+    log: g => `<section class="panel"><h2>Darts per target</h2>${cellsHTML(T21.map((n, i) => ({ h: tName(n), v: i < g.i ? g.per[i] : i === g.i && g.per[i] ? g.per[i] : '', cls: i < g.i ? (g.per[i] === 1 ? 'ok' : '') : '' })), g.i)}</section>`,
+    result: g => ({ headline: `Round the board in ${g.darts} darts`, detail: `Hit rate ${pctOf(21, g.darts)}. A perfect run is 21 darts.`, best: g.darts, better: 'min' }),
+  },
+
+  bobs27: {
+    title: "Bob's 27",
+    rules: "Start on 27 points. Throw three darts at each double from D1 to D20, then the bull. Every hit adds the double's value. If all three miss, you lose the double's value instead. Drop below zero and the game is over. The maximum is 1437.",
+    hint: 'Keys: 0 to 3 for the number of doubles hit. Ctrl+Z undoes.',
+    init: () => ({ r: 0, score: 27, hits: [], dead: false }),
+    done: g => g.dead || g.r >= 21,
+    act(g, a, v) {
+      const h = +v, n = T21[g.r], val = n === 25 ? 50 : 2 * n;
+      g.score += h ? h * val : -val;
+      g.hits.push(h); g.r++;
+      if (g.score < 0) g.dead = true;
+    },
+    hud(g) {
+      const n = T21[Math.min(g.r, 20)], val = n === 25 ? 50 : 2 * n, over = g.dead || g.r >= 21;
+      return hudHTML({
+        eyebrow: `Bob's 27 · round ${Math.min(g.r + 1, 21)} of 21`, target: over ? g.score : dName(n),
+        sub: over ? (g.dead ? `Out on ${dName(T21[g.r - 1])}` : 'All 21 doubles thrown') : `Each hit +${val} · three misses −${val}`,
+        stats: [['Score', g.score], ['Doubles hit', `${sumOf(g.hits)}/${g.hits.length * 3}`], ['Best', getBest('bobs27') ?? '–']],
+      });
+    },
+    pad: hitsPad,
+    board: g => g.dead || g.r >= 21 ? { label: 'Finished', text: '', keys: [] } : { label: 'Target', text: dName(T21[g.r]), keys: keysFor(T21[g.r], ['D']) },
+    log: g => `<section class="panel"><h2>Hits per double</h2>${cellsHTML(T21.map((n, i) => ({ h: dName(n), v: i < g.hits.length ? g.hits[i] : '', cls: i < g.hits.length ? (g.hits[i] ? 'ok' : 'bad') : '' })), g.dead ? -1 : g.r)}</section>`,
+    result: g => g.dead
+      ? { headline: `Out on ${dName(T21[g.r - 1])}`, detail: `Your score dropped to ${g.score}. You hit ${sumOf(g.hits)} of ${g.hits.length * 3} doubles.`, best: null }
+      : { headline: `Bob's 27: ${g.score} points`, detail: `You hit ${sumOf(g.hits)} of 63 doubles (${pctOf(sumOf(g.hits), 63)}).`, best: g.score, better: 'max' },
+  },
+
+  singles: {
+    title: 'Singles Training',
+    rules: 'Three darts at each number from 1 to 20, then the bull. A single scores 1 point, a double 2 and a treble 3. On the bull, the outer 25 scores 1 and the bullseye 2. The maximum is 186.',
+    hint: 'Keys: 0 miss, 1 single, 2 double, 3 treble. Ctrl+Z undoes.',
+    init: () => ({ i: 0, cur: [], rows: [] }),
+    done: g => g.i >= 21,
+    act(g, a, v) { g.cur.push(+v); if (g.cur.length === 3) { g.rows.push(g.cur); g.cur = []; g.i++; } },
+    hud(g) {
+      const pts = sumOf(g.rows.flat()) + sumOf(g.cur), darts = g.rows.length * 3 + g.cur.length;
+      const hits = g.rows.flat().concat(g.cur).filter(x => x > 0).length;
+      return hudHTML({
+        eyebrow: `Singles Training · number ${Math.min(g.i + 1, 21)} of 21`, target: g.i >= 21 ? pts : tName(T21[g.i]),
+        sub: g.i >= 21 ? 'Points scored' : `Dart ${g.cur.length + 1} of 3${g.cur.length ? ' · so far ' + g.cur.join(', ') : ''}`,
+        stats: [['Points', pts], ['Hit rate', pctOf(hits, darts)], ['Best', getBest('singles') ?? '–']],
+      });
+    },
+    pad: g => T21[g.i] === 25
+      ? `<div class="gpad" style="--cols:3">${gb('dart', 'Miss', { v: 0, hot: '0' })}${gb('dart', '25', { v: 1, hot: '1', cls: 'good', small: '1 pt' })}${gb('dart', 'Bull', { v: 2, hot: '2', cls: 'good', small: '2 pts' })}</div>`
+      : `<div class="gpad">${gb('dart', 'Miss', { v: 0, hot: '0' })}${gb('dart', 'Single', { v: 1, hot: '1', cls: 'good', small: '1 pt' })}${gb('dart', 'Double', { v: 2, hot: '2', cls: 'good', small: '2 pts' })}${gb('dart', 'Treble', { v: 3, hot: '3', cls: 'good', small: '3 pts' })}</div>`,
+    board: g => g.i >= 21 ? { label: 'Finished', text: '', keys: [] } : { label: 'Target', text: tName(T21[g.i]), keys: keysFor(T21[g.i]) },
+    log: g => `<section class="panel"><h2>Points per number</h2>${cellsHTML(T21.map((n, i) => ({ h: tName(n), v: i < g.rows.length ? sumOf(g.rows[i]) : '', cls: i < g.rows.length ? (sumOf(g.rows[i]) ? 'ok' : 'bad') : '' })), g.i)}</section>`,
+    result: g => { const p = sumOf(g.rows.flat()); return { headline: `Singles Training: ${p} points`, detail: `Out of a possible 186.`, best: p, better: 'max' }; },
+  },
+
+  doubles: {
+    title: 'Doubles Training',
+    rules: 'Three darts at each double from D1 to D20, then the bull. Record how many of the three hit. The maximum is 63.',
+    hint: 'Keys: 0 to 3 for the number of doubles hit. Ctrl+Z undoes.',
+    init: () => ({ i: 0, hits: [] }),
+    done: g => g.i >= 21,
+    act(g, a, v) { g.hits.push(+v); g.i++; },
+    hud: g => hudHTML({
+      eyebrow: `Doubles Training · double ${Math.min(g.i + 1, 21)} of 21`, target: g.i >= 21 ? sumOf(g.hits) : dName(T21[g.i]),
+      sub: g.i >= 21 ? 'Doubles hit' : 'Throw three darts, then record the hits',
+      stats: [['Hits', `${sumOf(g.hits)}/${g.i * 3}`], ['Hit rate', pctOf(sumOf(g.hits), g.i * 3)], ['Best', getBest('doubles') ?? '–']],
+    }),
+    pad: hitsPad,
+    board: g => g.i >= 21 ? { label: 'Finished', text: '', keys: [] } : { label: 'Target', text: dName(T21[g.i]), keys: keysFor(T21[g.i], ['D']) },
+    log: g => `<section class="panel"><h2>Hits per double</h2>${cellsHTML(T21.map((n, i) => ({ h: dName(n), v: i < g.hits.length ? g.hits[i] : '', cls: i < g.hits.length ? (g.hits[i] ? 'ok' : 'bad') : '' })), g.i)}</section>`,
+    result: g => ({ headline: `${sumOf(g.hits)} of 63 doubles`, detail: `A hit rate of ${pctOf(sumOf(g.hits), 63)}.`, best: sumOf(g.hits), better: 'max' }),
+  },
+
+  score: {
+    title: 'Score Training', keypad: true,
+    rules: 'Ninety-nine darts at the treble 20, entered as 33 visit totals. The aim is the highest three-dart average you can keep up.',
+    hint: 'Type the visit total, then Enter. Ctrl+Z undoes.',
+    init: () => ({ visits: [] }),
+    done: g => g.visits.length >= 33,
+    act(g, a, v) { g.visits.push(+v); },
+    hud(g) {
+      const tot = sumOf(g.visits), avg = g.visits.length ? tot / g.visits.length : null;
+      const c = t => g.visits.filter(v => v >= t).length;
+      return hudHTML({
+        eyebrow: `Score Training · visit ${Math.min(g.visits.length + 1, 33)} of 33`, target: avg == null ? '0.0' : avg.toFixed(1),
+        sub: `3-dart average · ${99 - g.visits.length * 3} darts left · ${tot} scored`,
+        stats: [['100+', c(100) - c(140)], ['140+', c(140) - c(180)], ['180s', c(180)], ['Best avg', getBest('score') ?? '–']],
+      });
+    },
+    pad: () => keypadHTML({ chips: [[0, 'No score', 'zero'], ...[26, 41, 45, 60, 81, 85, 100, 140, 180].map(q => [q, q])], aim: 'T20' }),
+    board: () => ({ label: 'Target', text: 'T20', keys: ['T20'] }),
+    log: g => `<section class="panel"><h2>Visits</h2>${cellsHTML(Array.from({ length: 33 }, (_, i) => ({ h: (i + 1) * 3, v: g.visits[i] ?? '', cls: g.visits[i] >= 100 ? 'ok' : '' })), g.visits.length)}</section>`,
+    result: g => { const avg = sumOf(g.visits) / 33; return { headline: `Average ${avg.toFixed(2)}`, detail: `${sumOf(g.visits)} points from 99 darts. Best visit ${Math.max(...g.visits)}.`, best: +avg.toFixed(2), better: 'max' }; },
+  },
+};
+GAMES.cricket.botVisit = crBotVisit;
+
+// ---- helpers for multi-player and keypad games ----
+const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'];
+const keypadHTML = ({ dis = false, chips = [], aim = '', aimLabel = 'Aim' }) =>
+  `<div class="readout"><div class="val num${buffer ? '' : ' empty'}">${buffer || (dis ? 'Bot throwing…' : 'Enter score')}</div><div class="who"><span class="label">${aimLabel}</span><br><b>${aim}</b></div></div>
+  <div class="quick">${chips.map(([v, l, cls]) => `<button class="chip ${cls || ''}" type="button" data-ga="score" data-v="${v}"${dis ? ' disabled' : ''}>${l}</button>`).join('')}</div>
+  <div class="keys">${KEYS.map(k => `<button class="key ${k === 'ok' ? 'ok' : k === 'del' ? 'fn' : ''}" type="button" data-key="${k}"${dis ? ' disabled' : ''} aria-label="${k === 'del' ? 'Delete digit' : k === 'ok' ? 'Submit score' : k}">${k === 'del' ? '⌫' : k === 'ok' ? 'Score' : k}</button>`).join('')}</div>`;
+const visitChips = cur => `<div class="visit-chips">${[0, 1, 2].map(i => cur[i] ? `<span class="vchip set">${cur[i].lab}</span>` : `<span class="vchip">Dart ${i + 1}</span>`).join('')}</div>`;
+function playersHUD({ eyebrow, target, sub, st, g, cells, done }) {
+  const botNow = !done && isBotTurn();
+  return `<section class="panel ghud"><div class="label">${eyebrow}${botNow ? ' · <span class="thinking">Bot throwing</span>' : ''}</div>
+    ${target != null ? `<div class="gtarget num${String(target).length > 4 ? ' long' : ''}">${target}</div>` : ''}${sub ? `<div class="gsub">${sub}</div>` : ''}
+    <div class="mplayers">${st.players.map((p, i) => `<div class="mp${!done && i === g.turn ? ' on' : ''}${cells[i].out ? ' out' : ''}"><span class="mpn">${htmlEsc(p.name)}${p.type === 'bot' ? ` <span class="label">${botAvg(p)} avg</span>` : ''}</span><b class="num">${cells[i].main}</b><span class="mps">${cells[i].sub || ''}</span></div>`).join('')}</div></section>`;
+}
+// Next player in seat order (optionally skipping eliminated players); passing seat 0 starts a new round
+function nextTurn(g, alive = () => true) {
+  const n = g.pl.length;
+  for (let k = 1; k <= n; k++) {
+    const c = (g.turn + k) % n;
+    if (alive(c)) { if (c <= g.turn) g.round++; g.turn = c; return; }
+  }
+}
+function lastBotDarts(g, st) {
+  const last = g.log[g.log.length - 1];
+  if (!last || !last.darts || !last.darts.length || last.darts[0].x == null) return { darts: [], legend: null };
+  return {
+    darts: last.darts.map(d => ({ k: d.k, x: d.x, y: d.y })),
+    legend: `<span>${htmlEsc(st.players[last.p].name)}'s last visit:</span> ${last.darts.map((d, i) => `<span>${i + 1}. <b>${d.lab}</b></span>`).join('')}`,
+  };
+}
+// Highest score wins; equal top scores are a tie
+function settleByScore(g, score) {
+  const top = Math.max(...g.pl.map(score));
+  const w = g.pl.map((_, i) => i).filter(i => score(g.pl[i]) === top);
+  if (w.length === 1) g.winner = w[0]; else { g.winner = -1; g.tied = w; }
+}
+function scoreResult(g, st, score, unit, mode) {
+  const names = st.players.map(p => p.name);
+  if (st.players.length === 1) return { headline: `${GAMES[mode].title}: ${score(g.pl[0])} ${unit}`, detail: 'Solo game.', best: score(g.pl[0]), better: 'max' };
+  if (g.winner === -1) return { headline: `Tie between ${g.tied.map(i => names[i]).join(' and ')}`, detail: `${score(g.pl[g.tied[0]])} ${unit} each.`, best: null };
+  const rest = g.pl.map((p, i) => i).filter(i => i !== g.winner).map(i => `${names[i]} ${score(g.pl[i])}`).join(', ');
+  return { headline: `${names[g.winner]} wins with ${score(g.pl[g.winner])} ${unit}`, detail: `Others: ${rest}.`, best: null };
+}
+const visitsTable = (g, st, extraHead = '', extra = () => '') => {
+  const rows = g.log.slice(-14).reverse().map(v => `<tr><td>${v.round}</td><td>${htmlEsc(st.players[v.p].name)}</td><td>${(v.darts || []).map(d => d.lab).join(' · ') || '–'}</td>${extraHead ? `<td>${extra(v)}</td>` : ''}</tr>`).join('')
+    || `<tr><td colspan="${extraHead ? 4 : 3}" style="text-align:left;color:var(--muted)">No darts thrown yet.</td></tr>`;
+  return `<section class="panel"><h2>Visits</h2><div class="sheet-wrap"><table class="sheet"><thead><tr><th>Round</th><th>Player</th><th>Darts</th>${extraHead ? `<th>${extraHead}</th>` : ''}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
+};
+
+// ---- Killer ----
+const KI_LIVES = 3, KI_ROUNDS = 30;
+function kiDart(g, n, extra = {}) {
+  const me = g.pl[g.turn];
+  me.darts++;
+  const d = { n, lab: n ? 'D' + n : 'Miss', ...extra };
+  if (n) {
+    const owner = g.pl.findIndex(p => p.lives > 0 && p.num === n);
+    if (owner === g.turn) {
+      if (!me.killer) { me.killer = true; d.lab += ' · killer'; }
+      else { me.lives--; d.lab += ' · own life'; }
+    } else if (owner >= 0 && me.killer) {
+      g.pl[owner].lives--; me.hits++; d.victim = owner; d.lab += ' · hit';
+    }
+  }
+  g.cur.push(d);
+  const alive = g.pl.map((_, i) => i).filter(i => g.pl[i].lives > 0);
+  if (alive.length <= 1) g.winner = alive.length ? alive[0] : g.turn;
+  if (g.winner != null || g.cur.length === 3 || me.lives <= 0) kiEnd(g);
+}
+function kiEnd(g) {
+  g.log.push({ p: g.turn, round: g.round, darts: g.cur });
+  g.cur = [];
+  if (g.winner != null) return;
+  nextTurn(g, i => g.pl[i].lives > 0);
+  if (g.round > KI_ROUNDS) {
+    let best = -1;
+    g.pl.forEach((p, i) => { if (p.lives > 0 && (best < 0 || p.lives > g.pl[best].lives || (p.lives === g.pl[best].lives && p.hits > g.pl[best].hits))) best = i; });
+    g.winner = best; g.capped = true; g.round = KI_ROUNDS;
+  }
+}
+// Bot: get its own double first, then go after the most dangerous opponent (killers first, then fewest lives)
+function kiTarget(g) {
+  const me = g.pl[g.turn];
+  if (!me.killer) return me.num;
+  const opps = g.pl.map((p, i) => ({ p, i })).filter(x => x.i !== g.turn && x.p.lives > 0)
+    .sort((a, b) => (b.p.killer - a.p.killer) || (a.p.lives - b.p.lives));
+  return opps[0].p.num;
+}
+function kiBotVisit(g, st) {
+  const prof = E.profileFor(botAvg(st.players[g.turn]));
+  const p = g.turn;
+  while (g.winner == null && g.turn === p) {
+    const r = E.throwAt(E.BY['D' + kiTarget(g)], prof.sigma * prof.dbl, prof.wide);
+    kiDart(g, r.h.ring === 'D' ? r.h.n : 0, { k: r.h.k, x: r.x, y: r.y, lab: E.label(r.h) });
+  }
+}
+
+// ---- Shanghai ----
+const SH_ROUNDS = 7;
+const RING_MULT = { S: 1, D: 2, T: 3 };
+function shDart(g, mult, extra = {}) {
+  const me = g.pl[g.turn];
+  me.darts++;
+  me.score += mult * g.round;
+  g.cur.push({ mult, lab: mult ? ['', 'S', 'D', 'T'][mult] + g.round : 'Miss', ...extra });
+  if (g.cur.length === 3) {
+    const set = new Set(g.cur.map(d => d.mult));
+    if (set.has(1) && set.has(2) && set.has(3)) { g.winner = g.turn; g.shanghai = true; }
+    me.rounds[g.round - 1] = sumOf(g.cur.map(d => d.mult)) * g.round;
+    g.log.push({ p: g.turn, round: g.round, darts: g.cur });
+    g.cur = [];
+    if (g.winner != null) return;
+    nextTurn(g);
+    if (g.round > SH_ROUNDS) { g.round = SH_ROUNDS; settleByScore(g, p => p.score); }
+  }
+}
+function shBotVisit(g, st) {
+  const prof = E.profileFor(botAvg(st.players[g.turn]));
+  const p = g.turn, r0 = g.round;
+  while (g.winner == null && g.turn === p && g.round === r0) {
+    const have = new Set(g.cur.map(d => d.mult));
+    // Aim treble; with a treble and one more ring already in, go for the missing ring
+    let ring = 'T';
+    if (have.has(3) && have.has(1) && !have.has(2)) ring = 'D';
+    else if (have.has(3) && have.has(2) && !have.has(1)) ring = 'S';
+    const r = E.throwAt(E.BY[ring + g.round], prof.sigma * (ring === 'D' ? prof.dbl : 1), prof.wide);
+    const mult = r.h.n === g.round ? RING_MULT[r.h.ring] : 0;
+    shDart(g, mult, { k: r.h.k, x: r.x, y: r.y, lab: E.label(r.h) });
+  }
+}
+
+// ---- Halve It ----
+const HI_TARGETS = [15, 16, 'D', 17, 18, 'T', 19, 20, 'B'];
+const hiName = t => t === 'D' ? 'Any double' : t === 'T' ? 'Any treble' : t === 'B' ? 'Bull' : String(t);
+const hiDartVals = t => t === 'D' ? Array.from({ length: 20 }, (_, i) => 2 * (i + 1)).concat(50)
+  : t === 'T' ? Array.from({ length: 20 }, (_, i) => 3 * (i + 1)) : t === 'B' ? [25, 50] : [t, 2 * t, 3 * t];
+const hiMemo = {};
+function hiPossible(t) {
+  if (hiMemo[t]) return hiMemo[t];
+  const v = [0, ...hiDartVals(t)], s = new Set();
+  for (const a of v) for (const b of v) for (const c of v) s.add(a + b + c);
+  return (hiMemo[t] = s);
+}
+function hiPoints(t, h) {
+  if (t === 'D') return h.dbl ? h.v : 0;
+  if (t === 'T') return h.ring === 'T' ? h.v : 0;
+  if (t === 'B') return h.n === 25 ? h.v : 0;
+  return h.n === t ? h.v : 0;
+}
+const hiKeys = t => t === 'D' ? Array.from({ length: 20 }, (_, i) => 'D' + (i + 1)).concat('BULL')
+  : t === 'T' ? Array.from({ length: 20 }, (_, i) => 'T' + (i + 1)) : t === 'B' ? ['25', 'BULL'] : keysFor(t);
+function hiApply(g, pts, darts) {
+  const me = g.pl[g.turn];
+  if (pts === 0) { me.score = Math.floor(me.score / 2); me.halves++; } else me.score += pts;
+  me.rounds[g.round - 1] = pts;
+  g.log.push({ p: g.turn, round: g.round, pts, darts });
+  nextTurn(g);
+  if (g.round > HI_TARGETS.length) { g.round = HI_TARGETS.length; settleByScore(g, p => p.score); }
+}
+function hiBotVisit(g, st) {
+  const prof = E.profileFor(botAvg(st.players[g.turn]));
+  const t = HI_TARGETS[g.round - 1];
+  const aim = t === 'D' ? E.BY.D20 : t === 'T' ? E.BY.T20 : t === 'B' ? E.BY.BULL : E.BY['T' + t];
+  const darts = [];
+  let pts = 0;
+  for (let i = 0; i < 3; i++) {
+    const r = E.throwAt(aim, prof.sigma * (t === 'D' ? prof.dbl : 1), prof.wide);
+    pts += hiPoints(t, r.h);
+    darts.push({ k: r.h.k, x: r.x, y: r.y, lab: E.label(r.h) });
+  }
+  hiApply(g, pts, darts);
+}
+
+Object.assign(GAMES, {
+  killer: {
+    title: 'Killer', players: [2, 6],
+    rules: `Every player gets a random number. Hit the double of your own number to become a killer. Killers take a life from an opponent each time they hit that opponent's double, but a killer who hits their own double loses a life. Everyone starts with ${KI_LIVES} lives, and the last player standing wins.`,
+    hint: 'Tap the double each dart hit. M records a miss or any other segment. Ctrl+Z undoes.',
+    init(st) {
+      const nums = Array.from({ length: 20 }, (_, i) => i + 1);
+      for (let i = nums.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [nums[i], nums[j]] = [nums[j], nums[i]]; }
+      return { pl: st.players.map((_, i) => ({ num: nums[i], lives: KI_LIVES, killer: false, hits: 0, darts: 0 })), turn: 0, cur: [], round: 1, winner: null, log: [] };
+    },
+    done: g => g.winner != null,
+    act(g, a, v) { kiDart(g, +v); },
+    botVisit: kiBotVisit,
+    hud(g, st) {
+      const me = g.pl[g.turn];
+      return playersHUD({
+        st, g, done: g.winner != null, eyebrow: `Killer · round ${g.round}`,
+        sub: g.winner != null ? '' : `${htmlEsc(st.players[g.turn].name)}: ${me.killer ? "killer, so go for your opponents' doubles" : `hit D${me.num} to become a killer`}`,
+        cells: g.pl.map(p => ({ main: p.lives > 0 ? '♥'.repeat(p.lives) : 'Out', sub: `D${p.num}${p.killer ? ' · killer' : ''}`, out: p.lives <= 0 })),
+      });
+    },
+    pad(g, st) {
+      const dis = isBotTurn(), me = g.pl[g.turn];
+      const btns = g.pl.map((p, i) => ({ p, i })).filter(x => x.p.lives > 0).map(({ p, i }) =>
+        gb('dart', 'D' + p.num, { v: p.num, dis, small: htmlEsc(st.players[i].name), cls: (i === g.turn ? !me.killer : me.killer) ? 'good' : '' }));
+      return `<div class="label">${htmlEsc(st.players[g.turn].name)} to throw</div>${visitChips(g.cur)}
+        <div class="gpad" style="--cols:3">${btns.join('')}${gb('dart', 'Miss', { v: 0, hot: 'm', dis })}</div>`;
+    },
+    board(g, st) {
+      const me = g.pl[g.turn], bot = lastBotDarts(g, st);
+      const keys = g.winner != null ? [] : me.killer ? g.pl.filter((p, i) => i !== g.turn && p.lives > 0).map(p => 'D' + p.num) : ['D' + me.num];
+      return { label: me.killer ? 'Opponents\' doubles' : 'Your double', text: keys.join(' '), keys, ...bot };
+    },
+    log: (g, st) => visitsTable(g, st),
+    result(g, st) {
+      const w = g.pl[g.winner];
+      return { headline: `${st.players[g.winner].name} is the last one standing`, detail: `${w.lives} ${w.lives === 1 ? 'life' : 'lives'} left after ${g.round} rounds, ${w.hits} lives taken${g.capped ? ', decided at the round limit' : ''}.`, best: null };
+    },
+  },
+
+  shanghai: {
+    title: 'Shanghai', players: [1, 6],
+    rules: `${SH_ROUNDS} rounds. In round 1 aim at the 1, in round 2 at the 2, and so on. Each dart on the target scores the number times the ring: single ×1, double ×2, treble ×3. Hit a single, a double and a treble of the target in one visit, a Shanghai, and you win on the spot. Otherwise the highest total wins.`,
+    hint: 'Keys: 0 miss, 1 single, 2 double, 3 treble. Ctrl+Z undoes.',
+    init: st => ({ pl: st.players.map(() => ({ score: 0, darts: 0, rounds: [] })), turn: 0, cur: [], round: 1, winner: null, tied: null, shanghai: false, log: [] }),
+    done: g => g.winner != null,
+    act(g, a, v) { shDart(g, +v); },
+    botVisit: shBotVisit,
+    hud(g, st) {
+      const done = g.winner != null;
+      return playersHUD({
+        st, g, done, eyebrow: `Shanghai · round ${g.round} of ${SH_ROUNDS}`, target: done ? null : g.round,
+        sub: done ? '' : `Single ${g.round} · double ${2 * g.round} · treble ${3 * g.round}`,
+        cells: g.pl.map((p, i) => ({ main: p.score, sub: `Round ${g.round}: ${i === g.turn && !done ? sumOf(g.cur.map(d => d.mult)) * g.round : (p.rounds[g.round - 1] ?? '–')}` })),
+      });
+    },
+    pad(g, st) {
+      const dis = isBotTurn(), n = g.round;
+      return `<div class="label">${htmlEsc(st.players[g.turn].name)} to throw</div>${visitChips(g.cur)}
+        <div class="gpad">${gb('dart', 'Miss', { v: 0, hot: '0', dis })}${gb('dart', 'Single', { v: 1, hot: '1', cls: 'good', small: n + ' pts', dis })}${gb('dart', 'Double', { v: 2, hot: '2', cls: 'good', small: 2 * n + ' pts', dis })}${gb('dart', 'Treble', { v: 3, hot: '3', cls: 'good', small: 3 * n + ' pts', dis })}</div>`;
+    },
+    board: (g, st) => ({ label: 'Target', text: String(g.round), keys: g.winner != null ? [] : keysFor(g.round), ...lastBotDarts(g, st) }),
+    log(g, st) {
+      const head = st.players.map(p => `<th>${htmlEsc(p.name)}</th>`).join('');
+      const rows = Array.from({ length: SH_ROUNDS }, (_, r) => `<tr${r + 1 === g.round && g.winner == null ? ' class="nowrow"' : ''}><td>${r + 1}</td>${g.pl.map(p => `<td>${p.rounds[r] ?? ''}</td>`).join('')}</tr>`).join('');
+      return `<section class="panel"><h2>Scores by round</h2><div class="sheet-wrap"><table class="sheet tally"><thead><tr><th>Target</th>${head}</tr></thead><tbody>${rows}<tr class="tot"><td>Total</td>${g.pl.map(p => `<td>${p.score}</td>`).join('')}</tr></tbody></table></div></section>` + visitsTable(g, st);
+    },
+    result(g, st) {
+      if (g.shanghai) return { headline: `Shanghai! ${st.players[g.winner].name} wins on the ${g.round}`, detail: 'Single, double and treble in one visit.', best: st.players.length === 1 ? g.pl[0].score : null, better: 'max' };
+      return scoreResult(g, st, p => p.score, 'points', 'shanghai');
+    },
+  },
+
+  halveit: {
+    title: 'Halve It', players: [1, 6], keypad: true,
+    rules: `Everyone starts on 40 points. Each round has a target: ${HI_TARGETS.map(hiName).join(', ')}. Only darts in the target score, at their full value. If none of your three darts hits the target, your score is cut in half. The highest score after the last round wins.`,
+    hint: 'Type the points you scored on the target, then Enter. 0 halves your score. Ctrl+Z undoes.',
+    init: st => ({ pl: st.players.map(() => ({ score: 40, halves: 0, rounds: [] })), turn: 0, round: 1, winner: null, tied: null, log: [] }),
+    done: g => g.winner != null,
+    validate(g, v) {
+      const t = HI_TARGETS[g.round - 1];
+      return hiPossible(t).has(v) ? null : `${v} can't be scored on ${hiName(t).toLowerCase()} with three darts.`;
+    },
+    act(g, a, v) { hiApply(g, +v, null); },
+    botVisit: hiBotVisit,
+    hud(g, st) {
+      const done = g.winner != null, t = HI_TARGETS[g.round - 1];
+      return playersHUD({
+        st, g, done, eyebrow: `Halve It · round ${g.round} of ${HI_TARGETS.length}`, target: done ? null : hiName(t),
+        sub: done ? '' : `Miss it with all three and your score halves`,
+        cells: g.pl.map(p => ({ main: p.score, sub: p.halves ? `Halved ${p.halves}×` : 'Never halved' })),
+      });
+    },
+    pad(g) {
+      const t = HI_TARGETS[g.round - 1];
+      return keypadHTML({ dis: isBotTurn(), chips: [[0, 'Missed: halve', 'zero wide']], aim: hiName(t), aimLabel: 'Target' });
+    },
+    board(g, st) {
+      const t = HI_TARGETS[g.round - 1];
+      return { label: 'Target', text: g.winner != null ? '' : hiName(t), keys: g.winner != null ? [] : hiKeys(t), ...lastBotDarts(g, st) };
+    },
+    log(g, st) {
+      const head = st.players.map(p => `<th>${htmlEsc(p.name)}</th>`).join('');
+      const rows = HI_TARGETS.map((t, r) => `<tr${r + 1 === g.round && g.winner == null ? ' class="nowrow"' : ''}><td>${hiName(t)}</td>${g.pl.map(p => `<td class="${p.rounds[r] === 0 ? 'bust' : ''}">${p.rounds[r] == null ? '' : p.rounds[r] === 0 ? '½' : p.rounds[r]}</td>`).join('')}</tr>`).join('');
+      return `<section class="panel"><h2>Points by target</h2><div class="sheet-wrap"><table class="sheet tally"><thead><tr><th>Target</th>${head}</tr></thead><tbody>${rows}<tr class="tot"><td>Score</td>${g.pl.map(p => `<td>${p.score}</td>`).join('')}</tr></tbody></table></div></section>`;
+    },
+    result: (g, st) => scoreResult(g, st, p => p.score, 'points', 'halveit'),
+  },
+
+  c121: {
+    title: '121 Checkout', keypad: true,
+    rules: 'Ten attempts to check out, each with nine darts (three visits) and a double to finish. Start on 121. Check out and the next target goes up by one. Fail and it drops by one, though never below 121. Your highest checkout is the score.',
+    hint: 'Type each visit total, then Enter. Busts count as no score. Ctrl+Z undoes.',
+    init: () => ({ target: 121, rem: 121, visit: 0, results: [], high: 0 }),
+    done: g => g.results.length >= 10,
+    validate(g, v) {
+      if (!E.validVisit(v)) return v > 180 ? 'The most three darts can score is 180.' : `${v} can't be scored with three darts.`;
+      if (v === g.rem && E.minDarts(g.rem, 'double') > 3) return `${g.rem} can't be checked out on a double in three darts.`;
+      return null;
+    },
+    act(g, a, v) {
+      const s = +v;
+      if (!(s > g.rem || g.rem - s === 1)) g.rem -= s;
+      let finished = null;
+      if (g.rem === 0) { finished = true; g.high = Math.max(g.high, g.target); }
+      else if (++g.visit === 3) finished = false;
+      if (finished != null) {
+        g.results.push({ t: g.target, ok: finished, visits: finished ? g.visit + 1 : 3 });
+        g.target = finished ? g.target + 1 : Math.max(121, g.target - 1);
+        g.rem = g.target; g.visit = 0;
+      }
+    },
+    hud(g) {
+      const done = g.results.length >= 10, ok = g.results.filter(r => r.ok).length;
+      return hudHTML({
+        eyebrow: `121 Checkout · attempt ${Math.min(g.results.length + 1, 10)} of 10 · target ${g.target}`,
+        target: done ? (g.high || '–') : g.rem,
+        sub: done ? 'Highest checkout' : `Visit ${g.visit + 1} of 3 · ${9 - g.visit * 3} darts left`,
+        stats: [['Checked out', `${ok}/${g.results.length}`], ['Highest', g.high || '–'], ['Best', getBest('c121') ?? '–']],
+      });
+    },
+    pad(g) {
+      const route = E.bestRoute(g.rem, 3, 'double');
+      return keypadHTML({ chips: [[0, 'No score', 'zero'], ...(route ? [[g.rem, `Checkout ${g.rem}`, 'co wide']] : [])], aim: route ? route.map(E.label).join(' ') : 'Set up a finish', aimLabel: 'Route' });
+    },
+    board(g) {
+      const route = g.results.length >= 10 ? null : E.bestRoute(g.rem, 3, 'double');
+      return { label: route ? 'Checkout route' : `${g.rem} left`, text: route ? route.map(E.label).join('  ') : (g.results.length >= 10 ? '' : 'Score to leave a finish'), keys: route ? route.map(s => s.k) : ['T20'] };
+    },
+    log: g => `<section class="panel"><h2>Attempts</h2>${cellsHTML(Array.from({ length: 10 }, (_, i) => { const r = g.results[i]; return { h: r ? r.t : i === g.results.length ? g.target : '', v: r ? (r.ok ? '✓' : '✕') : '', cls: r ? (r.ok ? 'ok' : 'bad') : '' }; }), g.results.length)}</section>`,
+    result: g => ({ headline: g.high ? `Highest checkout: ${g.high}` : 'No checkouts this time', detail: `${g.results.filter(r => r.ok).length} of 10 attempts checked out.`, best: g.high || null, better: 'max' }),
+  },
+});
+// Player counts per game: [min, max]
+const PLAYER_LIMITS = { x01: [1, 4], cricket: [2, 2], killer: [2, 6], shanghai: [1, 6], halveit: [1, 6] };
+const limitsFor = mode => PLAYER_LIMITS[mode] || [1, 1];
+const MENU = [
+  ['Matches', [
+    ['x01', 'X01', '301, 501 or 701 down to zero, finishing on a double. Checkout routes shown for every score.'],
+    ['cricket', 'Cricket', 'Close 15 to 20 and the bull, and score on numbers your opponent has left open.'],
+    ['killer', 'Killer', 'Hit your own double to become a killer, then take lives from everyone else.'],
+    ['shanghai', 'Shanghai', 'Seven rounds, 1 to 7. A single, double and treble in one visit wins outright.'],
+    ['halveit', 'Halve It', 'A new target every round. Miss it with all three darts and your score halves.'],
+  ]],
+  ['Practice', [
+    ['c121', '121 Checkout', 'Nine darts to check out. Make it and the target goes up, miss and it drops.'],
+    ['atc', 'Around the Clock', 'Hit 1 to 20 in order, then the bull, in as few darts as you can.'],
+    ['bobs27', "Bob's 27", 'Three darts at every double. Hits add points, three misses take them away.'],
+    ['doubles', 'Doubles Training', 'Three darts at each double from D1 to the bull. Out of 63.'],
+    ['singles', 'Singles Training', 'Three darts at each number, scoring by ring. Out of 186.'],
+    ['score', 'Score Training', '99 darts at the treble 20. Keep your average as high as you can.'],
+  ]],
+];
+</script>
+
+<script>
+// ===== App =====
+const $ = id => document.getElementById(id);
+const STORE_KEY = 'oche-match-v1';
+const DEFAULT_SETTINGS = { mode: 'x01', start: 501, out: 'double', legs: 3, players: [{ name: 'You', type: 'human' }, { name: 'Bot', type: 'bot', avg: 50 }] };
+let S;
+let buffer = '';
+let botTimer = null;
+let botBusy = false;
+
+const clone = o => JSON.parse(JSON.stringify(o));
+function freshMatch(settings) {
+  const s = clone(settings);
+  s.mode = s.mode || 'x01';
+  const m = { settings: s, legs: [{ starter: 0, visits: [], winner: null }], matchWinner: null, hist: [], screen: 'play' };
+  if (s.mode !== 'x01') m.game = GAMES[s.mode].init(s);
+  return m;
+}
+const isGame = () => S.settings.mode !== 'x01';
+const players = () => S.settings.players;
+const n = () => players().length;
+const curLeg = () => S.legs[S.legs.length - 1];
+const turnOf = leg => (leg.starter + leg.visits.length) % n();
+const remaining = (leg, p) => S.settings.start - leg.visits.filter(v => v.p === p).reduce((a, v) => a + v.score, 0);
+const legsWon = p => S.legs.filter(l => l.winner === p).length;
+function isBotTurn() {
+  if (isGame()) {
+    const G = GAMES[S.settings.mode];
+    return !!G.botVisit && !G.done(S.game) && players()[S.game.turn]?.type === 'bot';
+  }
+  return S.matchWinner == null && players()[turnOf(curLeg())].type === 'bot';
+}
+const fmt = (x, d = 1) => x == null ? '–' : x.toFixed(d);
+
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) {} }
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) { const s = JSON.parse(raw); if (s && s.settings && Array.isArray(s.legs) && s.legs.length) return s; }
+  } catch (e) {}
+  return null;
+}
+
+// ---------- board ----------
+function buildBoard() {
+  const svg = $('board');
+  const NS = 'http://www.w3.org/2000/svg';
+  const pt = (r, a) => { const t = a * Math.PI / 180; return [(r * Math.sin(t)).toFixed(2), (-r * Math.cos(t)).toFixed(2)]; };
+  const sector = (r1, r2, a1, a2) => {
+    const [x1, y1] = pt(r2, a1), [x2, y2] = pt(r2, a2), [x3, y3] = pt(r1, a2), [x4, y4] = pt(r1, a1);
+    return `M${x1} ${y1}A${r2} ${r2} 0 0 1 ${x2} ${y2}L${x3} ${y3}A${r1} ${r1} 0 0 0 ${x4} ${y4}Z`;
+  };
+  const el = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+  svg.appendChild(el('circle', { cx: 0, cy: 0, r: 199, fill: 'var(--board-black)' }));
+  const R = E.R;
+  E.ORDER.forEach((num, i) => {
+    const a1 = i * 18 - 9, a2 = i * 18 + 9, even = i % 2 === 0;
+    const single = even ? 'var(--board-black)' : 'var(--board-cream)';
+    const colour = even ? 'var(--board-red)' : 'var(--board-green)';
+    [[R.outerBull, R.trebleIn, 'S', single], [R.trebleIn, R.trebleOut, 'T', colour], [R.trebleOut, R.doubleIn, 'S', single], [R.doubleIn, R.doubleOut, 'D', colour]]
+      .forEach(([r1, r2, ring, fill]) => svg.appendChild(el('path', { d: sector(r1, r2, a1, a2), fill, class: 'seg', 'data-k': ring + num })));
+    const [tx, ty] = pt(185, i * 18);
+    const t = el('text', { x: tx, y: ty, class: 'n' }); t.textContent = num; svg.appendChild(t);
+  });
+  svg.appendChild(el('circle', { cx: 0, cy: 0, r: R.outerBull, fill: 'var(--board-green)', class: 'seg', 'data-k': '25' }));
+  svg.appendChild(el('circle', { cx: 0, cy: 0, r: R.bull, fill: 'var(--board-red)', class: 'seg', 'data-k': 'BULL' }));
+  const g = el('g', { id: 'dartsLayer' });
+  svg.appendChild(g);
+}
+function drawDarts(darts) {
+  const g = $('dartsLayer');
+  g.innerHTML = '';
+  (darts || []).forEach((d, i) => {
+    const NS = 'http://www.w3.org/2000/svg';
+    const grp = document.createElementNS(NS, 'g');
+    grp.setAttribute('class', 'dart');
+    grp.setAttribute('style', `animation-delay:${i * 0.18}s;transform-origin:${d.x}px ${-d.y}px`);
+    grp.innerHTML = `<circle cx="${d.x}" cy="${-d.y}" r="7" fill="#ffffff" stroke="#111" stroke-width="2"/><text x="${d.x}" y="${-d.y}" font-size="9" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="#111" font-family="Barlow, sans-serif">${i + 1}</text>`;
+    g.appendChild(grp);
+  });
+}
+function highlight(route) {
+  const svg = $('board');
+  svg.querySelectorAll('.seg.hl').forEach(e => e.classList.remove('hl'));
+  svg.classList.toggle('focus', !!(route && route.length));
+  (route || []).forEach(s => svg.querySelectorAll(`[data-k="${s.k}"]`).forEach(e => e.classList.add('hl')));
+}
+
+// ---------- rendering ----------
+function render() {
+  const menu = S.screen === 'menu';
+  $('menu').hidden = !menu;
+  $('play').hidden = menu;
+  $('menuBtn').hidden = $('rematchBtn').hidden = menu;
+  if (menu) { $('meta').textContent = 'Pick a game'; return renderMenu(); }
+  const game = isGame();
+  $('x01Left').hidden = $('x01Right').hidden = game;
+  $('gameLeft').hidden = $('gameRight').hidden = !game;
+  if (game) return renderGame();
+  const st = S.settings, leg = curLeg(), turn = S.matchWinner == null ? turnOf(leg) : -1;
+  $('meta').textContent = `${st.start} · ${st.out === 'double' ? 'Double out' : 'Single out'} · First to ${st.legs} leg${st.legs > 1 ? 's' : ''} · Leg ${S.legs.length}`;
+  const stats = E.stats(S.legs, n());
+
+  // scoreboard
+  const pe = $('players');
+  pe.style.setProperty('--n', n());
+  pe.innerHTML = players().map((pl, p) => {
+    const rem = remaining(leg, p);
+    const route = st.out === 'double' || rem <= 180 ? E.bestRoute(rem, 3, st.out) : null;
+    const mine = leg.visits.filter(v => v.p === p);
+    const last = mine[mine.length - 1];
+    const legDarts = mine.reduce((a, v) => a + v.dartsUsed, 0);
+    const pips = Array.from({ length: st.legs }, (_, i) => `<span class="pip${i < legsWon(p) ? ' on' : ''}"></span>`).join('');
+    const tag = pl.type === 'bot' ? ` <span class="label">${botAvg(pl)} avg</span>` : '';
+    const status = p === turn && pl.type === 'bot' ? `<span class="thinking">Throwing</span>` : '';
+    return `<article class="player${p === turn ? ' active' : ''}" aria-current="${p === turn}">
+      <div class="head"><span class="name">${esc(pl.name)}${tag}</span><span class="pips" title="Legs won: ${legsWon(p)}">${pips}</span></div>
+      <div class="rem num">${rem}</div>
+      <div class="route">${route ? route.map(E.label).join(' · ') : status}</div>
+      <div class="sub"><span>Avg <b>${fmt(stats[p].avg)}</b></span><span>Last <b>${last ? (last.bust ? 'Bust' : last.score) : '–'}</b></span><span>Darts <b>${legDarts}</b></span></div>
+    </article>`;
+  }).join('');
+
+  // winner
+  const wp = $('winnerPanel');
+  if (S.matchWinner != null) {
+    const w = stats[S.matchWinner];
+    wp.hidden = false;
+    wp.className = 'panel winner';
+    wp.innerHTML = `<h2>${esc(players()[S.matchWinner].name)} wins ${legsWon(S.matchWinner)}–${players().map((_, p) => p).filter(p => p !== S.matchWinner).map(legsWon).join('–') || 0}</h2>
+      <p style="margin:0 0 12px;color:var(--muted)">Match average ${fmt(w.avg)}, highest finish ${w.highFinish || '–'}.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-act="rematch">Play again</button><button class="btn" type="button" data-act="new">Main menu</button></div>`;
+  } else wp.hidden = true;
+
+  // entry
+  const human = turn >= 0 && players()[turn].type === 'human';
+  const rem = turn >= 0 ? remaining(leg, turn) : 0;
+  const ro = $('readout');
+  ro.textContent = buffer || (human ? 'Enter score' : S.matchWinner != null ? 'Match over' : 'Bot throwing…');
+  ro.classList.toggle('empty', !buffer);
+  $('who').innerHTML = turn >= 0 ? `<span class="label">To throw</span><br><b>${esc(players()[turn].name)}</b> needs ${rem}` : '';
+  const canCO = human && E.minDarts(rem, st.out) <= 3;
+  const quick = [26, 41, 45, 60, 81, 85, 100, 140, 180];
+  $('quick').innerHTML =
+    `<button class="chip zero" type="button" data-score="0" ${human ? '' : 'disabled'}>No score</button>` +
+    quick.map(q => `<button class="chip" type="button" data-score="${q}" ${human ? '' : 'disabled'}>${q}</button>`).join('') +
+    (canCO ? `<button class="chip co" type="button" data-score="${rem}" style="grid-column: span 2">Checkout ${rem}</button>` : '');
+  $('keys').innerHTML = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'].map(k =>
+    `<button class="key ${k === 'ok' ? 'ok' : k === 'del' ? 'fn' : ''}" type="button" data-key="${k}" ${human ? '' : 'disabled'} aria-label="${k === 'del' ? 'Delete digit' : k === 'ok' ? 'Submit score' : k}">${k === 'del' ? '⌫' : k === 'ok' ? 'Score' : k}</button>`).join('');
+  $('undoBtn').disabled = !hasHumanVisit() || botBusy;
+
+  // board: current thrower's route, plus the last bot visit's darts
+  const route = turn >= 0 ? E.bestRoute(rem, 3, st.out) : null;
+  highlight(route);
+  const lastVisit = lastVisitAnywhere();
+  const showDarts = lastVisit && lastVisit.darts;
+  drawDarts(showDarts ? lastVisit.darts : []);
+  $('boardLabel').textContent = route ? `${players()[turn].name} checkout` : turn >= 0 ? `${players()[turn].name} needs ${rem}` : 'Final visit';
+  $('boardRoute').textContent = route ? route.map(E.label).join('  ') : turn >= 0 ? (rem > 170 ? 'Scoring – aim T20' : 'No 3-dart finish') : '';
+  $('legend').innerHTML = showDarts
+    ? `<span>${esc(players()[lastVisit.p].name)}'s last visit:</span> ${lastVisit.darts.map((d, i) => `<span>${i + 1}. <b>${E.label(E.BY[d.k])}</b></span>`).join('')} <span>= <b>${lastVisit.bust ? 'Bust' : lastVisit.score}</b></span>`
+    : `<span>Highlighted segments show the suggested finish.</span>`;
+
+  renderSheet();
+  renderStats(stats);
+}
+function lastVisitAnywhere() {
+  for (let i = S.legs.length - 1; i >= 0; i--) { const v = S.legs[i].visits; if (v.length) return v[v.length - 1]; }
+  return null;
+}
+function renderSheet() {
+  // Chalker's sheet: per player "Scored | Left", one row per round
+  let leg = curLeg(), idx = S.legs.length;
+  if (!leg.visits.length && S.legs.length > 1) { leg = S.legs[S.legs.length - 2]; idx--; }
+  const pl = players();
+  $('sheetTitle').textContent = `Leg ${idx}`;
+  if (leg.winner != null) {
+    const d = leg.visits.filter(v => v.p === leg.winner).reduce((a, v) => a + v.dartsUsed, 0);
+    $('sheetNote').textContent = `${pl[leg.winner].name} won in ${d} darts`;
+  } else $('sheetNote').textContent = `${pl[leg.starter].name} threw first`;
+  const order = pl.map((_, i) => (leg.starter + i) % pl.length);
+  const left = pl.map(() => S.settings.start);
+  const rows = [];
+  for (let r = 0; r * pl.length < leg.visits.length; r++) {
+    const cells = order.map(p => {
+      const v = leg.visits[r * pl.length + order.indexOf(p)];
+      if (!v) return `<td class="sc sep"></td><td class="lf"></td>`;
+      left[p] -= v.score;
+      const cls = v.bust ? ' bust' : v.checkout ? ' out' : '';
+      const title = v.darts ? ` title="${v.darts.map(d => E.label(E.BY[d.k])).join(', ')}"` : '';
+      return `<td class="sc sep${cls}"${title}>${v.bust ? 'Bust' : v.score}</td><td class="lf${cls}">${v.checkout ? '✓' : left[p]}</td>`;
+    }).join('');
+    rows.push(`<tr><td class="rnd">${(r + 1) * 3}</td>${cells}</tr>`);
+  }
+  $('sheet').innerHTML = `<thead><tr><th>Darts</th>${order.map(p => `<th class="sep">${esc(pl[p].name)}</th><th>Left</th>`).join('')}</tr></thead>
+    <tbody><tr><td class="rnd">0</td>${order.map(() => `<td class="sc sep"></td><td class="lf">${S.settings.start}</td>`).join('')}</tr>${rows.join('')}</tbody>`;
+}
+function renderStats(stats) {
+  const pl = players();
+  const rows = [
+    ['3-dart average', s => s.avg, v => fmt(v), 'max'],
+    ['First 9 average', s => s.f9, v => fmt(v), 'max'],
+    ['Checkout %', s => s.coPct, v => v == null ? '–' : fmt(v, 0) + '%', 'max'],
+    ['Checkouts', s => s.atDouble ? s.checkouts : null, (v, s) => v == null ? '–' : `${s.checkouts}/${s.atDouble}`, null],
+    ['Highest finish', s => s.highFinish || null, v => v ?? '–', 'max'],
+    ['Best leg (darts)', s => s.bestLeg, v => v ?? '–', 'min'],
+    ['Highest visit', s => s.highVisit || null, v => v ?? '–', 'max'],
+    ['100+', s => s.t100, v => v, 'max'],
+    ['140+', s => s.t140, v => v, 'max'],
+    ['180s', s => s.t180, v => v, 'max'],
+    ['Darts thrown', s => s.darts, v => v, null],
+  ];
+  $('stats').innerHTML = `<thead><tr><th></th>${pl.map(p => `<th>${esc(p.name)}</th>`).join('')}</tr></thead><tbody>` +
+    rows.map(([name, get, show, better]) => {
+      const vals = stats.map(get);
+      const known = vals.filter(v => v != null && v !== 0);
+      const best = better && pl.length > 1 && known.length > 1 ? (better === 'max' ? Math.max(...known) : Math.min(...known)) : null;
+      return `<tr><td>${name}</td>${vals.map((v, i) => `<td class="${best != null && v === best ? 'best' : ''}">${show(v, stats[i])}</td>`).join('')}</tr>`;
+    }).join('') + '</tbody>';
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+// ---------- messages ----------
+let msgTimer;
+function err(text) {
+  const m = $('msg'); m.textContent = text;
+  const ro = $('readout').parentElement; ro.classList.remove('shake'); void ro.offsetWidth; ro.classList.add('shake');
+  clearTimeout(msgTimer); msgTimer = setTimeout(() => { m.textContent = ''; }, 4000);
+}
+let toastTimer;
+function toast(text) {
+  const t = $('toast'); t.textContent = text; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+}
+
+// ---------- game flow ----------
+function commitVisit(v) {
+  const leg = curLeg();
+  leg.visits.push(v);
+  buffer = '';
+  $('msg').textContent = '';
+  if (v.checkout) {
+    leg.winner = v.p;
+    const darts = leg.visits.filter(x => x.p === v.p).reduce((a, x) => a + x.dartsUsed, 0);
+    if (legsWon(v.p) >= S.settings.legs) {
+      S.matchWinner = v.p;
+      toast(`Game shot and the match! ${players()[v.p].name} checks out ${v.score}.`);
+    } else {
+      S.legs.push({ starter: (leg.starter + 1) % n(), visits: [], winner: null });
+      toast(`Game shot! ${players()[v.p].name} takes the leg in ${darts} darts.`);
+    }
+  } else if (v.bust) {
+    toast(`${players()[v.p].name}: bust`);
+  } else if (v.score === 180) {
+    toast('One hundred and eighty!');
+  }
+  save(); render(); maybeBot();
+}
+function maybeBot() {
+  clearTimeout(botTimer);
+  if (S.screen === 'menu') { botBusy = false; return; }
+  if (isGame()) return gameBot();
+  if (!isBotTurn()) { botBusy = false; return; }
+  botBusy = true;
+  render();
+  botTimer = setTimeout(() => {
+    botBusy = false;
+    if (!isBotTurn()) return;
+    const leg = curLeg(), p = turnOf(leg), pl = players()[p];
+    const rem = remaining(leg, p);
+    const r = E.simulateVisit(rem, S.settings.out, E.profileFor(botAvg(pl)));
+    commitVisit({ p, score: r.score, dartsUsed: r.dartsUsed, dartsAtDouble: r.dartsAtDouble, bust: r.bust, checkout: r.checkout, before: rem, darts: r.darts });
+  }, 1000);
+}
+function hasHumanVisit() { return S.legs.some(l => l.visits.some(v => players()[v.p].type === 'human')); }
+function popOne() {
+  let leg = curLeg();
+  if (!leg.visits.length) { if (S.legs.length === 1) return null; S.legs.pop(); leg = curLeg(); }
+  const v = leg.visits.pop();
+  if (v) { leg.winner = null; S.matchWinner = null; }
+  return v;
+}
+function undo() {
+  if (isGame()) return gameUndo();
+  if (!hasHumanVisit() || botBusy) return;
+  clearTimeout(botTimer);
+  let v;
+  do { v = popOne(); } while (v && players()[v.p].type === 'bot');
+  buffer = '';
+  save(); render(); toast(`Undid ${v ? (v.bust ? 'bust' : v.score) : 'visit'}`);
+  maybeBot();
+}
+
+function submit(score) {
+  if (isBotTurn() || S.matchWinner != null) return;
+  const leg = curLeg(), p = turnOf(leg), rem = remaining(leg, p), out = S.settings.out, dbl = out === 'double';
+  if (!Number.isInteger(score)) return err('Type a score first.');
+  if (!E.validVisit(score)) return err(score > 180 ? 'The most three darts can score is 180.' : `${score} can't be scored with three darts.`);
+  const base = { p, before: rem };
+  const canAimDouble = dbl && rem <= 50 && E.minDarts(rem, out) <= 3;
+  if (score > rem || (dbl && rem - score === 1)) {
+    const finish = atDouble => commitVisit({ ...base, score: 0, dartsUsed: 3, dartsAtDouble: atDouble, bust: true, checkout: false });
+    return canAimDouble ? ask('Bust', `How many darts did ${players()[p].name} throw at a double?`, [{ key: 'd', label: 'Darts at double', options: [0, 1, 2, 3], def: 1 }], a => finish(a.d)) : finish(0);
+  }
+  if (score === rem) {
+    const md = E.minDarts(rem, out);
+    if (md > 3) return err(dbl ? `${rem} can't be checked out on a double in three darts.` : `${rem} can't be checked out in three darts.`);
+    const finish = (used, at) => commitVisit({ ...base, score, dartsUsed: used, dartsAtDouble: dbl ? at : 0, bust: false, checkout: true });
+    if (md === 3 && dbl) return finish(3, 1);
+    const qs = [{ key: 'used', label: 'Darts used', options: range(md, 3), def: md }];
+    if (dbl) qs.push({ key: 'at', label: 'Darts at double', options: a => range(1, a.used - md + 1), def: 1 });
+    return ask(`Checkout ${rem}`, 'How did the finish go?', qs, a => finish(a.used, a.at || 1));
+  }
+  if (canAimDouble) return ask(`${score} scored`, `${rem} was on. How many darts went at a double?`, [{ key: 'd', label: 'Darts at double', options: [0, 1, 2, 3], def: 0 }],
+    a => commitVisit({ ...base, score, dartsUsed: 3, dartsAtDouble: a.d, bust: false, checkout: false }));
+  commitVisit({ ...base, score, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false });
+}
+const range = (a, b) => Array.from({ length: Math.max(0, b - a + 1) }, (_, i) => a + i);
+
+// ---------- dialogs ----------
+let dialogOpen = false;
+function ask(title, text, questions, done) {
+  const ov = $('overlay');
+  const ans = {};
+  questions.forEach(q => { ans[q.key] = q.def; });
+  const draw = () => {
+    ov.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h3>${esc(title)}</h3><p>${esc(text)}</p>
+      ${questions.map(q => {
+        const opts = typeof q.options === 'function' ? q.options(ans) : q.options;
+        if (!opts.includes(ans[q.key])) ans[q.key] = opts[0];
+        return `<div class="field"><span class="label">${q.label}</span><div class="opts">${opts.map(o => `<button type="button" class="opt" data-q="${q.key}" data-v="${o}" aria-pressed="${ans[q.key] === o}">${o}</button>`).join('')}</div></div>`;
+      }).join('')}
+      <div class="actions"><button type="button" class="btn" data-act="cancel">Cancel</button><button type="button" class="btn primary" data-act="ok">Confirm</button></div></div>`;
+  };
+  draw();
+  ov.hidden = false; dialogOpen = true;
+  const close = () => { ov.hidden = true; ov.innerHTML = ''; ov.onclick = null; dialogOpen = false; dialogKey = null; };
+  ov.onclick = e => {
+    const b = e.target.closest('button');
+    if (!b) { if (e.target === ov) close(); return; }
+    if (b.dataset.q) { ans[b.dataset.q] = +b.dataset.v; draw(); ov.querySelector(`[data-q="${b.dataset.q}"][data-v="${b.dataset.v}"]`)?.focus(); }
+    else if (b.dataset.act === 'cancel') close();
+    else if (b.dataset.act === 'ok') { close(); done(ans); }
+  };
+  dialogKey = e => {
+    if (e.key === 'Escape') { close(); return true; }
+    if (e.key === 'Enter' && !e.target.closest?.('[data-q], [data-act="cancel"]')) { close(); done(ans); return true; }
+    return false;
+  };
+  ov.querySelector('[data-act="ok"]').focus();
+}
+let dialogKey = null;
+
+// ---------- training games & cricket ----------
+function renderGame() {
+  const st = S.settings, G = GAMES[st.mode], g = S.game, done = G.done(g);
+  $('meta').textContent = G.title + ' · ' + st.players.map(p => p.name).join(' vs ');
+  let res = '';
+  if (done) {
+    const r = G.result(g, st);
+    res = `<section class="panel winner"><h2>${esc(r.headline)}</h2><p style="margin:0 0 12px;color:var(--muted)">${esc(r.detail)}</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-act="rematch">Play again</button><button class="btn" type="button" data-act="new">Main menu</button></div></section>`;
+  }
+  const canUndo = S.hist.length > 0 && !botBusy;
+  $('gameLeft').innerHTML = G.hud(g, st) + res +
+    `<section class="panel gpadwrap">${done ? '' : G.pad(g, st)}<div class="msg" id="gMsg" role="status" aria-live="polite"></div>
+      <div class="row-actions"><button class="btn" type="button" data-act="undo"${canUndo ? '' : ' disabled'}>Undo</button><span class="hint">${G.hint}</span></div></section>`;
+  $('gameRight').innerHTML = G.log(g, st) + `<section class="panel"><h2>How to play</h2><p class="rules">${G.rules}</p></section>`;
+  const b = G.board(g, st);
+  highlight(b.keys.map(k => ({ k })));
+  drawDarts(b.darts || []);
+  $('boardLabel').textContent = b.label;
+  $('boardRoute').textContent = b.text;
+  $('legend').innerHTML = b.legend || (b.keys.length ? '<span>Highlighted segments show what to aim at.</span>' : '');
+}
+function gameErr(text) {
+  const m = $('gMsg'); if (!m) return;
+  m.textContent = text;
+  clearTimeout(msgTimer); msgTimer = setTimeout(() => { m.textContent = ''; }, 4000);
+}
+function gameAct(a, v) {
+  const G = GAMES[S.settings.mode];
+  if (G.done(S.game) || isBotTurn()) return;
+  if (a === 'score') {
+    if (v === '' || v == null) return gameErr('Type a score first.');
+    const s = +v;
+    const problem = G.validate ? G.validate(S.game, s) : (!E.validVisit(s) ? (s > 180 ? 'The most three darts can score is 180.' : `${s} can't be scored with three darts.`) : null);
+    if (problem) { buffer = ''; render(); return gameErr(problem); }
+  }
+  S.hist.push(JSON.stringify(S.game));
+  if (S.hist.length > 400) S.hist.shift();
+  G.act(S.game, a, v, S.settings);
+  buffer = '';
+  afterGameChange();
+}
+function afterGameChange() {
+  const G = GAMES[S.settings.mode], g = S.game;
+  if (G.done(g) && !g.recorded) {
+    g.recorded = true;
+    const r = G.result(g, S.settings);
+    const rec = r.best != null ? recordBest(S.settings.mode, r.best, r.better) : null;
+    toast(rec === 'beaten' ? `New personal best: ${r.best}` : rec === 'first' ? `Saved as your personal best: ${r.best}` : r.headline);
+  }
+  save(); render(); maybeBot();
+}
+function gameUndo() {
+  if (!S.hist.length || botBusy) return;
+  clearTimeout(botTimer);
+  do { S.game = JSON.parse(S.hist.pop()); } while (S.hist.length && isBotTurn());
+  buffer = '';
+  save(); render(); maybeBot();
+}
+function gameBot() {
+  if (!isBotTurn()) { botBusy = false; return; }
+  botBusy = true;
+  render();
+  botTimer = setTimeout(() => {
+    botBusy = false;
+    if (!isBotTurn()) return;
+    S.hist.push(JSON.stringify(S.game));
+    GAMES[S.settings.mode].botVisit(S.game, S.settings);
+    afterGameChange();
+  }, 1000);
+}
+
+// ---------- main menu ----------
+function inProgress() {
+  if (!S) return false;
+  if (isGame()) return !GAMES[S.settings.mode].done(S.game) && S.hist.length > 0;
+  return S.matchWinner == null && S.legs.some(l => l.visits.length);
+}
+function modeTitle(mode) { return mode === 'x01' ? `${S.settings.start || 501}` : GAMES[mode].title; }
+function renderMenu() {
+  const resume = inProgress()
+    ? `<section class="panel resume"><div><span class="label">Game in progress</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><button class="btn primary" type="button" data-act="continue">Continue</button></section>`
+    : '';
+  $('menu').innerHTML = resume + MENU.map(([group, items]) => `<section><h2>${group}</h2><div class="cards">${items.map(([mode, title, desc]) => {
+    const [lo, hi] = limitsFor(mode), best = getBest(mode);
+    const who = hi === 1 ? 'Solo' : lo === hi ? `${lo} players` : `${lo}–${hi} players`;
+    const bots = PLAYER_LIMITS[mode] ? ' · bots' : '';
+    return `<button class="gcard" type="button" data-menu="${mode}"><span class="gname">${title}</span><span class="gdesc">${desc}</span><span class="gmeta"><span>${who}${bots}</span>${best != null ? `<span class="pb">Best ${best}</span>` : ''}</span></button>`;
+  }).join('')}</div></section>`).join('');
+}
+function goMenu() {
+  clearTimeout(botTimer); botBusy = false;
+  S.screen = 'menu'; buffer = '';
+  save(); render();
+}
+
+// ---------- setup ----------
+const isDefaultName = name => /^(Bot|Player)( \d+)?$/.test(name);
+function openSetup(mode) {
+  const G = GAMES[mode];
+  const [lo, hi] = limitsFor(mode);
+  const st = { ...clone(DEFAULT_SETTINGS), ...clone(S.settings), mode };
+  if (S.settings.mode !== 'x01') Object.assign(st, { start: st.start || 501, out: st.out || 'double', legs: st.legs || 3 });
+  let list = st.players.map(p => ({ name: p.name, type: p.type === 'bot' ? 'bot' : 'human', avg: botAvg(p) }));
+  list[0].type = 'human';
+  if (list.length > hi) list = list.slice(0, hi);
+  while (list.length < lo) list.push({ name: 'Bot', type: 'bot', avg: 50 });
+  const ov = $('overlay');
+  const avgText = a => `Average ${a} · checks out about ${Math.round(E.profileFor(a).co)}% at a double`;
+  const renumber = () => {
+    // Give duplicate default names a number: Bot, Bot 2, Bot 3…
+    const seen = {};
+    list.forEach(p => {
+      if (!isDefaultName(p.name)) return;
+      const base = p.type === 'bot' ? 'Bot' : 'Player';
+      seen[base] = (seen[base] || 0) + 1;
+      p.name = seen[base] === 1 && base === 'Bot' ? 'Bot' : `${base} ${base === 'Player' ? list.indexOf(p) + 1 : seen[base]}`;
+    });
+  };
+  const rowHTML = (p, i) => `<div class="prow">
+      <div class="prow-top">
+        <input type="text" id="pn${i}" maxlength="16" value="${esc(p.name)}" aria-label="Player ${i + 1} name">
+        ${i > 0 ? `<div class="opts">${[['human', 'Human'], ['bot', 'Bot']].map(([v, l]) => `<button type="button" class="opt" data-set="ptype" data-i="${i}" data-v="${v}" aria-pressed="${p.type === v}">${l}</button>`).join('')}</div>` : '<span class="hint">Player 1</span>'}
+        ${i > 0 && list.length > lo ? `<button type="button" class="opt" data-set="premove" data-i="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : ''}
+      </div>
+      ${p.type === 'bot' ? `<label class="label" for="pa${i}">${avgText(p.avg)}</label><input type="range" id="pa${i}" data-i="${i}" min="${E.AVG_MIN}" max="${E.AVG_MAX}" step="1" value="${p.avg}">` : ''}
+    </div>`;
+  const draw = () => {
+    const x01 = mode === 'x01';
+    ov.innerHTML = `<form class="dialog" id="setupForm" aria-label="${esc(x01 ? 'X01' : G.title)} setup"><h3>${esc(x01 ? 'X01' : G.title)}</h3>
+      ${x01 ? `<div class="field"><span class="label">Start score</span><div class="opts">${[301, 501, 701].map(g => `<button type="button" class="opt" data-set="start" data-v="${g}" aria-pressed="${st.start === g}">${g}</button>`).join('')}</div></div>
+      <div class="field"><span class="label">Finish</span><div class="opts">${[['double', 'Double out'], ['single', 'Single out']].map(([v, l]) => `<button type="button" class="opt" data-set="out" data-v="${v}" aria-pressed="${st.out === v}">${l}</button>`).join('')}</div></div>
+      <div class="field"><label class="label" for="legsSel">First to</label><select id="legsSel">${range(1, 7).map(l => `<option value="${l}" ${st.legs === l ? 'selected' : ''}>${l} leg${l > 1 ? 's' : ''}</option>`).join('')}</select></div>` : ''}
+      <div class="field"><span class="label">${hi === 1 ? 'Player' : `Players (${lo === hi ? lo : `${lo}–${hi}`})`}</span>
+        <div class="plist">${list.map(rowHTML).join('')}</div>
+        ${list.length < hi ? `<div class="opts"><button type="button" class="opt" data-set="padd" data-v="bot">+ Add bot</button><button type="button" class="opt" data-set="padd" data-v="human">+ Add player</button></div>` : ''}
+      </div>
+      ${!x01 ? `<p class="rules">${G.rules}</p>` : ''}
+      <div class="actions"><button type="button" class="btn" data-act="cancel">Cancel</button><button type="submit" class="btn primary">Start</button></div></form>`;
+  };
+  const sync = () => {
+    if (!$('setupForm')) return;
+    if ($('legsSel')) st.legs = +$('legsSel').value;
+    list.forEach((p, i) => {
+      const nm = $('pn' + i); if (nm) p.name = nm.value.trim() || (i === 0 ? 'You' : p.type === 'bot' ? 'Bot' : `Player ${i + 1}`);
+      const av = $('pa' + i); if (av) p.avg = +av.value;
+    });
+  };
+  draw();
+  ov.hidden = false; dialogOpen = true;
+  const close = () => { ov.hidden = true; ov.innerHTML = ''; ov.onclick = ov.oninput = ov.onsubmit = null; dialogOpen = false; dialogKey = null; };
+  ov.onclick = e => {
+    const b = e.target.closest('button');
+    if (!b) { if (e.target === ov) close(); return; }
+    if (b.dataset.set) {
+      sync();
+      const v = b.dataset.v, i = +b.dataset.i, set = b.dataset.set;
+      if (set === 'start') st.start = +v;
+      if (set === 'out') st.out = v;
+      if (set === 'ptype') { list[i].type = v; if (isDefaultName(list[i].name)) list[i].name = v === 'bot' ? 'Bot' : 'Player'; renumber(); }
+      if (set === 'premove') { list.splice(i, 1); renumber(); }
+      if (set === 'padd') { list.push({ name: v === 'bot' ? 'Bot' : 'Player', type: v, avg: 50 }); renumber(); }
+      draw();
+      (ov.querySelector(`[data-set="${set}"][data-v="${v}"]${set === 'ptype' ? `[data-i="${i}"]` : ''}`) || ov.querySelector('[type=submit]'))?.focus();
+    } else if (b.dataset.act === 'cancel') close();
+  };
+  ov.oninput = e => {
+    if (!e.target.id.startsWith('pa')) return;
+    const i = +e.target.dataset.i;
+    list[i].avg = +e.target.value;
+    e.target.previousElementSibling.textContent = avgText(list[i].avg);
+  };
+  ov.onsubmit = e => {
+    e.preventDefault(); sync();
+    st.players = list.map(p => p.type === 'bot' ? { name: p.name, type: 'bot', avg: p.avg } : { name: p.name, type: 'human' });
+    close();
+    startMatch(st);
+  };
+  dialogKey = e => { if (e.key === 'Escape') { close(); return true; } return false; };
+  ov.querySelector('[type=submit]').focus();
+}
+function startMatch(settings) {
+  clearTimeout(botTimer); botBusy = false;
+  S = freshMatch(settings); buffer = '';
+  save(); render(); maybeBot();
+}
+
+// ---------- input ----------
+function press(k) {
+  if (isGame()) {
+    const G = GAMES[S.settings.mode];
+    if (!G.keypad || G.done(S.game) || isBotTurn()) return;
+    if (k === 'ok') return gameAct('score', buffer);
+  } else if (isBotTurn() || S.matchWinner != null) return;
+  if (k === 'del') buffer = buffer.slice(0, -1);
+  else if (k === 'ok') return submit(buffer === '' ? NaN : +buffer);
+  else if (/^\d$/.test(k)) { if (buffer.length < 3) buffer = (buffer === '0' ? '' : buffer) + k; }
+  render();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || b.disabled || b.closest('#overlay')) return;
+  if (b.dataset.key) press(b.dataset.key);
+  else if (b.dataset.ga) gameAct(b.dataset.ga, b.dataset.v);
+  else if (b.dataset.act === 'undo') undo();
+  else if (b.dataset.score != null) { buffer = ''; submit(+b.dataset.score); }
+  else if (b.dataset.act === 'rematch') startMatch(S.settings);
+  else if (b.dataset.act === 'new') goMenu();
+  else if (b.dataset.menu) openSetup(b.dataset.menu);
+  else if (b.dataset.act === 'continue') { S.screen = 'play'; save(); render(); maybeBot(); }
+});
+document.addEventListener('keydown', e => {
+  if (dialogOpen) { if (dialogKey && dialogKey(e)) e.preventDefault(); return; }
+  if (S.screen === 'menu') return;
+  if (e.target.matches('input, select, textarea')) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (isGame() && !GAMES[S.settings.mode].keypad) {
+    const b = document.querySelector(`#gameLeft [data-hot="${CSS.escape(e.key.toLowerCase())}"]:not(:disabled)`);
+    if (b) { b.click(); e.preventDefault(); }
+    return;
+  }
+  if (/^\d$/.test(e.key)) { press(e.key); e.preventDefault(); }
+  else if (e.key === 'Backspace') { press('del'); e.preventDefault(); }
+  else if (e.key === 'Enter' && !e.target.closest('button')) { press('ok'); e.preventDefault(); }
+});
+$('undoBtn').addEventListener('click', undo);
+$('menuBtn').addEventListener('click', goMenu);
+$('rematchBtn').addEventListener('click', () => startMatch(S.settings));
+
+// ---------- boot ----------
+function start(data) {
+  const saved = (data && data.S) || load();
+  S = saved || freshMatch(DEFAULT_SETTINGS);
+  S.settings.mode = S.settings.mode || 'x01';
+  S.hist = S.hist || [];
+  if (isGame() && (!GAMES[S.settings.mode] || !S.game)) S = freshMatch(DEFAULT_SETTINGS);
+  // First visit opens on the menu; a saved game picks up where it was
+  S.screen = saved ? (S.screen || 'play') : 'menu';
+  buildBoard();
+  render();
+  maybeBot();
+}
+window.claude?.hot?.snapshot?.(() => ({ S }));
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
