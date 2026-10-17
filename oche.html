@@ -356,14 +356,17 @@ const E = (() => {
   // Route preferences: favourite doubles first, big trebles for set-up, singles are big targets
   const DBL_COST = { 16: 0, 20: 0.05, 8: 0.2, 18: 0.3, 12: 0.35, 10: 0.45, 14: 0.5, 4: 0.55, 6: 0.6, 2: 0.7, 1: 1.3 };
   const TRE_COST = { 20: 0, 19: 0.1, 18: 0.2, 17: 0.3, 16: 0.35 };
-  function finishCost(s, out) {
+  function finishCost(s, out, style) {
     if (out === 'double') {
       if (!s.dbl) return null;
+      if (style && s.k === 'BULL' && style.bullShy) return 2.5;
+      if (style && s.n === style.fav && s.ring === 'D') return -0.1;
       return s.k === 'BULL' ? 1.0 : (DBL_COST[s.n] ?? 0.8);
     }
     return s.ring === 'S' ? 0 : s.ring === 'T' ? 0.3 : s.ring === 'D' ? 0.5 : s.k === 'BULL' ? 0.9 : 0.6;
   }
-  function setupCost(s) {
+  function setupCost(s, style) {
+    if (style && style.bullShy && (s.k === '25' || s.k === 'BULL')) return 1.6;
     if (s.ring === 'T') return TRE_COST[s.n] ?? 0.6;
     if (s.ring === 'S') return 0.15 + (s.n < 5 ? 0.05 : 0);
     if (s.k === '25') return 0.5;
@@ -372,13 +375,13 @@ const E = (() => {
   }
 
   const memo = new Map();
-  function exactRoute(r, n, out) {
+  function exactRoute(r, n, out, style) {
     let best = null, bc = Infinity;
     const rec = (rem, left, path, cost) => {
       if (cost >= bc) return;
       if (left === 1) {
         for (const s of SEGS) if (s.v === rem) {
-          const fc = finishCost(s, out);
+          const fc = finishCost(s, out, style);
           if (fc != null && cost + fc < bc) { bc = cost + fc; best = [...path, s]; }
         }
         return;
@@ -387,25 +390,26 @@ const E = (() => {
         if (s.v >= rem) continue;
         const nx = rem - s.v;
         if (out === 'double' && nx < 2) continue;
-        rec(nx, left - 1, [...path, s], cost + setupCost(s));
+        rec(nx, left - 1, [...path, s], cost + setupCost(s, style));
       }
     };
     rec(r, n, [], 0);
     return best;
   }
   // Fewest darts first, then the most comfortable route
-  function bestRoute(r, darts = 3, out = 'double') {
+  // style (optional): a player's habits, { fav: favourite double, bullShy: avoids the bull }
+  function bestRoute(r, darts = 3, out = 'double', style = null, minLen = 1) {
     if (r <= 0 || r > 180) return null;
     if (out === 'double' && r > 170) return null;
-    const key = r + '|' + darts + '|' + out;
+    const key = r + '|' + darts + '|' + out + '|' + (style ? style.fav + (style.bullShy ? 'b' : '') : '') + '|' + minLen;
     if (memo.has(key)) return memo.get(key);
     let res = null;
-    for (let n = 1; n <= darts && !res; n++) res = exactRoute(r, n, out);
-    if (res && res.length > 2) res = [...res.slice(0, -1).sort((a, b) => setupCost(a) - setupCost(b)), res[res.length - 1]];
+    for (let n = minLen; n <= darts && !res; n++) res = exactRoute(r, n, out, style);
+    if (res && res.length > 2) res = [...res.slice(0, -1).sort((a, b) => setupCost(a, style) - setupCost(b, style)), res[res.length - 1]];
     memo.set(key, res);
     return res;
   }
-  const minDarts = (r, out) => { const rt = bestRoute(r, 3, out); return rt ? rt.length : Infinity; };
+  const minDarts = (r, out, style = null) => { const rt = bestRoute(r, 3, out, style); return rt ? rt.length : Infinity; };
 
   // ---- Bot ----
   function aimPoint(s) {
@@ -427,32 +431,76 @@ const E = (() => {
   }
   const BOGEY = new Set([169, 168, 166, 165, 163, 162, 159]);
   const GOOD_LEAVES = [32, 40, 36, 16, 24, 20, 8, 12, 28, 18, 10, 4];
-  function chooseTarget(rem, dartsLeft, out) {
-    const route = bestRoute(rem, dartsLeft, out);
-    if (route) return route[0];
-    if (out === 'single') return rem >= 60 ? BY.T20 : (SEGS.filter(s => s.ring === 'S' && s.v <= rem).pop() || BY.S1);
-    if (rem >= 100 || rem - 60 >= 41) return BOGEY.has(rem - 60) ? BY.T19 : BY.T20;
-    for (const leave of GOOD_LEAVES) {
-      const want = rem - leave;
-      if (want <= 0) continue;
-      const s = (want <= 20 && BY['S' + want]) || (want === 25 && BY['25']) || (want % 3 === 0 && want / 3 <= 20 && BY['T' + want / 3]);
-      if (s) return s;
-    }
-    return BY.S20.v <= rem - 2 ? BY.S20 : BY['S' + Math.max(1, rem - 2)];
-  }
+  const SETUP_CANDIDATES = [...Array.from({ length: 20 }, (_, i) => BY['S' + (i + 1)]), BY['25'], BY.T20, BY.T19, BY.T18, BY.T17, BY.T16];
   function gauss() {
     let u = 0, v = 0;
     while (u === 0) u = Math.random();
     while (v === 0) v = Math.random();
     return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   }
-  // Bot model. Each dart lands with Gaussian scatter around the aim point, much more up-and-down
-  // than side-to-side, as real throws are, so darts at T20 stay in the 20, 1 and 5 beds. Form drifts a little from visit to visit. Darts at a
-  // finishing double get extra scatter (the "dbl" factor), which is large for weak players and almost
-  // gone for strong ones, so lower bots score their way down quickly and then struggle to finish.
-  // CAL maps a target 3-dart average to [scatter mm, double factor]. It was fitted by simulating full
-  // 501 double-out legs, matching both the average and a typical checkout % for that average.
-  const CAL = [[20,33.4,1.247], [25,29.39,1.234], [30,23.75,1.322], [35,21.51,1.259], [40,20.06,1.197], [45,17.57,1.216], [50,15.56,1.228], [55,14.42,1.191], [60,12.05,1.303], [65,10.87,1.259], [70,9.56,1.403], [75,7.97,1.509], [80,7.07,1.559], [85,6.22,1.666], [90,5.36,1.872], [95,4.61,2.009], [100,4.32,2.009], [105,3.99,2.047], [110,3.36,2.403], [115,3.11,2.391], [120,2.82,2.484]];
+
+  // ---- How the bot thinks ----
+  // Every bot gets habits for the match, as real players have: a favourite double (most go for
+  // 16 or 20), a scoring bed (a few are "19 shooters"), and weaker players shy away from the bull.
+  // "form" carries over from visit to visit, so bots have hot and cold patches.
+  function makePersona(avg) {
+    const r = Math.random();
+    const fav = r < 0.4 ? 16 : r < 0.75 ? 20 : r < 0.85 ? 8 : r < 0.93 ? 18 : 12;
+    return { avg, fav, bed: Math.random() < 0.12 ? 19 : 20, bullShy: avg < 70, form: 0, pressure: 1 };
+  }
+  const styleOf = ctx => ctx ? { fav: ctx.fav, bullShy: ctx.bullShy } : null;
+
+  // With no finish on, pick the dart that leaves the best next visit: fewest darts to finish, then a
+  // favourite leave. Trebles count against weaker players, who prefer the big single.
+  function setupDart(rem, out, ctx) {
+    const fav = ctx?.fav ?? 16, avg = ctx?.avg ?? 70, style = styleOf(ctx);
+    const leaves = [2 * fav, ...GOOD_LEAVES.filter(l => l !== 2 * fav)];
+    const trebleCost = avg >= 80 ? 1 : avg >= 55 ? 5 : 20;
+    let best = BY.T20, bs = Infinity;
+    for (const s of SETUP_CANDIDATES) {
+      const leave = rem - s.v;
+      if (leave < 2) continue;
+      const md = minDarts(leave, out, style);
+      const rank = leaves.indexOf(leave);
+      const sc = (md === Infinity ? 40 + leave / 10 : md * 10) + (rank >= 0 ? rank : 12)
+        + (s.ring === 'T' ? trebleCost : s.k === '25' ? (ctx?.bullShy ? 8 : 3) : (20 - s.n) * 0.01);
+      if (sc < bs) { bs = sc; best = s; }
+    }
+    return best;
+  }
+  // blocked(seg) says whether darts already in the board cover that target.
+  function chooseTarget(rem, dartsLeft, out, ctx = null, blocked = () => false) {
+    const style = styleOf(ctx);
+    let route = bestRoute(rem, dartsLeft, out, style);
+    // A bull-shy player with two or three darts on 50 plays S10 D20 rather than the bull
+    if (route && style?.bullShy && route.length === 1 && route[0].k === 'BULL') route = dartsLeft > 1 ? bestRoute(rem, dartsLeft, out, style, 2) : null;
+    if (route) return route[0];
+    if (out === 'single') return rem >= 60 ? BY.T20 : (SEGS.filter(s => s.ring === 'S' && s.v <= rem).pop() || BY.S1);
+    if (rem > 130) {
+      // Scoring: own bed, avoid leaving a bogey number, switch beds when the treble is blocked
+      const bed = ctx?.bed ?? 20, alt = bed === 20 ? 19 : 20;
+      let t = BY['T' + bed];
+      if (BOGEY.has(rem - t.v) && !BOGEY.has(rem - 57)) t = BY.T19;
+      // Better players sometimes switch when two darts crowd the treble; weaker ones keep throwing at it
+      if (blocked(t) && (ctx?.avg ?? 70) >= 60 && Math.random() < 0.5) t = blocked(BY['T' + alt]) ? BY.T18 : BY['T' + alt];
+      return t;
+    }
+    return setupDart(rem, out, ctx);
+  }
+
+  // ---- How the bot throws ----
+  // Each dart lands with Gaussian scatter around the aim point, much more up-and-down (release
+  // timing) than side-to-side (alignment), so darts at T20 stay in the 20, 1 and 5 beds; now and
+  // then a dart drifts wide, less often with skill. Part of the scatter is shared by the three darts of
+  // a visit (stance and rhythm), so darts group: good visits are tighter and bad ones are all off.
+  // Most darts are tight, but about one in seven comes out loose with double the scatter.
+  // Darts already in the board can deflect a dart or knock it out, and a dart that lands on a wire
+  // can bounce out. Darts at a finishing double get extra scatter (the "dbl" factor), large for weak
+  // players and nearly gone for strong ones, raised a little more under pressure.
+  // CAL maps a target 3-dart average to [scatter mm, double factor], fitted by simulating full 501
+  // double-out legs so each average comes with a realistic checkout %.
+  const CAL = [[20,34.75,1.464], [25,27.91,1.638], [30,25.5,1.444], [35,23.08,1.309], [40,20.57,1.354], [45,17.73,1.412], [50,16.1,1.374], [55,14.16,1.477], [60,12.83,1.361], [65,10.88,1.554], [70,9.36,1.625], [75,7.73,2.044], [80,7.02,1.96], [85,5.96,2.263], [90,5.1,2.508], [95,4.64,2.521], [100,4.36,2.514], [105,3.58,3.088], [110,3.33,3.185], [115,2.91,3.365], [120,2.62,3.816]];
+  const GROUP = 0.62;
   const AVG_MIN = CAL[0][0], AVG_MAX = CAL[CAL.length - 1][0];
   // Typical checkout % (doubles hit / darts at double) by 3-dart average, from amateur to pro
   const CO_CURVE = [[20, 3.8], [30, 6.5], [40, 10], [50, 14], [60, 18.5], [70, 23], [80, 27.5], [90, 32], [100, 36.5], [110, 40.5], [120, 44]];
@@ -464,6 +512,10 @@ const E = (() => {
     }
     return curve[curve.length - 1][1];
   };
+  // Share of darts that drift sideways badly, falling with skill
+  const wideFor = avg => 0.12 - 0.11 * (Math.max(20, Math.min(120, avg)) - 20) / 100;
+  // Extra double scatter when the opponent is on a finish or it's a match dart; weak players feel it most
+  const pressureFor = avg => 1 + 0.15 * Math.max(0, Math.min(1, (75 - avg) / 55));
   function profileFor(avg) {
     const a = Math.max(AVG_MIN, Math.min(AVG_MAX, +avg || 50));
     let i = 0;
@@ -472,28 +524,64 @@ const E = (() => {
     return { avg: a, sigma: Math.exp(Math.log(s0) + t * (Math.log(s1) - Math.log(s0))), dbl: k0 + t * (k1 - k0), wide: wideFor(a), co: lerpCurve(CO_CURVE, a) };
   }
 
-  // Share of darts that drift sideways badly, falling with skill
-  const wideFor = avg => 0.12 - 0.11 * (Math.max(20, Math.min(120, avg)) - 20) / 100;
+  const WIRE_RADII = [R.bull, R.outerBull, R.trebleIn, R.trebleOut, R.doubleIn, R.doubleOut];
+  function nearWire(x, y) {
+    const r = Math.hypot(x, y);
+    if (WIRE_RADII.some(w => Math.abs(r - w) < 0.6)) return true;
+    if (r < R.outerBull || r > R.doubleOut) return false;
+    const off = ((Math.atan2(x, y) * 180 / Math.PI + 369) % 360) % 18;
+    return r * Math.sin(Math.min(off, 18 - off) * Math.PI / 180) < 0.6;
+  }
+  // Start a visit: returns throwDart(target, atDouble) plus blocked(target) for aiming decisions
+  function startVisit(prof, ctx = {}) {
+    ctx.form = 0.85 * (ctx.form || 0) + gauss() * 0.06;
+    const s = prof.sigma * Math.exp(ctx.form);
+    const ox = gauss() * s * GROUP * 0.6, oy = gauss() * s * GROUP * 1.35;
+    const own = Math.sqrt(1 - GROUP * GROUP);
+    const landed = [];
+    const throwDart = (t, atDouble = false) => {
+      const k = atDouble ? prof.dbl * (ctx.pressure || 1) : 1;
+      const [ax, ay] = aimPoint(t);
+      const side = Math.random() < (prof.wide || 0) ? 1.4 : 0.6;
+      // Most darts are tight; now and then one comes out loose
+      const loose = Math.random() < 0.15 ? 2 : 0.82;
+      let x = ax + ox + gauss() * s * own * k * side * loose, y = ay + oy + gauss() * s * own * k * 1.35 * loose;
+      let event = null;
+      for (const d of landed) {
+        if (Math.hypot(x - d.x, y - d.y) < 2) {
+          const u = Math.random();
+          if (u < 0.08) event = 'bounce';
+          else if (u < 0.45) { const a = Math.random() * 2 * Math.PI, m = 3 + Math.random() * 4; x += Math.cos(a) * m; y += Math.sin(a) * m; event = 'deflect'; }
+          break;
+        }
+      }
+      if (!event && nearWire(x, y) && Math.random() < 0.025) event = 'bounce';
+      const rx = Math.round(x * 10) / 10, ry = Math.round(y * 10) / 10;
+      if (event === 'bounce') return { h: MISS, x: rx, y: ry, bounce: true };
+      landed.push({ x, y });
+      return { h: hitAt(x, y), x: rx, y: ry, deflected: event === 'deflect' };
+    };
+    // The bed counts as blocked when two darts already crowd the aim point
+    throwDart.blocked = seg => { const [ax, ay] = aimPoint(seg); return landed.filter(d => Math.hypot(d.x - ax, d.y - ay) < 4).length >= 2; };
+    return throwDart;
+  }
+  // One dart with no visit context (kept for simple callers)
   function throwAt(t, sigma, pWide = 0) {
-    const [ax, ay] = aimPoint(t);
-    // Misses go mostly up and down (release timing). Sideways error (alignment) is usually tight,
-    // but now and then a dart drifts wide into a neighbouring bed.
-    const side = Math.random() < pWide ? 1.4 : 0.6;
-    const x = ax + gauss() * sigma * side, y = ay + gauss() * sigma * 1.35;
-    return { h: hitAt(x, y), x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+    return startVisit({ sigma, dbl: 1, wide: pWide }, { form: 0 })(t);
   }
 
-  function simulateVisit(rem, out, prof) {
+  function simulateVisit(rem, out, prof, ctx = null) {
+    ctx = ctx || makePersona(prof.avg ?? 60);
+    const throwDart = startVisit(prof, ctx);
     const darts = [];
-    const form = Math.exp(gauss() * 0.08);
     let cur = rem, atDouble = 0;
     for (let i = 0; i < 3; i++) {
-      const t = chooseTarget(cur, 3 - i, out);
+      const t = chooseTarget(cur, 3 - i, out, ctx, throwDart.blocked);
       const finishing = t.v === cur && (out !== 'double' || t.dbl);
       if (out === 'double' && finishing) atDouble++;
-      const r = throwAt(t, prof.sigma * form * (finishing && out === 'double' ? prof.dbl : 1), prof.wide || 0);
+      const r = throwDart(t, finishing && out === 'double');
       const h = r.h;
-      darts.push({ aim: t.k, k: h.k, v: h.v, x: r.x, y: r.y });
+      darts.push({ aim: t.k, k: h.k, v: h.v, x: r.x, y: r.y, bounce: !!r.bounce });
       const nr = cur - h.v;
       if (nr === 0 && (out !== 'double' || h.dbl)) return { score: rem, dartsUsed: i + 1, dartsAtDouble: atDouble, checkout: true, bust: false, darts };
       if (nr < 0 || (out === 'double' && nr <= 1)) return { score: 0, dartsUsed: 3, dartsAtDouble: atDouble, checkout: false, bust: true, darts };
@@ -528,7 +616,7 @@ const E = (() => {
     return out;
   }
 
-  return { ORDER, SEGS, BY, R, validVisit, label, bestRoute, minDarts, aimPoint, hitAt, chooseTarget, simulateVisit, throwAt, profileFor, wideFor, AVG_MIN, AVG_MAX, CO_CURVE, lerpCurve, stats, IMPOSSIBLE };
+  return { ORDER, SEGS, BY, R, validVisit, label, bestRoute, minDarts, aimPoint, hitAt, chooseTarget, simulateVisit, throwAt, startVisit, makePersona, pressureFor, profileFor, wideFor, AVG_MIN, AVG_MAX, CO_CURVE, lerpCurve, stats, IMPOSSIBLE };
 })();
 </script>
 
@@ -550,6 +638,7 @@ const botAvg = p => p.avg ?? [0, 25, 35, 45, 55, 62, 70, 78, 86, 94, 102][p.leve
 const CR = [20, 19, 18, 17, 16, 15, 25];
 const CR_ROUNDS = 20;
 function crLabel(d) {
+  if (d.bounce) return 'Bounce-out';
   if (d.k) return E.label(E.BY[d.k]);
   if (!d.n) return 'Miss';
   if (d.n === 25) return d.mult === 2 ? 'Bull' : '25';
@@ -594,15 +683,15 @@ function crTarget(g) {
   if (mine.length) return mine[0];
   return scoreOn[0] ?? 20;
 }
-function crBotVisit(g, st) {
+function crBotVisit(g, st, ctxFor) {
   const prof = E.profileFor(botAvg(st.players[g.turn]));
-  const p = g.turn;
+  const p = g.turn, thr = E.startVisit(prof, ctxFor(p));
   while (g.winner == null && g.turn === p) {
     const n = crTarget(g);
-    const r = E.throwAt(n === 25 ? E.BY.BULL : E.BY['T' + n], prof.sigma, prof.wide);
+    const r = thr(n === 25 ? E.BY.BULL : E.BY['T' + n]);
     const h = r.h;
     const mult = CR.includes(h.n) ? { S: 1, D: 2, T: 3, SB: 1, DB: 2 }[h.ring] : 0;
-    crDart(g, mult ? h.n : 0, mult, { k: h.k, x: r.x, y: r.y });
+    crDart(g, mult ? h.n : 0, mult, { k: h.k, x: r.x, y: r.y, bounce: !!r.bounce });
   }
 }
 const markSVG = m => m <= 0 ? '' : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" role="img" aria-label="${m} mark${m > 1 ? 's' : ''}"><path d="M6 18L18 6"/>${m >= 2 ? '<path d="M6 6l12 12"/>' : ''}${m >= 3 ? '<circle cx="12" cy="12" r="10.4" stroke-width="2"/>' : ''}</svg>`;
@@ -660,7 +749,7 @@ const GAMES = {
       const botLast = last && last.darts.length && last.darts[0].x != null ? last : null;
       return {
         label: 'Open numbers', text: open.map(tName).join(' '), keys: open.flatMap(n => keysFor(n)),
-        darts: botLast ? botLast.darts.map(d => ({ k: d.k, x: d.x, y: d.y })) : [],
+        darts: botLast ? botLast.darts.map(d => ({ k: d.k, x: d.x, y: d.y, bounce: d.bounce })) : [],
         legend: botLast ? `<span>${htmlEsc(st.players[botLast.p].name)}'s last visit:</span> ${botLast.darts.map((d, i) => `<span>${i + 1}. <b>${crLabel(d)}</b></span>`).join('')}` : null,
       };
     },
@@ -814,7 +903,7 @@ function lastBotDarts(g, st) {
   const last = g.log[g.log.length - 1];
   if (!last || !last.darts || !last.darts.length || last.darts[0].x == null) return { darts: [], legend: null };
   return {
-    darts: last.darts.map(d => ({ k: d.k, x: d.x, y: d.y })),
+    darts: last.darts.map(d => ({ k: d.k, x: d.x, y: d.y, bounce: d.bounce })),
     legend: `<span>${htmlEsc(st.players[last.p].name)}'s last visit:</span> ${last.darts.map((d, i) => `<span>${i + 1}. <b>${d.lab}</b></span>`).join('')}`,
   };
 }
@@ -876,12 +965,13 @@ function kiTarget(g) {
     .sort((a, b) => (b.p.killer - a.p.killer) || (a.p.lives - b.p.lives));
   return opps[0].p.num;
 }
-function kiBotVisit(g, st) {
+const botLab = r => r.bounce ? 'Bounce-out' : E.label(r.h);
+function kiBotVisit(g, st, ctxFor) {
   const prof = E.profileFor(botAvg(st.players[g.turn]));
-  const p = g.turn;
+  const p = g.turn, thr = E.startVisit(prof, ctxFor(p));
   while (g.winner == null && g.turn === p) {
-    const r = E.throwAt(E.BY['D' + kiTarget(g)], prof.sigma * prof.dbl, prof.wide);
-    kiDart(g, r.h.ring === 'D' ? r.h.n : 0, { k: r.h.k, x: r.x, y: r.y, lab: E.label(r.h) });
+    const r = thr(E.BY['D' + kiTarget(g)], true);
+    kiDart(g, r.h.ring === 'D' ? r.h.n : 0, { k: r.h.k, x: r.x, y: r.y, lab: botLab(r), bounce: !!r.bounce });
   }
 }
 
@@ -904,18 +994,18 @@ function shDart(g, mult, extra = {}) {
     if (g.round > SH_ROUNDS) { g.round = SH_ROUNDS; settleByScore(g, p => p.score); }
   }
 }
-function shBotVisit(g, st) {
+function shBotVisit(g, st, ctxFor) {
   const prof = E.profileFor(botAvg(st.players[g.turn]));
-  const p = g.turn, r0 = g.round;
+  const p = g.turn, r0 = g.round, thr = E.startVisit(prof, ctxFor(p));
   while (g.winner == null && g.turn === p && g.round === r0) {
     const have = new Set(g.cur.map(d => d.mult));
     // Aim treble; with a treble and one more ring already in, go for the missing ring
     let ring = 'T';
     if (have.has(3) && have.has(1) && !have.has(2)) ring = 'D';
     else if (have.has(3) && have.has(2) && !have.has(1)) ring = 'S';
-    const r = E.throwAt(E.BY[ring + g.round], prof.sigma * (ring === 'D' ? prof.dbl : 1), prof.wide);
+    const r = thr(E.BY[ring + g.round], ring === 'D');
     const mult = r.h.n === g.round ? RING_MULT[r.h.ring] : 0;
-    shDart(g, mult, { k: r.h.k, x: r.x, y: r.y, lab: E.label(r.h) });
+    shDart(g, mult, { k: r.h.k, x: r.x, y: r.y, lab: botLab(r), bounce: !!r.bounce });
   }
 }
 
@@ -947,16 +1037,17 @@ function hiApply(g, pts, darts) {
   nextTurn(g);
   if (g.round > HI_TARGETS.length) { g.round = HI_TARGETS.length; settleByScore(g, p => p.score); }
 }
-function hiBotVisit(g, st) {
+function hiBotVisit(g, st, ctxFor) {
   const prof = E.profileFor(botAvg(st.players[g.turn]));
+  const thr = E.startVisit(prof, ctxFor(g.turn));
   const t = HI_TARGETS[g.round - 1];
   const aim = t === 'D' ? E.BY.D20 : t === 'T' ? E.BY.T20 : t === 'B' ? E.BY.BULL : E.BY['T' + t];
   const darts = [];
   let pts = 0;
   for (let i = 0; i < 3; i++) {
-    const r = E.throwAt(aim, prof.sigma * (t === 'D' ? prof.dbl : 1), prof.wide);
+    const r = thr(aim, t === 'D');
     pts += hiPoints(t, r.h);
-    darts.push({ k: r.h.k, x: r.x, y: r.y, lab: E.label(r.h) });
+    darts.push({ k: r.h.k, x: r.x, y: r.y, lab: botLab(r), bounce: !!r.bounce });
   }
   hiApply(g, pts, darts);
 }
@@ -1145,16 +1236,25 @@ let S;
 let buffer = '';
 let botTimer = null;
 let botBusy = false;
+let botToken = 0;      // bumped to cancel a bot visit in progress
+let botReveal = null;  // darts of the X01 bot visit being thrown right now
 
 const clone = o => JSON.parse(JSON.stringify(o));
 function freshMatch(settings) {
   const s = clone(settings);
   s.mode = s.mode || 'x01';
-  const m = { settings: s, legs: [{ starter: 0, visits: [], winner: null }], matchWinner: null, hist: [], screen: 'play' };
+  const m = { settings: s, legs: [{ starter: 0, visits: [], winner: null }], matchWinner: null, hist: [], screen: 'play', bots: {} };
   if (s.mode !== 'x01') m.game = GAMES[s.mode].init(s);
   return m;
 }
 const isGame = () => S.settings.mode !== 'x01';
+// Each bot's habits and running form for this match (favourite double, scoring bed, …)
+function botCtx(p) {
+  S.bots = S.bots || {};
+  if (!S.bots[p]) S.bots[p] = E.makePersona(botAvg(players()[p]));
+  return S.bots[p];
+}
+function cancelBot() { clearTimeout(botTimer); botToken++; botReveal = null; }
 const players = () => S.settings.players;
 const n = () => players().length;
 const curLeg = () => S.legs[S.legs.length - 1];
@@ -1205,18 +1305,29 @@ function buildBoard() {
   const g = el('g', { id: 'dartsLayer' });
   svg.appendChild(g);
 }
+let drawnDarts = [];
 function drawDarts(darts) {
+  darts = darts || [];
+  const key = d => `${d.x},${d.y}`;
+  if (darts.length === drawnDarts.length && darts.every((d, i) => key(d) === key(drawnDarts[i]))) return;
+  // Darts already on the board stay put; only new ones land (one after another)
+  const keep = darts.length >= drawnDarts.length && drawnDarts.every((d, i) => key(d) === key(darts[i])) ? drawnDarts.length : 0;
   const g = $('dartsLayer');
-  g.innerHTML = '';
-  (darts || []).forEach((d, i) => {
+  if (!keep) g.innerHTML = '';
+  darts.slice(keep).forEach((d, j) => {
+    const i = keep + j;
     const NS = 'http://www.w3.org/2000/svg';
     const grp = document.createElementNS(NS, 'g');
     grp.setAttribute('class', 'dart');
-    grp.setAttribute('style', `animation-delay:${i * 0.18}s;transform-origin:${d.x}px ${-d.y}px`);
-    grp.innerHTML = `<circle cx="${d.x}" cy="${-d.y}" r="7" fill="#ffffff" stroke="#111" stroke-width="2"/><text x="${d.x}" y="${-d.y}" font-size="9" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="#111" font-family="Barlow, sans-serif">${i + 1}</text>`;
+    grp.setAttribute('style', `animation-delay:${j * 0.45}s;transform-origin:${d.x}px ${-d.y}px`);
+    grp.innerHTML = d.bounce
+      ? `<circle cx="${d.x}" cy="${-d.y}" r="7" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="3 2"/><title>Bounce-out</title>`
+      : `<circle cx="${d.x}" cy="${-d.y}" r="7" fill="#ffffff" stroke="#111" stroke-width="2"/><text x="${d.x}" y="${-d.y}" font-size="9" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="#111" font-family="Barlow, sans-serif">${i + 1}</text>`;
     g.appendChild(grp);
   });
+  drawnDarts = darts.slice();
 }
+const dartLabel = d => d.bounce ? 'Bounce-out' : E.label(E.BY[d.k]);
 function highlight(route) {
   const svg = $('board');
   svg.querySelectorAll('.seg.hl').forEach(e => e.classList.remove('hl'));
@@ -1249,7 +1360,7 @@ function render() {
     const last = mine[mine.length - 1];
     const legDarts = mine.reduce((a, v) => a + v.dartsUsed, 0);
     const pips = Array.from({ length: st.legs }, (_, i) => `<span class="pip${i < legsWon(p) ? ' on' : ''}"></span>`).join('');
-    const tag = pl.type === 'bot' ? ` <span class="label">${botAvg(pl)} avg</span>` : '';
+    const tag = pl.type === 'bot' ? ` <span class="label" title="Favourite double D${botCtx(p).fav}">${botAvg(pl)} avg · D${botCtx(p).fav}</span>` : '';
     const status = p === turn && pl.type === 'bot' ? `<span class="thinking">Throwing</span>` : '';
     return `<article class="player${p === turn ? ' active' : ''}" aria-current="${p === turn}">
       <div class="head"><span class="name">${esc(pl.name)}${tag}</span><span class="pips" title="Legs won: ${legsWon(p)}">${pips}</span></div>
@@ -1274,8 +1385,10 @@ function render() {
   const human = turn >= 0 && players()[turn].type === 'human';
   const rem = turn >= 0 ? remaining(leg, turn) : 0;
   const ro = $('readout');
-  ro.textContent = buffer || (human ? 'Enter score' : S.matchWinner != null ? 'Match over' : 'Bot throwing…');
-  ro.classList.toggle('empty', !buffer);
+  const live = botReveal && botReveal.p === turn ? botReveal : null;
+  const liveScore = live ? live.darts.reduce((a, d) => a + d.v, 0) : 0;
+  ro.textContent = buffer || (live && live.darts.length ? String(liveScore) : human ? 'Enter score' : S.matchWinner != null ? 'Match over' : 'Bot throwing…');
+  ro.classList.toggle('empty', !buffer && !(live && live.darts.length));
   $('who').innerHTML = turn >= 0 ? `<span class="label">To throw</span><br><b>${esc(players()[turn].name)}</b> needs ${rem}` : '';
   const canCO = human && E.minDarts(rem, st.out) <= 3;
   const quick = [26, 41, 45, 60, 81, 85, 100, 140, 180];
@@ -1288,15 +1401,18 @@ function render() {
   $('undoBtn').disabled = !hasHumanVisit() || botBusy;
 
   // board: current thrower's route, plus the last bot visit's darts
-  const route = turn >= 0 ? E.bestRoute(rem, 3, st.out) : null;
+  const botTurn = turn >= 0 && players()[turn].type === 'bot';
+  const bc = botTurn ? botCtx(turn) : null;
+  const liveRem = rem - liveScore;
+  const route = turn >= 0 && liveRem > 1 ? E.bestRoute(live ? liveRem : rem, live ? 3 - live.darts.length : 3, st.out, bc ? { fav: bc.fav, bullShy: bc.bullShy } : null) : null;
   highlight(route);
-  const lastVisit = lastVisitAnywhere();
-  const showDarts = lastVisit && lastVisit.darts;
+  const lastVisit = live ? { p: live.p, darts: live.darts, score: liveScore, bust: false, live: true } : lastVisitAnywhere();
+  const showDarts = lastVisit && lastVisit.darts && lastVisit.darts.length;
   drawDarts(showDarts ? lastVisit.darts : []);
   $('boardLabel').textContent = route ? `${players()[turn].name} checkout` : turn >= 0 ? `${players()[turn].name} needs ${rem}` : 'Final visit';
   $('boardRoute').textContent = route ? route.map(E.label).join('  ') : turn >= 0 ? (rem > 170 ? 'Scoring – aim T20' : 'No 3-dart finish') : '';
   $('legend').innerHTML = showDarts
-    ? `<span>${esc(players()[lastVisit.p].name)}'s last visit:</span> ${lastVisit.darts.map((d, i) => `<span>${i + 1}. <b>${E.label(E.BY[d.k])}</b></span>`).join('')} <span>= <b>${lastVisit.bust ? 'Bust' : lastVisit.score}</b></span>`
+    ? `<span>${esc(players()[lastVisit.p].name)}${lastVisit.live ? ' is throwing' : "'s last visit"}:</span> ${lastVisit.darts.map((d, i) => `<span>${i + 1}. <b>${dartLabel(d)}</b></span>`).join('')} <span>= <b>${lastVisit.bust ? 'Bust' : lastVisit.score}</b></span>`
     : `<span>Highlighted segments show the suggested finish.</span>`;
 
   renderSheet();
@@ -1325,7 +1441,7 @@ function renderSheet() {
       if (!v) return `<td class="sc sep"></td><td class="lf"></td>`;
       left[p] -= v.score;
       const cls = v.bust ? ' bust' : v.checkout ? ' out' : '';
-      const title = v.darts ? ` title="${v.darts.map(d => E.label(E.BY[d.k])).join(', ')}"` : '';
+      const title = v.darts ? ` title="${v.darts.map(dartLabel).join(', ')}"` : '';
       return `<td class="sc sep${cls}"${title}>${v.bust ? 'Bust' : v.score}</td><td class="lf${cls}">${v.checkout ? '✓' : left[p]}</td>`;
     }).join('');
     rows.push(`<tr><td class="rnd">${(r + 1) * 3}</td>${cells}</tr>`);
@@ -1395,20 +1511,35 @@ function commitVisit(v) {
   save(); render(); maybeBot();
 }
 function maybeBot() {
-  clearTimeout(botTimer);
+  cancelBot();
   if (S.screen === 'menu') { botBusy = false; return; }
   if (isGame()) return gameBot();
   if (!isBotTurn()) { botBusy = false; return; }
   botBusy = true;
+  const token = botToken;
+  const leg = curLeg(), p = turnOf(leg), pl = players()[p], ctx = botCtx(p);
+  const rem = remaining(leg, p), out = S.settings.out;
+  // Pressure: an opponent is on a finish, or checking out here wins the match
+  const oppOn = players().some((_, q) => q !== p && E.minDarts(remaining(leg, q), out) <= 3);
+  const matchDart = legsWon(p) + 1 >= S.settings.legs && E.minDarts(rem, out) <= 3;
+  ctx.pressure = oppOn || matchDart ? E.pressureFor(ctx.avg) : 1;
+  const r = E.simulateVisit(rem, out, E.profileFor(botAvg(pl)), ctx);
+  // Throw the darts one at a time, at a real player's pace, with a longer settle before a double
+  botReveal = { p, darts: [] };
   render();
+  let t = 700 + Math.random() * 300, left = rem;
+  r.darts.forEach(d => {
+    if (out === 'double' && E.BY[d.aim]?.dbl && E.BY[d.aim].v === left) t += 400 + Math.random() * 400;
+    setTimeout(() => { if (token !== botToken) return; botReveal.darts.push(d); render(); }, t);
+    left -= d.v;
+    t += 750 + Math.random() * 450;
+  });
   botTimer = setTimeout(() => {
-    botBusy = false;
+    if (token !== botToken) return;
+    botReveal = null; botBusy = false;
     if (!isBotTurn()) return;
-    const leg = curLeg(), p = turnOf(leg), pl = players()[p];
-    const rem = remaining(leg, p);
-    const r = E.simulateVisit(rem, S.settings.out, E.profileFor(botAvg(pl)));
     commitVisit({ p, score: r.score, dartsUsed: r.dartsUsed, dartsAtDouble: r.dartsAtDouble, bust: r.bust, checkout: r.checkout, before: rem, darts: r.darts });
-  }, 1000);
+  }, t - 300);
 }
 function hasHumanVisit() { return S.legs.some(l => l.visits.some(v => players()[v.p].type === 'human')); }
 function popOne() {
@@ -1421,7 +1552,7 @@ function popOne() {
 function undo() {
   if (isGame()) return gameUndo();
   if (!hasHumanVisit() || botBusy) return;
-  clearTimeout(botTimer);
+  cancelBot();
   let v;
   do { v = popOne(); } while (v && players()[v.p].type === 'bot');
   buffer = '';
@@ -1543,7 +1674,7 @@ function afterGameChange() {
 }
 function gameUndo() {
   if (!S.hist.length || botBusy) return;
-  clearTimeout(botTimer);
+  cancelBot();
   do { S.game = JSON.parse(S.hist.pop()); } while (S.hist.length && isBotTurn());
   buffer = '';
   save(); render(); maybeBot();
@@ -1556,7 +1687,7 @@ function gameBot() {
     botBusy = false;
     if (!isBotTurn()) return;
     S.hist.push(JSON.stringify(S.game));
-    GAMES[S.settings.mode].botVisit(S.game, S.settings);
+    GAMES[S.settings.mode].botVisit(S.game, S.settings, botCtx);
     afterGameChange();
   }, 1000);
 }
@@ -1580,7 +1711,7 @@ function renderMenu() {
   }).join('')}</div></section>`).join('');
 }
 function goMenu() {
-  clearTimeout(botTimer); botBusy = false;
+  cancelBot(); botBusy = false;
   S.screen = 'menu'; buffer = '';
   save(); render();
 }
@@ -1671,7 +1802,7 @@ function openSetup(mode) {
   ov.querySelector('[type=submit]').focus();
 }
 function startMatch(settings) {
-  clearTimeout(botTimer); botBusy = false;
+  cancelBot(); botBusy = false;
   S = freshMatch(settings); buffer = '';
   save(); render(); maybeBot();
 }
