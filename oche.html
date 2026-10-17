@@ -499,11 +499,11 @@ const E = (() => {
   // players and nearly gone for strong ones, raised a little more under pressure.
   // CAL maps a target 3-dart average to [scatter mm, double factor], fitted by simulating full 501
   // double-out legs so each average comes with a realistic checkout %.
-  const CAL = [[20,34.75,1.464], [25,27.91,1.638], [30,25.5,1.444], [35,23.08,1.309], [40,20.57,1.354], [45,17.73,1.412], [50,16.1,1.374], [55,14.16,1.477], [60,12.83,1.361], [65,10.88,1.554], [70,9.36,1.625], [75,7.73,2.044], [80,7.02,1.96], [85,5.96,2.263], [90,5.1,2.508], [95,4.64,2.521], [100,4.36,2.514], [105,3.58,3.088], [110,3.33,3.185], [115,2.91,3.365], [120,2.62,3.816]];
+  const CAL = [[20,31.08,1.722], [25,25.25,1.863], [30,22.2,1.747], [35,19.92,1.76], [40,18.58,1.644], [45,16.73,1.554], [50,14.94,1.502], [55,13.2,1.612], [60,12.03,1.49], [65,10.09,1.676], [70,8.95,1.747], [75,7.6,1.941], [80,6.95,1.838], [85,6.14,1.967], [90,5.76,1.812], [95,5.14,1.928], [100,4.67,1.883], [105,4.05,2.334], [110,3.52,2.572], [115,3.07,2.908], [120,2.76,3.159]];
   const GROUP = 0.62;
   const AVG_MIN = CAL[0][0], AVG_MAX = CAL[CAL.length - 1][0];
   // Typical checkout % (doubles hit / darts at double) by 3-dart average, from amateur to pro
-  const CO_CURVE = [[20, 3.8], [30, 6.5], [40, 10], [50, 14], [60, 18.5], [70, 23], [80, 27.5], [90, 32], [100, 36.5], [110, 40.5], [120, 44]];
+  const CO_CURVE = [[20, 3.8], [30, 6.5], [40, 10], [50, 14], [60, 18.5], [70, 23.5], [80, 29.5], [90, 37], [100, 43], [110, 46], [120, 48]];
   const lerpCurve = (curve, x) => {
     if (x <= curve[0][0]) return curve[0][1];
     for (let i = 1; i < curve.length; i++) if (x <= curve[i][0]) {
@@ -516,12 +516,16 @@ const E = (() => {
   const wideFor = avg => 0.12 - 0.11 * (Math.max(20, Math.min(120, avg)) - 20) / 100;
   // Extra double scatter when the opponent is on a finish or it's a match dart; weak players feel it most
   const pressureFor = avg => 1 + 0.15 * Math.max(0, Math.min(1, (75 - avg) / 55));
+  // Players are sharpest on their own scoring bed (most practise T20 for hours). Other numbers and
+  // the bull get this extra scatter: a lot for club players, little for pros. Set so Cricket marks
+  // per round match league players of each average (about 1.6 MPR at 40, 2.3 at 60, 3.0 at 80).
+  const OFF = [[20, 1.85], [40, 1.8], [60, 1.85], [75, 1.8], [90, 1.45], [100, 1.3], [120, 1.15]];
   function profileFor(avg) {
     const a = Math.max(AVG_MIN, Math.min(AVG_MAX, +avg || 50));
     let i = 0;
     while (i < CAL.length - 2 && CAL[i + 1][0] < a) i++;
     const [a0, s0, k0] = CAL[i], [a1, s1, k1] = CAL[i + 1], t = (a - a0) / (a1 - a0);
-    return { avg: a, sigma: Math.exp(Math.log(s0) + t * (Math.log(s1) - Math.log(s0))), dbl: k0 + t * (k1 - k0), wide: wideFor(a), co: lerpCurve(CO_CURVE, a) };
+    return { avg: a, sigma: Math.exp(Math.log(s0) + t * (Math.log(s1) - Math.log(s0))), dbl: k0 + t * (k1 - k0), wide: wideFor(a), off: lerpCurve(OFF, a), co: lerpCurve(CO_CURVE, a) };
   }
 
   const WIRE_RADII = [R.bull, R.outerBull, R.trebleIn, R.trebleOut, R.doubleIn, R.doubleOut];
@@ -533,6 +537,14 @@ const E = (() => {
     return r * Math.sin(Math.min(off, 18 - off) * Math.PI / 180) < 0.6;
   }
   // Start a visit: returns throwDart(target, atDouble) plus blocked(target) for aiming decisions
+  // Scatter multiplier for one dart: doubles have their own nerves; other numbers are off the bed;
+  // pressure tightens the arm a little on every dart and more on doubles.
+  function aimFactor(t, prof, ctx, atDouble) {
+    const pr = ctx?.pressure || 1;
+    if (atDouble) return (prof.dbl || 1) * pr;
+    const onBed = t.n === (ctx?.bed ?? 20) || t.k === 'MISS';
+    return (onBed ? 1 : (prof.off || 1)) * (1 + (pr - 1) * 0.5);
+  }
   function startVisit(prof, ctx = {}) {
     ctx.form = 0.85 * (ctx.form || 0) + gauss() * 0.06;
     const s = prof.sigma * Math.exp(ctx.form);
@@ -540,7 +552,7 @@ const E = (() => {
     const own = Math.sqrt(1 - GROUP * GROUP);
     const landed = [];
     const throwDart = (t, atDouble = false) => {
-      const k = atDouble ? prof.dbl * (ctx.pressure || 1) : 1;
+      const k = aimFactor(t, prof, ctx, atDouble);
       const [ax, ay] = aimPoint(t);
       const side = Math.random() < (prof.wide || 0) ? 1.4 : 0.6;
       // Most darts are tight; now and then one comes out loose
@@ -568,6 +580,24 @@ const E = (() => {
   // One dart with no visit context (kept for simple callers)
   function throwAt(t, sigma, pWide = 0) {
     return startVisit({ sigma, dbl: 1, wide: pWide }, { form: 0 })(t);
+  }
+
+  // Expected-value aiming: sample the bot's own scatter once, score every candidate aim point with
+  // the same samples, and pick the best. Weak players end up aiming at big singles and strong ones at
+  // trebles, as real players do. value(hitSegment) returns what a dart landing there is worth.
+  function bestAim(candidates, value, prof, ctx, n = 160) {
+    const smp = [];
+    for (let i = 0; i < n; i++) smp.push([gauss(), gauss(), Math.random() < (prof.wide || 0) ? 1.4 : 0.6, Math.random() < 0.15 ? 2 : 0.82]);
+    const s0 = prof.sigma * Math.exp(ctx?.form || 0);
+    let best = candidates[0], bv = -Infinity;
+    for (const c of candidates) {
+      const s = s0 * aimFactor(c, prof, ctx, c.ring === 'D');
+      const [ax, ay] = aimPoint(c);
+      let tot = 0;
+      for (const [gx, gy, side, loose] of smp) tot += value(hitAt(ax + gx * s * side * loose, ay + gy * s * 1.35 * loose));
+      if (tot > bv) { bv = tot; best = c; }
+    }
+    return best;
   }
 
   function simulateVisit(rem, out, prof, ctx = null) {
@@ -616,7 +646,7 @@ const E = (() => {
     return out;
   }
 
-  return { ORDER, SEGS, BY, R, validVisit, label, bestRoute, minDarts, aimPoint, hitAt, chooseTarget, simulateVisit, throwAt, startVisit, makePersona, pressureFor, profileFor, wideFor, AVG_MIN, AVG_MAX, CO_CURVE, lerpCurve, stats, IMPOSSIBLE };
+  return { ORDER, SEGS, BY, R, validVisit, label, bestRoute, minDarts, aimPoint, hitAt, chooseTarget, simulateVisit, throwAt, startVisit, bestAim, makePersona, pressureFor, profileFor, wideFor, AVG_MIN, AVG_MAX, CO_CURVE, lerpCurve, stats, IMPOSSIBLE };
 })();
 </script>
 
@@ -673,22 +703,37 @@ function crEndVisit(g) {
   }
 }
 // Bot strategy: cover numbers the opponent can score on, score while behind, otherwise close the highest open number
-function crTarget(g) {
+function crTarget(g, avg = 60) {
   const me = g.pl[g.turn], op = g.pl[(g.turn + 1) % g.pl.length];
+  const mine = CR.filter(n => me.m[n] < 3);
+  // Beginners close the numbers in order from 20 down and only score when everything is shut
+  if (avg < 45) return mine[0] ?? CR.find(n => op.m[n] < 3) ?? 20;
+  // Far enough ahead that one visit can't catch up: stop scoring and close
+  if (mine.length && me.pts - op.pts > 60) return mine[0];
   const threat = CR.filter(n => op.m[n] >= 3 && me.m[n] < 3);
   if (threat.length && op.pts >= me.pts) return threat[0];
   const scoreOn = CR.filter(n => me.m[n] >= 3 && op.m[n] < 3);
   if (me.pts <= op.pts && scoreOn.length) return scoreOn[0];
-  const mine = CR.filter(n => me.m[n] < 3);
   if (mine.length) return mine[0];
   return scoreOn[0] ?? 20;
+}
+// What a dart is worth in Cricket: marks that close, plus marks that score while the opponent is open
+function crValue(g, n) {
+  const me = g.pl[g.turn], open = g.pl.some((o, i) => i !== g.turn && o.m[n] < 3);
+  return h => {
+    if (h.n !== n) return 0;
+    const mult = { S: 1, D: 2, T: 3, SB: 1, DB: 2 }[h.ring] || 0;
+    const close = Math.min(mult, 3 - me.m[n]);
+    return close + (open ? (mult - close) * 0.8 : 0);
+  };
 }
 function crBotVisit(g, st, ctxFor) {
   const prof = E.profileFor(botAvg(st.players[g.turn]));
   const p = g.turn, thr = E.startVisit(prof, ctxFor(p));
   while (g.winner == null && g.turn === p) {
-    const n = crTarget(g);
-    const r = thr(n === 25 ? E.BY.BULL : E.BY['T' + n]);
+    const n = crTarget(g, prof.avg);
+    const aim = n === 25 ? E.BY.BULL : E.bestAim([E.BY['T' + n], E.BY['S' + n]], crValue(g, n), prof, ctxFor(p));
+    const r = thr(aim);
     const h = r.h;
     const mult = CR.includes(h.n) ? { S: 1, D: 2, T: 3, SB: 1, DB: 2 }[h.ring] : 0;
     crDart(g, mult ? h.n : 0, mult, { k: h.k, x: r.x, y: r.y, bounce: !!r.bounce });
@@ -725,6 +770,8 @@ const GAMES = {
     hint: 'Tap each dart as you throw it. M records a miss. Ctrl+Z undoes.',
     init: st => ({ pl: st.players.map(() => ({ m: { 15: 0, 16: 0, 17: 0, 18: 0, 19: 0, 20: 0, 25: 0 }, pts: 0, marks: 0, darts: 0 })), turn: 0, cur: [], round: 1, winner: null, log: [] }),
     done: g => g.winner != null,
+    // Opponent nearly closed out, or the round limit is close
+    pressure: (g, p) => g.round >= CR_ROUNDS - 2 || CR.filter(n => g.pl[(p + 1) % g.pl.length].m[n] < 3).length <= 1,
     act(g, a, v) { const [n, m] = String(v).split(':').map(Number); crDart(g, n, m); },
     hud(g, st) {
       const done = g.winner != null;
@@ -998,12 +1045,12 @@ function shBotVisit(g, st, ctxFor) {
   const prof = E.profileFor(botAvg(st.players[g.turn]));
   const p = g.turn, r0 = g.round, thr = E.startVisit(prof, ctxFor(p));
   while (g.winner == null && g.turn === p && g.round === r0) {
-    const have = new Set(g.cur.map(d => d.mult));
-    // Aim treble; with a treble and one more ring already in, go for the missing ring
-    let ring = 'T';
-    if (have.has(3) && have.has(1) && !have.has(2)) ring = 'D';
-    else if (have.has(3) && have.has(2) && !have.has(1)) ring = 'S';
-    const r = thr(E.BY[ring + g.round], ring === 'D');
+    const n = g.round, have = new Set(g.cur.map(d => d.mult).filter(Boolean));
+    // On the last dart with two different rings in, the missing ring wins the game
+    const missing = g.cur.length === 2 && have.size === 2 ? [1, 2, 3].find(m => !have.has(m)) : null;
+    const value = h => h.n !== n ? 0 : RING_MULT[h.ring] * n + (missing && RING_MULT[h.ring] === missing ? 500 : 0);
+    const aim = E.bestAim(['T', 'S', 'D'].map(r => E.BY[r + n]), value, prof, ctxFor(p));
+    const r = thr(aim, aim.ring === 'D');
     const mult = r.h.n === g.round ? RING_MULT[r.h.ring] : 0;
     shDart(g, mult, { k: r.h.k, x: r.x, y: r.y, lab: botLab(r), bounce: !!r.bounce });
   }
@@ -1040,12 +1087,17 @@ function hiApply(g, pts, darts) {
 function hiBotVisit(g, st, ctxFor) {
   const prof = E.profileFor(botAvg(st.players[g.turn]));
   const thr = E.startVisit(prof, ctxFor(g.turn));
-  const t = HI_TARGETS[g.round - 1];
-  const aim = t === 'D' ? E.BY.D20 : t === 'T' ? E.BY.T20 : t === 'B' ? E.BY.BULL : E.BY['T' + t];
+  const t = HI_TARGETS[g.round - 1], me = g.pl[g.turn], ctx = ctxFor(g.turn);
+  const cands = t === 'D' ? Array.from({ length: 20 }, (_, i) => E.BY['D' + (i + 1)]).concat(E.BY.BULL)
+    : t === 'T' ? Array.from({ length: 20 }, (_, i) => E.BY['T' + (i + 1)])
+    : t === 'B' ? [E.BY.BULL, E.BY['25']] : [E.BY['T' + t], E.BY['S' + t]];
   const darts = [];
   let pts = 0;
   for (let i = 0; i < 3; i++) {
-    const r = thr(aim, t === 'D');
+    // Until something scores, avoiding the halving is worth half the current score
+    const saved = pts > 0 ? 0 : me.score / 2 / (3 - i);
+    const aim = E.bestAim(cands, h => { const v = hiPoints(t, h); return v + (v > 0 ? saved : 0); }, prof, ctx);
+    const r = thr(aim, aim.ring === 'D');
     pts += hiPoints(t, r.h);
     darts.push({ k: r.h.k, x: r.x, y: r.y, lab: botLab(r), bounce: !!r.bounce });
   }
@@ -1065,6 +1117,7 @@ Object.assign(GAMES, {
     done: g => g.winner != null,
     act(g, a, v) { kiDart(g, +v); },
     botVisit: kiBotVisit,
+    pressure: (g, p) => g.pl[p].lives === 1 || g.pl.filter(x => x.lives > 0).length === 2,
     hud(g, st) {
       const me = g.pl[g.turn];
       return playersHUD({
@@ -1100,6 +1153,7 @@ Object.assign(GAMES, {
     done: g => g.winner != null,
     act(g, a, v) { shDart(g, +v); },
     botVisit: shBotVisit,
+    pressure: g => g.round === SH_ROUNDS,
     hud(g, st) {
       const done = g.winner != null;
       return playersHUD({
@@ -1137,6 +1191,7 @@ Object.assign(GAMES, {
     },
     act(g, a, v) { hiApply(g, +v, null); },
     botVisit: hiBotVisit,
+    pressure: g => g.round >= HI_TARGETS.length - 1,
     hud(g, st) {
       const done = g.winner != null, t = HI_TARGETS[g.round - 1];
       return playersHUD({
@@ -1687,7 +1742,9 @@ function gameBot() {
     botBusy = false;
     if (!isBotTurn()) return;
     S.hist.push(JSON.stringify(S.game));
-    GAMES[S.settings.mode].botVisit(S.game, S.settings, botCtx);
+    const G = GAMES[S.settings.mode], p = S.game.turn, ctx = botCtx(p);
+    ctx.pressure = G.pressure && G.pressure(S.game, p) ? E.pressureFor(ctx.avg) : 1;
+    G.botVisit(S.game, S.settings, botCtx);
     afterGameChange();
   }, 1000);
 }
