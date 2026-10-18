@@ -22,7 +22,7 @@ Items marked **(you)** need your decision or details.
 
 **Promotional text (170)**
 
-> Score every leg, check out with the right route and practise with bots that throw like real players, from pub beginner to pro.
+> Score every leg, check out with the right route, track your history and stats, and practise with bots that throw like real players.
 
 **Description (4000)**
 
@@ -38,6 +38,11 @@ Items marked **(you)** need your decision or details.
 > • Around the Clock, Bob's 27, Doubles and Singles Training
 > • Score Training, from 10 visits to unlimited
 > • Personal bests for every game and setting
+
+HISTORY AND STATS
+• Match history saved on your device
+• Lifetime player stats across all your matches
+• Share results with a tap
 >
 > BOTS THAT PLAY LIKE PEOPLE
 > Set a bot to any average from 20 to 120. Every dart is thrown at a regulation board: misses go up and down more than sideways, darts group within a visit, form comes and goes, and weaker bots tighten up on the doubles. Each bot has a favourite double and its own habits.
@@ -45,20 +50,21 @@ Items marked **(you)** need your decision or details.
 > MADE FOR THE OCHE
 > • Big numbers you can read from the throwing line
 > • A chalker's score sheet and full match stats: 3-dart average, first 9, checkout %, 100+, 140+ and 180s
+> • Keeps the screen awake during a match (you can turn this off)
 > • Light and dark mode, iPhone and iPad
 > • Works completely offline. No account, no ads, no tracking.
 
-**Keywords (100)** — 97 characters
+**Keywords (100)** — 93 characters
 
 ```
-darts,dart,scorer,501,x01,cricket,checkout,killer,shanghai,practice,trainer,score,bot,oche,bobs27
+darts,dart,501,x01,cricket,checkout,killer,shanghai,practice,trainer,bot,history,stats,bobs27
 ```
 
 **What's New (first version)**
 
 > First release.
 
-**Support URL** **(you)**: your hosted web version, for example `https://<your-site>.netlify.app/`
+**Support URL** **(you)**: `https://<your-site>/support.html` (the page ships with the web build; replace `SUPPORT_EMAIL` on it first)
 
 **Marketing URL** (optional): the same
 
@@ -76,13 +82,22 @@ In `store/screenshots/`, rendered at Apple's required sizes (regenerate with `np
 - iPhone 6.9" display: `iphone-6.9/` (1320 × 2868)
 - iPad 13" display: `ipad-13/` (2064 × 2752)
 
-Suggested order: X01 match, menu, match settings, Cricket, Killer.
+Order and caption suggestions:
+
+1. `x01-match`: "Score every visit, with checkout routes shown for you"
+2. `menu`: "X01, Cricket, Killer and more, against friends or bots"
+3. `history`: "Every match saved, with full leg-by-leg detail"
+4. `stats`: "Track your average, checkout rate and form over time"
+5. `cricket`: "Play Cricket against a bot set to any average"
+6. `match-settings`: "Set legs, sets, in and out rules your way"
+7. `killer`: "Party games for up to six players on one device"
 
 ## App Review notes
 
 > No login is needed. Everything works offline. To try the main flow: tap X01, then Start, and type a visit
 > score on the keypad (for example 100, then Score). The bot opponent throws its visit automatically.
-> Saved games and personal bests are stored on the device only.
+> Saved games, match history, player stats
+> and personal bests are stored on the device only. All data is local, and Settings has "Reset all data".
 
 ## Export compliance
 

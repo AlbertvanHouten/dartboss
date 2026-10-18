@@ -9,14 +9,42 @@
   // Calls a native plugin method through Capacitor's bridge (no bundler needed); resolves to null on the web
   const canCall = isNative && typeof cap.nativePromise === 'function';
   const call = (plugin, method, options = {}) => canCall ? cap.nativePromise(plugin, method, options).catch(() => null) : Promise.resolve(null);
-  const KEYS = ['oche-match-v1', 'oche-bests'];
+  const KEYS = ['oche-match-v1', 'oche-bests', 'oche-history-v1', 'oche-settings-v1'];
+
+  // Web wake lock: the sentinel is dropped by the browser when the tab is hidden, so it is re-requested on return
+  let awake = false, lock = null;
+  // A request can finish after keepAwake(false), so a late lock is released straight away
+  const holdLock = () => navigator.wakeLock.request('screen').then(l => { if (awake) lock = l; else l.release(); }).catch(() => {});
 
   window.ocheNative = {
     isNative,
+    haptics: true,
     persist(key, value) { call('Preferences', 'set', { key, value }); },
-    tap() { call('Haptics', 'impact', { style: 'LIGHT' }); },
-    celebrate() { call('Haptics', 'notification', { type: 'SUCCESS' }); },
+    remove(key) { call('Preferences', 'remove', { key }); },
+    tap() { if (this.haptics) call('Haptics', 'impact', { style: 'LIGHT' }); },
+    celebrate() { if (this.haptics) call('Haptics', 'notification', { type: 'SUCCESS' }); },
+    // Called on every render, so only act when the state changes
+    keepAwake(on) {
+      on = !!on;
+      if (on === awake) return;
+      awake = on;
+      if (canCall) call('KeepAwake', on ? 'keepAwake' : 'allowSleep');
+      else if (!('wakeLock' in navigator)) return;
+      else if (on) holdLock();
+      else if (lock) { lock.release().catch(() => {}); lock = null; }
+    },
+    async share({ title, text }) {
+      try {
+        if (canCall) return (await call('Share', 'share', { title, text })) ? 'shared' : 'failed';
+        if (navigator.share) { await navigator.share({ title, text }); return 'shared'; }
+        await navigator.clipboard.writeText(text);
+        return 'copied';
+      } catch (e) { return 'failed'; } // includes the user dismissing the share sheet
+    },
   };
+  document.addEventListener('visibilitychange', () => {
+    if (awake && !canCall && 'wakeLock' in navigator && document.visibilityState === 'visible') holdLock();
+  });
 
   // Before the game starts, restore anything web storage lost from the native copy
   window.ocheReady = (async () => {

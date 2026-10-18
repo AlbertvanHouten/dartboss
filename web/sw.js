@@ -4,7 +4,7 @@
 const VERSION = '__VERSION__';
 const CACHE = `oche-${VERSION}`;
 const SHELL = [
-  './', 'index.html', 'native.js', 'manifest.webmanifest', 'privacy.html',
+  './', 'index.html', 'native.js', 'manifest.webmanifest', 'privacy.html', 'support.html',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
   'fonts/fonts.css',
 ];

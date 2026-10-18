@@ -66,6 +66,50 @@ try {
   assert.equal(await run('raceWinner([3, 1], 2, true)'), 0);
   assert.equal(await run('raceWinner([2, 1], 2, false)'), 0);
 
+  // A finished match shows in History (sheet, delete) and in Stats
+  await run(`startMatch({ ...DEFAULT_SETTINGS, start: 121, count: 1, players: ${humans} })`);
+  await run('submit(121)');
+  assert.equal(await run('S.matchWinner'), 0, 'a 121 checkout wins a one-leg match');
+  const text = sel => run(`document.querySelector('${sel}')?.innerText || ''`);
+  const click = sel => run(`document.querySelector('${sel}').click()`);
+  await run("goScreen('history')");
+  assert.match(await text('#page'), /match to you/i, 'History lists the match');
+  await click('.hrow');
+  assert.ok(await run("document.querySelectorAll('#page table.sheet tbody tr').length > 1"), 'the detail shows the leg sheet');
+  assert.match(await text('#page'), /match stats/i, 'the detail shows the match stats');
+  await click('[data-pg="del"]');
+  assert.equal(await run("document.getElementById('overlay').hidden"), false, 'delete asks first');
+  await run("document.querySelector('#overlay [data-act=\"keep\"]').click()");
+  assert.equal(await run('historyAll().length'), 1, 'keeping leaves the match in history');
+  await click('[data-pg="del"]');
+  await run("document.querySelector('#overlay [data-act=\"go\"]').click()");
+  assert.equal(await run('historyAll().length'), 0, 'confirming deletes the match');
+  assert.match(await text('#page'), /start a game/i, 'an empty History offers a new game');
+  await run(`startMatch({ ...DEFAULT_SETTINGS, start: 121, count: 1, players: ${humans} })`);
+  await run('submit(121)');
+  await run("goScreen('stats')");
+  assert.match(await text('#page'), /3-dart average\s*121\.0/, 'Stats shows the average');
+
+  // Settings: theme sticks across reloads, a switch saves, reset wipes everything
+  await run("goScreen('settings')");
+  await click('[data-pg="theme"][data-v="dark"]');
+  assert.equal(await run('document.documentElement.dataset.theme'), 'dark', 'Dark applies at once');
+  await page.reload({ waitUntil: 'networkidle0' });
+  assert.equal(await run('document.documentElement.dataset.theme'), 'dark', 'the theme survives a reload');
+  await run("goScreen('settings')");
+  await run("document.querySelector('[data-pg=\"awake\"]').focus()");
+  await click('[data-pg="awake"]');
+  assert.equal(await run('document.activeElement.dataset.pg'), 'awake', 'a switch keeps keyboard focus after it re-renders');
+  const solo = "{ mode: 'drills', winner: null, settings: { players: [{ name: 'You', type: 'human' }] } }";
+  assert.equal(await run(`lifetime('You', [${solo}]).games.drills.multi`), false, 'a solo game is not counted as won or lost');
+  assert.equal(await run('SETTINGS.awake'), false, 'the awake switch turns off');
+  assert.equal(await run('historyAll().length'), 1, 'one match before the reset');
+  await click('[data-pg="reset"]');
+  await run("document.querySelector('#overlay [data-act=\"go\"]').click()");
+  assert.equal(await run('historyAll().length'), 0, 'reset empties the history');
+  assert.equal(await run("document.getElementById('menu').hidden"), false, 'reset shows the menu');
+  assert.equal(await run('SETTINGS.awake'), true, 'reset restores the settings');
+
   // A save this version can't show opens the menu with a fresh match, not a blank page
   await run(`localStorage.setItem('oche-match-v1', JSON.stringify({ settings: { mode: 'x01', players: null }, legs: [{}], screen: 'play' }))`);
   errors.length = 0;

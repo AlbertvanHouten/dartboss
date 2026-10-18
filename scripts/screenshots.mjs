@@ -43,28 +43,80 @@ async function shoot(device, viewport) {
   let n = 0;
   const snap = async name => {
     await sleep(600);
-    await page.evaluate(() => { document.getElementById('toast').hidden = true; document.activeElement?.blur(); });
+    await page.evaluate(() => { document.getElementById('toast').hidden = true; document.activeElement?.blur(); window.scrollTo(0, 0); });
     await page.screenshot({ path: fileURLToPath(new URL(`${device}/${++n}-${name}.png`, OUT)) });
   };
   const click = sel => page.evaluate(s => document.querySelector(s).click(), sel);
   const keys = async text => { for (const k of text) await page.keyboard.press(k === '\n' ? 'Enter' : k); };
+
+  // Seed history by playing real matches through the app's own functions (bot and player visits come
+  // from its engine, committed instantly), then back-date them so the list spans a week.
+  await page.evaluate(() => {
+    const x01 = (start, count, you, bot) => {
+      startMatch({ ...DEFAULT_SETTINGS, start, count, players: [{ name: 'You', type: 'human' }, { name: 'Bot', type: 'bot', avg: bot }] });
+      S.screen = 'menu'; cancelBot(); // keeps the bot's timers out of it
+      const avgs = [you, bot], ctx = avgs.map(a => E.makePersona(a));
+      for (let i = 0; i < 600 && S.matchWinner == null; i++) {
+        const leg = curLeg(), p = turnOf(leg), before = remaining(leg, p);
+        const r = E.simulateVisit(before, S.settings.out, E.profileFor(avgs[p]), ctx[p], { inRule: 'straight', opened: true });
+        commitVisit({ p, score: r.score, dartsUsed: r.dartsUsed, dartsAtDouble: r.dartsAtDouble, bust: r.bust, checkout: r.checkout, before, darts: r.darts });
+      }
+    };
+    const solo = (mode, act, pattern) => {
+      startMatch({ ...DEFAULT_SETTINGS, mode, players: [{ name: 'You', type: 'human' }] });
+      S.screen = 'menu';
+      for (let i = 0; i < 200 && !GAMES[mode].done(S.game); i++) gameAct(act, pattern[i % pattern.length]);
+    };
+    // oldest first; the You averages rise and dip like a real month of practice
+    x01(301, 2, 41, 40); x01(301, 2, 47, 45);
+    solo('singles', 'dart', [1, 0, 2, 1, 3, 1, 0, 1]);
+    x01(301, 2, 44, 50); x01(301, 2, 52, 45);
+    solo('bobs27', 'hits', [1, 1, 0, 2, 1, 1, 0, 1, 2, 1]);
+    x01(301, 2, 58, 55); x01(301, 2, 51, 50); x01(301, 2, 61, 60);
+    const ago = [150, 126, 101, 78, 53, 30, 27, 5.5, 2.5]; // hours before now, oldest first
+    const all = historyAll().reverse().map((e, i) => ({ ...e, at: new Date(Date.now() - ago[i] * 36e5).toISOString() }));
+    writeJSON(HISTORY_KEY, all.reverse());
+    goMenu();
+  });
 
   // 1. X01 against a bot, with a checkout route on
   await click('[data-menu="x01"]');
   await page.evaluate(() => {
     const r = document.querySelector('#pa1'); r.value = 75; r.dispatchEvent(new Event('input', { bubbles: true }));
   });
+  // A fixed seed makes the bot throw the same darts every run, so both devices show the same scene
+  await page.evaluate(() => { let x = 42; Math.random = () => (x = (x * 16807) % 2147483647) / 2147483647; });
   await click('#setupForm [type=submit]');
-  for (const v of ['100', '140', '125']) { await keys(v + '\n'); await sleep(4800); }
+  for (const v of ['100', '140', '125']) {
+    await keys(v + '\n');
+    await page.waitForFunction(() => !botBusy && !isBotTurn(), { timeout: 15000 });
+  }
   await keys('6'); await keys('0');
   await snap('x01-match');
 
   // 2. The menu
   await page.evaluate(() => goMenu());
-  await page.evaluate(() => window.scrollTo(0, 0));
   await snap('menu');
 
-  // 3. Match settings
+  // 3. History
+  await page.evaluate(() => goScreen('history'));
+  await snap('history');
+
+  // 4. Player stats
+  await page.evaluate(() => goScreen('stats'));
+  await snap('stats');
+
+  // 5. Cricket against a bot
+  await page.evaluate(() => goMenu());
+  await click('[data-menu="cricket"]');
+  await click('#setupForm [type=submit]');
+  const darts = async list => { for (const v of list) { await click(`#gameLeft [data-v="${v}"]`); await sleep(120); } await sleep(1600); };
+  await darts(['20:3', '20:1', '19:3']);
+  await darts(['18:3', '18:3', '17:1']);
+  await snap('cricket');
+
+  // 6. Match settings
+  await page.evaluate(() => goMenu());
   await click('[data-menu="x01"]');
   await page.evaluate(() => {
     document.querySelector('select[data-key="unit"]').value = 'sets';
@@ -73,23 +125,13 @@ async function shoot(device, viewport) {
   await snap('match-settings');
   await click('[data-act="cancel"]');
 
-  // 4. Cricket against a bot
-  await click('[data-menu="cricket"]');
-  await click('#setupForm [type=submit]');
-  const darts = async list => { for (const v of list) { await click(`#gameLeft [data-v="${v}"]`); await sleep(120); } await sleep(1600); };
-  await darts(['20:3', '20:1', '19:3']);
-  await darts(['18:3', '18:3', '17:1']);
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await snap('cricket');
-
-  // 5. Killer with four players
+  // 7. Killer with four players
   await page.evaluate(() => goMenu());
   await click('[data-menu="killer"]');
   for (let i = 0; i < 2; i++) await click('[data-set="padd"][data-v="bot"]');
   await click('#setupForm [type=submit]');
   await click('#gameLeft [data-v="0"]'); await click('#gameLeft [data-v="0"]'); await click('#gameLeft [data-v="0"]');
   await sleep(4000);
-  await page.evaluate(() => window.scrollTo(0, 0));
   await snap('killer');
   await page.close();
   console.log(`${device}: ${n} screenshots`);

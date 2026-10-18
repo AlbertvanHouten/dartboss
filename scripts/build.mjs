@@ -19,7 +19,9 @@ const headTags = src.slice(0, cut)
   .split('\n')
   .filter(l => l.trim() && !l.includes('fonts.googleapis.com') && !l.includes('fonts.gstatic.com') && !l.includes('claude:'))
   .join('\n');
-const body = src.slice(cut);
+// The app shows its version in Settings; package.json is the one place it is set
+const { version: appVersion } = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
+const body = src.slice(cut).replaceAll('__APP_VERSION__', appVersion);
 if (/fonts\.g(oogleapis|static)\.com/.test(body)) throw new Error('oche.html: Google Fonts referenced outside the head');
 
 const html = `<!doctype html>
@@ -40,7 +42,7 @@ ${headTags}
 <link rel="stylesheet" href="fonts/fonts.css">
 <style>
 /* Base reset (the hosted artifact version gets this from its host page) */
-:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 html, body { -webkit-text-size-adjust: 100%; }
 body { margin: 0; font-size: 14px; font-family: system-ui, sans-serif; overscroll-behavior-y: none; }
 img { max-width: 100%; }

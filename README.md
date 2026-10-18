@@ -6,6 +6,12 @@ A darts scorer and trainer that runs as a website (installable, works offline) a
 - **`npm run build`** wraps it into `dist/`: a full web app with manifest, icons, bundled fonts and an offline cache.
 - **Capacitor** puts `dist/` into the native iOS project in `ios/`, with haptics and native storage.
 
+## Around the games
+
+- **History**: every finished match and game, with the X01 score sheets and stats, to share or delete.
+- **Stats**: lifetime figures per player name (X01 averages, checkout %, 180s, trend) and personal bests.
+- **Settings**: theme, haptics, keeping the screen awake during play, reset all data, and the privacy and support pages.
+
 ## Games
 
 **Matches**, against bots or friends on the same device:
@@ -93,7 +99,7 @@ In X01 the bot throws dart by dart at a natural pace, pausing before a double.
 | Path | What it is |
 |---|---|
 | `oche.html` | The game: engine, bots, games and interface in one file |
-| `web/` | Files for the standalone app: `native.js` (iOS bridge, offline cache), `sw.js`, `manifest.webmanifest`, `privacy.html`, icons, bundled fonts |
+| `web/` | Files for the standalone app: `native.js` (iOS bridge, offline cache), `sw.js`, `manifest.webmanifest`, `privacy.html`, `support.html`, icons, bundled fonts |
 | `scripts/build.mjs` | Builds `dist/` from `oche.html` and `web/` |
 | `scripts/test.mjs` | Checks without a browser: scripts parse, checkout routes, bot averages, every game finishes |
 | `scripts/screenshots.mjs` | App Store screenshots of `dist/` in Chrome at Apple's sizes |
@@ -175,6 +181,7 @@ Two things to know:
 ### Already done
 
 - Capacitor iOS project with the Haptics and Preferences plugins (Swift Package Manager, no CocoaPods)
+- Keep Awake (`@capacitor-community/keep-awake`) and Share (`@capacitor/share`) plugins, used through `window.ocheNative` (neither needs privacy manifest or Info.plist entries)
 - App icon (1024 px, no transparency) and a dark launch screen
 - `PrivacyInfo.xcprivacy`: no tracking, no data collected, UserDefaults access declared (reason CA92.1)
 - `ITSAppUsesNonExemptEncryption = NO`, so there's no export-compliance question on upload
@@ -190,7 +197,7 @@ Two things to know:
 4. In Xcode, select the **App** target → *Signing & Capabilities* → tick *Automatically manage signing* and choose your **Team**.
 5. Optional: try it on your own iPhone. Connect it, pick it as the run destination, and press Run.
 6. Set the destination to *Any iOS Device (arm64)*, then choose *Product → Archive*. In the Organizer, *Distribute App → App Store Connect → Upload*.
-7. In App Store Connect, fill in the listing from `store/app-store.md`, upload the screenshots, set App Privacy to *Data Not Collected*, add the privacy policy URL (`https://<your-site>/privacy.html`), pick the build, and *Submit for Review*.
+7. In App Store Connect, fill in the listing from `store/app-store.md`, upload the screenshots, set App Privacy to *Data Not Collected*, add the privacy policy URL (`https://<your-site>/privacy.html`) and support URL (`https://<your-site>/support.html`), pick the build, and *Submit for Review*.
 8. Optional: test with friends first through TestFlight, using the same uploaded build.
 
 ### Releasing an update
@@ -199,5 +206,7 @@ With the CI secrets set, push a tag such as `v1.1` (see CI/CD). By hand: bump `M
 
 ## Notes
 
-- Scores, the match in progress and personal bests are saved on the device: in browser storage on the web, and also in native storage in the iOS app. Nothing leaves the device.
+- Before submitting: replace `SUPPORT_EMAIL` in `web/support.html` and `web/privacy.html`, and once the app exists in App Store Connect set `APP_STORE_ID` in `oche.html` to turn on the rate button.
+
+- Scores, the match in progress, history, settings and personal bests are saved on the device: in browser storage on the web, and also in native storage in the iOS app. Nothing leaves the device.
 - `oche.html` contains the page content only, without its own `<html>`/`<head>` wrapper, because it was written for Claude's artifact hosting. Browsers still open it fine; `npm run build` adds the full document.
