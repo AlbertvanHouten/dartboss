@@ -1769,6 +1769,47 @@ Object.assign(GAMES, {
   },
 });
 
+// ---- Replaying a bot visit after an undo: the same darts land again, under the game's rules ----
+const segOf = d => d.bounce ? E.BY.MISS : (E.BY[d.k] || E.BY.MISS);
+const extraOf = d => ({ k: d.k, x: d.x, y: d.y, lab: d.lab, bounce: d.bounce });
+GAMES.cricket.replayVisit = (g, st, darts) => {
+  const p = g.turn;
+  for (const d of darts) {
+    if (g.winner != null || g.turn !== p) break;
+    const h = segOf(d), mult = CR.includes(h.n) ? { S: 1, D: 2, T: 3, SB: 1, DB: 2 }[h.ring] : 0;
+    crDart(g, mult ? h.n : 0, mult, extraOf(d));
+  }
+};
+GAMES.killer.replayVisit = (g, st, darts) => {
+  const p = g.turn;
+  for (const d of darts) {
+    if (g.winner != null || g.turn !== p) break;
+    const h = segOf(d);
+    kiDart(g, h.ring === 'D' ? h.n : 0, extraOf(d));
+  }
+};
+GAMES.shanghai.replayVisit = (g, st, darts) => {
+  const p = g.turn, r0 = g.round;
+  for (const d of darts) {
+    if (g.winner != null || g.turn !== p || g.round !== r0) break;
+    const h = segOf(d);
+    shDart(g, h.n === g.round ? RING_MULT[h.ring] || 0 : 0, extraOf(d));
+  }
+};
+GAMES.halveit.replayVisit = (g, st, darts) => hiApply(g, hiVisitPoints(g.targets[g.round - 1], darts.map(segOf)), darts);
+GAMES.atc.replayVisit = (g, st, darts) => {
+  const p = g.turn;
+  for (const d of darts) {
+    if (g.winner != null || g.turn !== p) break;
+    const h = segOf(d), n = g.targets[g.pl[p].i];
+    atcDart(g, h.n === n ? multOf(h) : 0, extraOf(d));
+  }
+};
+GAMES.bobs27.replayVisit = (g, st, darts) => {
+  const n = T21[g.pl[g.turn].r], aim = n === 25 ? 'BULL' : 'D' + n;
+  bobApply(g, darts.filter(d => !d.bounce && d.k === aim).length, darts);
+};
+
 // Player counts per game: [min, max]
 const PLAYER_LIMITS = { x01: [1, 4], cricket: [2, 2], killer: [2, 6], shanghai: [1, 6], halveit: [1, 6], atc: [1, 4], bobs27: [1, 4] };
 const limitsFor = mode => PLAYER_LIMITS[mode] || [1, 1];
@@ -2175,11 +2216,20 @@ function maybeBot() {
   const token = botToken;
   const leg = curLeg(), p = turnOf(leg), pl = players()[p], ctx = botCtx(p);
   const rem = remaining(leg, p), out = S.settings.out;
-  // Pressure: an opponent is on a finish, or checking out here wins the match
-  const oppOn = players().some((_, q) => q !== p && E.minDarts(remaining(leg, q), out) <= 3);
-  const matchDart = E.minDarts(rem, out) <= 3 && legWinsMatch(p);
-  ctx.pressure = oppOn || matchDart ? E.pressureFor(ctx.avg) : 1;
-  const r = E.simulateVisit(rem, out, E.profileFor(botAvg(pl)), ctx, { inRule: S.settings.inRule, opened: opened(leg, p) });
+  // After an undo, the bot repeats the visit it already threw from this exact spot
+  const kept = (S.replay || [])[0];
+  let r;
+  if (kept && kept.p === p && kept.leg === S.legs.length - 1 && kept.before === rem) {
+    S.replay.shift();
+    r = { score: kept.score, dartsUsed: kept.dartsUsed, dartsAtDouble: kept.dartsAtDouble, bust: kept.bust, checkout: kept.checkout, darts: kept.darts || [] };
+  } else {
+    S.replay = [];
+    // Pressure: an opponent is on a finish, or checking out here wins the match
+    const oppOn = players().some((_, q) => q !== p && E.minDarts(remaining(leg, q), out) <= 3);
+    const matchDart = E.minDarts(rem, out) <= 3 && legWinsMatch(p);
+    ctx.pressure = oppOn || matchDart ? E.pressureFor(ctx.avg) : 1;
+    r = E.simulateVisit(rem, out, E.profileFor(botAvg(pl)), ctx, { inRule: S.settings.inRule, opened: opened(leg, p) });
+  }
   // Throw the darts one at a time, at a real player's pace, with a longer settle before a double
   botReveal = { p, darts: [] };
   render();
@@ -2209,8 +2259,15 @@ function undo() {
   if (isGame()) return gameUndo();
   if (!hasHumanVisit() || botBusy) return;
   cancelBot();
+  // Take back your last visit. Bot visits thrown since are kept (oldest first) and replayed as they
+  // were once you've re-entered your score, so undo never makes a bot throw its darts again.
   let v;
-  do { v = popOne(); } while (v && players()[v.p].type === 'bot');
+  const keep = [];
+  do {
+    v = popOne();
+    if (v && players()[v.p].type === 'bot') keep.unshift({ ...v, leg: S.legs.length - 1 });
+  } while (v && players()[v.p].type === 'bot');
+  S.replay = keep.concat(S.replay || []);
   buffer = '';
   save(); render(); toast(`Undid ${v ? (v.bust ? 'bust' : v.score) : 'visit'}`);
   maybeBot();
@@ -2336,7 +2393,11 @@ function afterGameChange() {
 function gameUndo() {
   if (!S.hist.length || botBusy) return;
   cancelBot();
+  const before = S.game;
   do { S.game = JSON.parse(S.hist.pop()); } while (S.hist.length && isBotTurn());
+  // Bot visits taken back by this undo are kept and replayed with the same darts
+  const undone = (before.log || []).slice((S.game.log || []).length).filter(e => players()[e.p]?.type === 'bot' && e.darts);
+  S.gameReplay = undone.map(e => ({ p: e.p, round: e.round, darts: e.darts })).concat(S.gameReplay || []);
   buffer = '';
   save(); render(); maybeBot();
 }
@@ -2348,9 +2409,17 @@ function gameBot() {
     botBusy = false;
     if (!isBotTurn()) return;
     S.hist.push(JSON.stringify(S.game));
-    const G = GAMES[S.settings.mode], p = S.game.turn, ctx = botCtx(p);
-    ctx.pressure = G.pressure && G.pressure(S.game, p) ? E.pressureFor(ctx.avg) : 1;
-    G.botVisit(S.game, S.settings, botCtx);
+    const G = GAMES[S.settings.mode], g = S.game, p = g.turn, ctx = botCtx(p);
+    const kept = (S.gameReplay || [])[0];
+    const round = S.settings.mode === 'bobs27' ? g.pl[p].r + 1 : g.round;
+    if (kept && kept.p === p && kept.round === round && G.replayVisit) {
+      S.gameReplay.shift();
+      G.replayVisit(g, S.settings, kept.darts);
+    } else {
+      S.gameReplay = [];
+      ctx.pressure = G.pressure && G.pressure(g, p) ? E.pressureFor(ctx.avg) : 1;
+      G.botVisit(g, S.settings, botCtx);
+    }
     afterGameChange();
   }, 1000);
 }
@@ -2596,10 +2665,12 @@ function press(k) {
   if (isGame()) {
     const G = GAMES[S.settings.mode];
     if (!G.keypad || G.done(S.game) || isBotTurn()) return;
-    if (k === 'ok') return gameAct('score', buffer);
+    // Score with nothing typed counts as no score
+    if (k === 'ok') return gameAct('score', buffer === '' ? '0' : buffer);
   } else if (isBotTurn() || S.matchWinner != null) return;
   if (k === 'del') buffer = buffer.slice(0, -1);
-  else if (k === 'ok') return submit(buffer === '' ? NaN : +buffer);
+  // Score with nothing typed counts as no score
+  else if (k === 'ok') return submit(buffer === '' ? 0 : +buffer);
   else if (/^\d$/.test(k)) { if (buffer.length < 3) buffer = (buffer === '0' ? '' : buffer) + k; }
   render();
 }
