@@ -910,10 +910,9 @@ function crEndVisit(g) {
   g.turn = (g.turn + 1) % g.pl.length;
   if (g.turn === 0) g.round++;
   if (g.round > CR_ROUNDS) {
-    // Round limit: most points wins, then most marks
-    let best = 0;
-    g.pl.forEach((p, i) => { const b = g.pl[best]; if (p.pts > b.pts || (p.pts === b.pts && p.marks > b.marks)) best = i; });
-    g.winner = best; g.capped = true; g.round = CR_ROUNDS;
+    // Round limit: most points wins, then most marks; level on both is a tie
+    settleByScore(g, p => p.pts * 1000 + p.marks);
+    g.capped = true; g.round = CR_ROUNDS;
   }
 }
 // Bot strategy: cover numbers the opponent can score on, score while behind, otherwise close the highest open number
@@ -1023,6 +1022,7 @@ const GAMES = {
       return `<section class="panel"><h2>Visits</h2><div class="sheet-wrap"><table class="sheet"><thead><tr><th>Round</th><th>Player</th><th>Darts</th><th>Hit marks</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
     },
     result(g, st) {
+      if (g.winner === -1) return { headline: 'Tie at the round limit', detail: `${g.pl[0].pts} points each and level on marks after ${CR_ROUNDS} rounds.`, best: null };
       const w = g.winner, o = (w + 1) % 2, mpr = g.pl[w].darts ? g.pl[w].marks / g.pl[w].darts * 3 : 0;
       return { headline: `Win for ${st.players[w].name}`, detail: `${g.pl[w].pts} points to ${g.pl[o].pts}, ${mpr.toFixed(2)} marks per round${g.capped ? ', decided at the 20-round limit' : ''}.`, best: null };
     },
@@ -1105,9 +1105,9 @@ function kiEnd(g) {
   if (g.winner != null) return;
   nextTurn(g, i => g.pl[i].lives > 0);
   if (g.round > KI_ROUNDS) {
-    let best = -1;
-    g.pl.forEach((p, i) => { if (p.lives > 0 && (best < 0 || p.lives > g.pl[best].lives || (p.lives === g.pl[best].lives && p.hits > g.pl[best].hits))) best = i; });
-    g.winner = best; g.capped = true; g.round = KI_ROUNDS;
+    // Most lives wins, then most lives taken; level on both is a tie
+    settleByScore(g, p => p.lives > 0 ? p.lives * 1000 + p.hits : -1);
+    g.capped = true; g.round = KI_ROUNDS;
   }
 }
 // Bot: get its own double first, then go after the most dangerous opponent (killers first, then fewest lives)
@@ -1164,6 +1164,7 @@ Object.assign(GAMES, {
     },
     log: (g, st) => visitsTable(g, st),
     result(g, st) {
+      if (g.winner === -1) return { headline: `Tie between ${g.tied.map(i => st.players[i].name).join(' and ')}`, detail: `Level on lives and lives taken at the ${KI_ROUNDS}-round limit.`, best: null };
       const w = g.pl[g.winner];
       return { headline: `Last one standing: ${st.players[g.winner].name}`, detail: `${w.lives} ${w.lives === 1 ? 'life' : 'lives'} left after ${g.round} rounds, ${w.hits} lives taken${g.capped ? ', decided at the round limit' : ''}.`, best: null };
     },
@@ -1212,7 +1213,8 @@ function atcDart(g, mult, extra = {}) {
   me.darts++; me.per[me.i]++;
   g.cur.push({ mult, lab: ringLab(n, mult), ...extra });
   if (atcCounts(o, n, mult)) {
-    if (o.skip === 'on' && n !== 25) { me.i = Math.min(21, me.i + mult); me.hits = 0; }
+    // A skip stops on the last target unless the setting lets it carry past the end
+    if (o.skip !== 'off' && n !== 25) { me.i = Math.min(o.skip === 'past' || me.i === 20 ? 21 : 20, me.i + mult); me.hits = 0; }
     else if (++me.hits >= o.hits) { me.i++; me.hits = 0; }
   }
   if (me.i >= 21) g.winner = g.turn;
@@ -1227,7 +1229,7 @@ function atcBotVisit(g, st, ctxFor) {
   while (g.winner == null && g.turn === p) {
     const me = g.pl[p], n = g.targets[me.i], o = g.o;
     const cands = n === 25 ? [E.BY.BULL, E.BY['25']] : ['T', 'S', 'D'].map(r => E.BY[r + n]);
-    const value = h => h.n === n && atcCounts(o, n, multOf(h)) ? (o.skip === 'on' && n !== 25 ? multOf(h) : 1) : 0;
+    const value = h => h.n === n && atcCounts(o, n, multOf(h)) ? (o.skip !== 'off' && n !== 25 ? multOf(h) : 1) : 0;
     const aim = E.bestAim(cands, value, prof, ctx);
     const r = thr(aim, aim.ring === 'D');
     atcDart(g, r.h.n === n ? multOf(r.h) : 0, { k: r.h.k, x: r.x, y: r.y, lab: botLab(r), bounce: !!r.bounce });
@@ -1548,10 +1550,10 @@ Object.assign(GAMES, {
       { key: 'segments', label: 'What counts', choices: [['any', 'Any segment'], ['singles', 'Singles only'], ['doubles', 'Doubles only'], ['trebles', 'Trebles only']], def: 'any' },
       { key: 'hits', label: 'Hits per target', choices: [[1, '1'], [2, '2'], [3, '3']], def: 1 },
       { key: 'bull', label: 'Bull', choices: [['either', 'Either bull'], ['outer', 'Outer bull'], ['bullseye', 'Bullseye']], def: 'either' },
-      { key: 'skip', label: 'Doubles and trebles skip ahead', choices: [['off', 'Off'], ['on', 'On']], def: 'off' },
+      { key: 'skip', label: 'Doubles and trebles skip ahead', choices: [['off', 'Off'], ['on', 'On, last target must be hit'], ['past', 'On, can skip past the end']], def: 'off' },
       { ...ORDER_OPT, best: true },
     ],
-    rules: 'Hit every number from 1 to 20 and then the bull, in the chosen order. The settings decide which segments count, how many hits each target needs, which bull counts, and whether a double or treble moves you two or three targets on. With other players, the first one round the board wins. Fewer darts is better.',
+    rules: 'Hit every number from 1 to 20 and then the bull, in the chosen order. The settings decide which segments count, how many hits each target needs, which bull counts, and whether a double or treble moves you two or three targets on. A skip stops on the last target unless the setting lets it carry past the end, so a treble 20 can finish the game. With other players, the first one round the board wins. Fewer darts is better.',
     hint: '', keys: 'Keys: 0 miss, 1 single, 2 double, 3 treble · Ctrl+Z undo',
     init(st) {
       const o = resolveOpts(st);
@@ -2698,8 +2700,9 @@ function start(data) {
     render();
   } catch (e) {
     // A save this version can't show (damaged, or from an older format): start clean rather than stay blank
+    // The stored game is kept: the fault may be in this version, not the save
     S = freshMatch(DEFAULT_SETTINGS); S.screen = 'menu';
-    save(); render();
+    render();
   }
   maybeBot();
 }
