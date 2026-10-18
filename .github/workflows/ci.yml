@@ -1,9 +1,11 @@
 # Tests and the web build, on every push and pull request. The deploy and iOS release workflows
-# call this first, so nothing ships without passing it.
+# call this first, so nothing ships without passing it. Pushes to main and tags are left to those
+# workflows, so the tests don't run twice.
 name: CI
 
 on:
   push:
+    branches-ignore: [main]
   pull_request:
   workflow_call:
 
