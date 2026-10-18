@@ -8,7 +8,7 @@ The game is plain HTML, CSS and JavaScript with no framework or bundler. The bui
 |---|---|
 | `src/` | The game: `head.html`, `style.css`, `body.html`, `engine.js`, `games.js`, `app.js` (the build joins them into one page) |
 | `web/` | Files for the standalone app: `native.js` (iOS bridge, offline cache), `sw.js`, `manifest.webmanifest`, `privacy.html`, `support.html`, icons, bundled fonts |
-| `scripts/build.mjs` | Builds `dist/` (including the single-file `dist/oche.html`) from `src/` and `web/` |
+| `scripts/build.mjs` | Builds `dist/` from `src/` and `web/`, plus `dist/oche.html` for the Claude artifact preview |
 | `scripts/test.mjs` | Checks without a browser: scripts parse, checkout routes, bot averages, every game finishes |
 | `scripts/screenshots.mjs` | App Store screenshots of `dist/` in Chrome at Apple's sizes |
 | `scripts/make-icons.swift` | Draws the app icon, maskable icon and launch image |
