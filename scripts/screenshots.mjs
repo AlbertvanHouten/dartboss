@@ -87,11 +87,10 @@ async function shoot(device, viewport) {
   // A fixed seed makes the bot throw the same darts every run, so both devices show the same scene
   await page.evaluate(() => { let x = 42; Math.random = () => (x = (x * 16807) % 2147483647) / 2147483647; });
   await click('#setupForm [type=submit]');
-  for (const v of ['100', '140', '125']) {
+  for (const v of ['100', '85', '55']) {
     await keys(v + '\n');
     await page.waitForFunction(() => !botBusy && !isBotTurn(), { timeout: 15000 });
   }
-  await keys('6'); await keys('0');
   await snap('x01-match');
 
   // 2. The menu
