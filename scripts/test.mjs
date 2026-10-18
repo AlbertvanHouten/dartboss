@@ -1,11 +1,9 @@
-// Quick checks without a browser: the page's scripts parse, the checkout logic gives the standard routes,
+// Quick checks without a browser: the source scripts parse, the checkout logic gives the standard routes,
 // and bots finish every game under its options. Run: npm test
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 
-const html = await readFile(new URL('../oche.html', import.meta.url), 'utf8');
-const blocks = [...html.matchAll(/<script(?: id="\w+")?>([\s\S]*?)<\/script>/g)].map(m => m[1]);
-assert.equal(blocks.length, 3, 'expected engine, games and app scripts');
+const blocks = await Promise.all(['engine', 'games', 'app'].map(f => readFile(new URL(`../src/${f}.js`, import.meta.url), 'utf8')));
 for (const b of blocks) new Function(b); // throws on a syntax error
 
 const store = new Map();

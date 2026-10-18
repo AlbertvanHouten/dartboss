@@ -1,9 +1,9 @@
 # Oche Scorer
 
-A darts scorer and trainer that runs as a website (installable, works offline) and as an iOS app, from one source file.
+A darts scorer and trainer that runs as a website (installable, works offline) and as an iOS app, from one set of source files.
 
-- **`oche.html`** is the whole game. It also opens directly in a browser, and it is the version published as a Claude artifact.
-- **`npm run build`** wraps it into `dist/`: a full web app with manifest, icons, bundled fonts and an offline cache.
+- **`src/`** is the whole game: head tags, CSS, markup and the engine, games and app scripts.
+- **`npm run build`** assembles `src/` into `dist/oche.html`, the single-file page that opens directly in a browser and is the version published as a Claude artifact. It also wraps it into `dist/`: a full web app with manifest, icons, bundled fonts and an offline cache.
 - **Capacitor** puts `dist/` into the native iOS project in `ios/`, with haptics and native storage.
 
 ## Around the games
@@ -98,9 +98,9 @@ In X01 the bot throws dart by dart at a natural pace, pausing before a double.
 
 | Path | What it is |
 |---|---|
-| `oche.html` | The game: engine, bots, games and interface in one file |
+| `src/` | The game: `head.html`, `style.css`, `body.html`, `engine.js`, `games.js`, `app.js` (the build joins them into one page) |
 | `web/` | Files for the standalone app: `native.js` (iOS bridge, offline cache), `sw.js`, `manifest.webmanifest`, `privacy.html`, `support.html`, icons, bundled fonts |
-| `scripts/build.mjs` | Builds `dist/` from `oche.html` and `web/` |
+| `scripts/build.mjs` | Builds `dist/` (including the single-file `dist/oche.html`) from `src/` and `web/` |
 | `scripts/test.mjs` | Checks without a browser: scripts parse, checkout routes, bot averages, every game finishes |
 | `scripts/screenshots.mjs` | App Store screenshots of `dist/` in Chrome at Apple's sizes |
 | `scripts/make-icons.swift` | Draws the app icon, maskable icon and launch image |
@@ -123,7 +123,7 @@ npm run screenshots    # regenerate App Store screenshots
 npm run icons          # redraw icons and launch image
 ```
 
-After changing `oche.html` or anything in `web/`, run `npm run ios:sync` before building in Xcode.
+After changing `src/` or anything in `web/`, run `npm run ios:sync` before building in Xcode.
 
 ## Web version
 
@@ -206,7 +206,7 @@ With the CI secrets set, push a tag such as `v1.1` (see CI/CD). By hand: bump `M
 
 ## Notes
 
-- Before submitting: replace `SUPPORT_EMAIL` in `web/support.html` and `web/privacy.html`, and once the app exists in App Store Connect set `APP_STORE_ID` in `oche.html` to turn on the rate button.
+- Before submitting: replace `SUPPORT_EMAIL` in `web/support.html` and `web/privacy.html`, and once the app exists in App Store Connect set `APP_STORE_ID` in `src/app.js` to turn on the rate button.
 
 - Scores, the match in progress, history, settings and personal bests are saved on the device: in browser storage on the web, and also in native storage in the iOS app. Nothing leaves the device.
-- `oche.html` contains the page content only, without its own `<html>`/`<head>` wrapper, because it was written for Claude's artifact hosting. Browsers still open it fine; `npm run build` adds the full document.
+- `dist/oche.html` contains the page content only, without its own `<html>`/`<head>` wrapper, because it is written for Claude's artifact hosting. Browsers still open it fine; `dist/index.html` is the full document.
