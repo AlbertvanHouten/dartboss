@@ -84,6 +84,9 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 @media (hover: hover) { .btn:hover { border-color: var(--muted); } }
 .btn:active { transform: translateY(1px); }
 .btn.primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.btn.danger { background: var(--red); color: #fff; border-color: var(--red); }
+.dialog.confirm { width: min(400px, 100%); }
+.dialog.confirm h3 { font-size: 26px; }
 
 .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
@@ -2358,6 +2361,26 @@ function inProgress() {
   if (isGame()) return !GAMES[S.settings.mode].done(S.game) && S.hist.length > 0;
   return S.matchWinner == null && S.legs.some(l => l.visits.length);
 }
+// Restart asks first when there's a game in progress to lose
+function confirmRestart() {
+  if (!inProgress()) return startMatch(S.settings);
+  const ov = $('overlay');
+  const title = S.settings.mode === 'x01' ? 'match' : 'game';
+  ov.innerHTML = `<div class="dialog confirm" role="alertdialog" aria-modal="true" aria-labelledby="cfTitle" aria-describedby="cfText">
+    <h3 id="cfTitle">Restart this ${title}?</h3>
+    <p id="cfText">The scores so far will be lost. A new ${title} starts with the same players and settings.</p>
+    <div class="actions"><button type="button" class="btn" data-act="keep">Keep playing</button><button type="button" class="btn danger" data-act="restart">Restart</button></div></div>`;
+  ov.hidden = false; dialogOpen = true;
+  const close = () => { ov.hidden = true; ov.innerHTML = ''; ov.onclick = null; dialogOpen = false; dialogKey = null; $('rematchBtn').focus(); };
+  ov.onclick = e => {
+    const b = e.target.closest('button');
+    if (!b) { if (e.target === ov) close(); return; }
+    if (b.dataset.act === 'keep') close();
+    if (b.dataset.act === 'restart') { close(); startMatch(S.settings); }
+  };
+  dialogKey = e => { if (e.key === 'Escape') { close(); return true; } return false; };
+  ov.querySelector('[data-act="keep"]').focus();
+}
 function modeTitle(mode) { return mode === 'x01' ? `${S.settings.start || 501}` : GAMES[mode].title; }
 // The logo: a small full-colour dartboard
 const MINI_LIGHT = { logo: () => true };
@@ -2611,7 +2634,7 @@ $('undoBtn').addEventListener('click', undo);
 $('menuBtn').addEventListener('click', goMenu);
 $('brand').addEventListener('click', () => { if (S.screen !== 'menu' && !dialogOpen) goMenu(); });
 $('logo').innerHTML = miniBoard('logo');
-$('rematchBtn').addEventListener('click', () => startMatch(S.settings));
+$('rematchBtn').addEventListener('click', confirmRestart);
 
 // ---------- boot ----------
 function start(data) {
