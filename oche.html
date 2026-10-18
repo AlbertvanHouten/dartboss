@@ -403,6 +403,8 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 }
 .resume .label { color: color-mix(in srgb, var(--on-felt) 70%, transparent); }
 .resume .btn.primary { background: var(--on-felt); color: var(--felt-2); border-color: var(--on-felt); }
+.resume-btns { display: flex; gap: 8px; }
+.resume .btn.ghost { background: transparent; color: var(--on-felt); border-color: color-mix(in srgb, var(--on-felt) 45%, transparent); }
 
 /* Chalker's board for the X01 score sheet */
 .panel.chalk {
@@ -2430,25 +2432,41 @@ function inProgress() {
   if (isGame()) return !GAMES[S.settings.mode].done(S.game) && S.hist.length > 0;
   return S.matchWinner == null && S.legs.some(l => l.visits.length);
 }
-// Restart asks first when there's a game in progress to lose
-function confirmRestart() {
-  if (!inProgress()) return startMatch(S.settings);
+// Asks before throwing away a game in progress
+function confirmDialog({ title, text, keep, go, onGo, focusBack }) {
   const ov = $('overlay');
-  const title = S.settings.mode === 'x01' ? 'match' : 'game';
   ov.innerHTML = `<div class="dialog confirm" role="alertdialog" aria-modal="true" aria-labelledby="cfTitle" aria-describedby="cfText">
-    <h3 id="cfTitle">Restart this ${title}?</h3>
-    <p id="cfText">The scores so far will be lost. A new ${title} starts with the same players and settings.</p>
-    <div class="actions"><button type="button" class="btn" data-act="keep">Keep playing</button><button type="button" class="btn danger" data-act="restart">Restart</button></div></div>`;
+    <h3 id="cfTitle">${title}</h3>
+    <p id="cfText">${text}</p>
+    <div class="actions"><button type="button" class="btn" data-act="keep">${keep}</button><button type="button" class="btn danger" data-act="go">${go}</button></div></div>`;
   ov.hidden = false; dialogOpen = true;
-  const close = () => { ov.hidden = true; ov.innerHTML = ''; ov.onclick = null; dialogOpen = false; dialogKey = null; $('rematchBtn').focus(); };
+  const close = () => { ov.hidden = true; ov.innerHTML = ''; ov.onclick = null; dialogOpen = false; dialogKey = null; focusBack?.()?.focus(); };
   ov.onclick = e => {
     const b = e.target.closest('button');
     if (!b) { if (e.target === ov) close(); return; }
     if (b.dataset.act === 'keep') close();
-    if (b.dataset.act === 'restart') { close(); startMatch(S.settings); }
+    if (b.dataset.act === 'go') { close(); onGo(); }
   };
   dialogKey = e => { if (e.key === 'Escape') { close(); return true; } return false; };
   ov.querySelector('[data-act="keep"]').focus();
+}
+const gameWord = () => S.settings.mode === 'x01' ? 'match' : 'game';
+function confirmRestart() {
+  if (!inProgress()) return startMatch(S.settings);
+  confirmDialog({
+    title: `Restart this ${gameWord()}?`,
+    text: `The scores so far will be lost. A new ${gameWord()} starts with the same players and settings.`,
+    keep: 'Keep playing', go: 'Restart', onGo: () => startMatch(S.settings), focusBack: () => $('rematchBtn'),
+  });
+}
+// Discard from the menu: the settings are kept for next time, the scores go
+function confirmDiscard() {
+  confirmDialog({
+    title: `Discard this ${gameWord()}?`,
+    text: 'The game in progress and its scores will be deleted. Personal bests already set are kept.',
+    keep: 'Keep it', go: 'Discard', focusBack: () => $('menu').querySelector('[data-act="continue"]'),
+    onGo: () => { cancelBot(); botBusy = false; buffer = ''; S = freshMatch(S.settings); S.screen = 'menu'; save(); render(); },
+  });
 }
 function modeTitle(mode) { return mode === 'x01' ? `${S.settings.start || 501}` : GAMES[mode].title; }
 // The logo: a small full-colour dartboard
@@ -2492,7 +2510,7 @@ function miniBoard(kind) {
 const routeChips = route => route.map(s => `<span class="rchip r-${s.ring}">${E.label(s)}</span>`).join('');
 function renderMenu() {
   const resume = inProgress()
-    ? `<section class="panel resume"><div><span class="label">Game in progress</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><button class="btn primary" type="button" data-act="continue">Continue</button></section>`
+    ? `<section class="panel resume"><div><span class="label">Game in progress</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><div class="resume-btns"><button class="btn ghost" type="button" data-act="discard">Discard</button><button class="btn primary" type="button" data-act="continue">Continue</button></div></section>`
     : '';
   const hero = `<section class="menu-hero"><h2 class="num">Step up to the oche<span>.</span></h2><p>Pick a game. Play friends on this device, or bots set to any average from 20 to 120.</p></section>`;
   $('menu').innerHTML = hero + resume + MENU.map(([group, items]) => `<section class="menu-sec"><h2>${group}</h2><div class="cards">${items.map(([mode, title, desc]) => {
@@ -2684,6 +2702,7 @@ document.addEventListener('click', e => {
   else if (b.dataset.act === 'rematch') startMatch(S.settings);
   else if (b.dataset.act === 'new') goMenu();
   else if (b.dataset.menu) openSetup(b.dataset.menu);
+  else if (b.dataset.act === 'discard') confirmDiscard();
   else if (b.dataset.act === 'continue') { S.screen = 'play'; save(); render(); maybeBot(); }
 });
 document.addEventListener('keydown', e => {
