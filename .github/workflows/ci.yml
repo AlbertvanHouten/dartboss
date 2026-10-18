@@ -1,0 +1,54 @@
+# Tests and the web build, on every push and pull request. The deploy and iOS release workflows
+# call this first, so nothing ships without passing it.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build the web app
+        run: npm run build
+
+      - name: Check the build
+        run: |
+          for f in index.html sw.js native.js manifest.webmanifest privacy.html fonts/fonts.css icons/icon-512.png; do
+            test -s "dist/$f" || { echo "::error::dist/$f is missing"; exit 1; }
+          done
+          if grep -q "__VERSION__" dist/sw.js; then echo "::error::offline cache version was not stamped"; exit 1; fi
+          if grep -Eq "fonts\.(googleapis|gstatic)\.com" dist/index.html; then echo "::error::the build loads Google Fonts"; exit 1; fi
+          node --check dist/sw.js
+          node --check dist/native.js
+
+      - name: Keep the built site
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist
+          retention-days: 7

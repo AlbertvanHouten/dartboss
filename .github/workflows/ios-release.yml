@@ -1,0 +1,134 @@
+# Builds the iOS app and uploads it to TestFlight. Runs on a version tag (git tag v1.0.1 && git push
+# --tags) or by hand from the Actions tab. macOS minutes count 10x on private repos, so it doesn't
+# run on every push.
+#
+# Needs these repository secrets (Settings → Secrets and variables → Actions):
+#   APPLE_TEAM_ID                 your 10-character team ID (developer.apple.com → Membership)
+#   APP_STORE_CONNECT_KEY_ID      App Store Connect → Users and Access → Integrations → API key,
+#   APP_STORE_CONNECT_ISSUER_ID   role "App Manager"; the key ID and issuer ID are on that page
+#   APP_STORE_CONNECT_KEY         the contents of the downloaded AuthKey_XXXX.p8 file
+# Xcode signs automatically with the key, so no certificates or profiles need to be stored.
+# Without the secrets it still compiles the app for the Simulator as a check.
+name: iOS release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Upload to TestFlight
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-release
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  ios:
+    name: Build and upload
+    needs: ci
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      ASC_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
+      UPLOAD: ${{ github.event_name == 'push' || inputs.upload }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install and sync the web app into iOS
+        run: |
+          npm ci
+          npm run ios:sync
+
+      - name: Work out the version
+        id: version
+        run: |
+          # Tag v1.2.3 → version 1.2.3; by hand → the version in the Xcode project. The build
+          # number is the run number, so every upload is unique.
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"; else
+            v=$(grep -m1 "MARKETING_VERSION" ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= *([^;]+);.*/\1/'); fi
+          echo "marketing=$v" >> "$GITHUB_OUTPUT"
+          echo "build=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Version $v ($GITHUB_RUN_NUMBER)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check signing secrets
+        id: signing
+        run: |
+          if [ -n "$TEAM_ID" ] && [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Signing secrets aren't set, so this run only checks that the app compiles. See the top of ios-release.yml."
+          fi
+
+      - name: Compile for the Simulator (no signing)
+        if: steps.signing.outputs.ready != 'true'
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build | tail -n 40
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Archive and upload to TestFlight
+        if: steps.signing.outputs.ready == 'true'
+        run: |
+          mkdir -p build
+          key="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s' "$ASC_KEY" > "$key"
+          auth=(-allowProvisioningUpdates -authenticationKeyPath "$key"
+                -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/App.xcarchive \
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="${{ steps.version.outputs.marketing }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build }}" \
+            "${auth[@]}" archive | tail -n 40
+          test "${PIPESTATUS[0]}" -eq 0
+
+          # "upload" sends the build straight to App Store Connect; "export" just writes the .ipa.
+          dest="export"; [ "$UPLOAD" = "true" ] && dest="upload"
+          cat > build/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>$dest</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          EOF
+
+          xcodebuild -exportArchive -archivePath build/App.xcarchive \
+            -exportOptionsPlist build/ExportOptions.plist -exportPath build/export "${auth[@]}"
+          rm -f "$key"
+          [ "$dest" = upload ] && echo "Uploaded to TestFlight. It shows up in App Store Connect after processing (usually 5 to 15 minutes)." >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Keep the build
+        if: steps.signing.outputs.ready == 'true' && !inputs.upload && github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oche-ios-${{ steps.version.outputs.marketing }}-${{ steps.version.outputs.build }}
+          path: build/export/*.ipa
+          retention-days: 14
