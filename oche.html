@@ -466,7 +466,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 }
 /* Keyboard shortcuts mean nothing on a touch screen */
 @media (hover: none) {
-  .entry .row-actions .hint { display: none; }
+  .row-actions .kb { display: none; }
 }
 </style>
 
@@ -500,7 +500,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
         <div class="keys" id="keys"></div>
         <div class="row-actions">
           <button class="btn" id="undoBtn" type="button">Undo last visit</button>
-          <span class="hint">Type the visit total, then <kbd>Enter</kbd>. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.</span>
+          <span class="hint"><span class="kb">Keys: <kbd>Enter</kbd> to score · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo</span></span>
         </div>
       </section>
       </div>
@@ -982,7 +982,7 @@ const GAMES = {
   cricket: {
     title: 'Cricket', opponent: true,
     rules: 'Close 15 to 20 and the bull with three marks each: a single is one mark, a double two, a treble three. Once you have closed a number, extra marks on it score its value until your opponent closes it too. Close everything while level or ahead on points to win. After 20 rounds the most points wins.',
-    hint: 'Tap each dart as you throw it. M records a miss. Ctrl+Z undoes.',
+    hint: 'Tap each dart as you throw it.', keys: 'Keys: M miss · Ctrl+Z undo',
     init: st => ({ pl: st.players.map(() => ({ m: { 15: 0, 16: 0, 17: 0, 18: 0, 19: 0, 20: 0, 25: 0 }, pts: 0, marks: 0, darts: 0 })), turn: 0, cur: [], round: 1, winner: null, log: [] }),
     done: g => g.winner != null,
     // Opponent nearly closed out, or the round limit is close
@@ -1132,7 +1132,7 @@ Object.assign(GAMES, {
   killer: {
     title: 'Killer', players: [2, 6],
     rules: `Every player gets a random number. Hit the double of your own number to become a killer. Killers take a life from an opponent each time they hit that opponent's double, but a killer who hits their own double loses a life. Everyone starts with ${KI_LIVES} lives, and the last player standing wins.`,
-    hint: 'Tap the double each dart hit. M records a miss or any other segment. Ctrl+Z undoes.',
+    hint: 'Tap the double each dart hit. Any other segment counts as a miss.', keys: 'Keys: M miss · Ctrl+Z undo',
     init(st) {
       const nums = Array.from({ length: 20 }, (_, i) => i + 1);
       for (let i = nums.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [nums[i], nums[j]] = [nums[j], nums[i]]; }
@@ -1384,7 +1384,7 @@ function hiBotVisit(g, st, ctxFor) {
 }
 
 // ---- 121 Checkout ----
-const C121_SAFE = [['start', 'Back to start'], ['3', 'After a 3-dart check'], ['6', 'After a 6-dart check'], ['row3', 'After 3 checks in a row'], ['row5', 'After 5 checks in a row'], ['each', 'After every check']];
+const C121_SAFE = [['start', 'Back to start'], ['3', 'After a 3-dart checkout'], ['6', 'After a 6-dart checkout'], ['row3', 'After 3 checkouts in a row'], ['row5', 'After 5 checkouts in a row'], ['each', 'After every checkout']];
 
 Object.assign(GAMES, {
   shanghai: {
@@ -1394,7 +1394,7 @@ Object.assign(GAMES, {
       { key: 'variant', label: 'Variant', choices: [['none', 'Standard'], ['number', 'Require number'], ['treble', 'Require treble']], def: 'none' },
     ],
     rules: 'One number per round, from 1 up. Each dart on the number scores the number times the ring: single ×1, double ×2, treble ×3. A single, a double and a treble of the number in one visit, a Shanghai, wins on the spot. Otherwise the highest total wins. Require number: miss the number with all three darts and your score halves. Require treble: no treble of the number and your score resets to zero.',
-    hint: 'Keys: 0 miss, 1 single, 2 double, 3 treble. Ctrl+Z undoes.',
+    hint: '', keys: 'Keys: 0 miss, 1 single, 2 double, 3 treble · Ctrl+Z undo',
     init: st => ({ o: resolveOpts(st), pl: st.players.map(() => ({ score: 0, darts: 0, rounds: [], halves: 0, resets: 0 })), turn: 0, cur: [], round: 1, winner: null, tied: null, shanghai: false, log: [] }),
     done: g => g.winner != null,
     act(g, a, v) { shDart(g, +v); },
@@ -1432,7 +1432,7 @@ Object.assign(GAMES, {
       { key: 'targets', label: 'Targets', choices: [['standard', 'Standard (12 rounds)'], ['classic', 'Classic (9 rounds)'], ['random', 'Random order']], def: 'standard' },
     ],
     rules: 'Everyone starts on 40 points and every round has a target. Numbers, any double, any treble and the bull score the darts that hit them. Different colours: all three darts in different board colours (black, white, red, green) scores the visit. Same colour: all three in one colour. Exactly: the three darts must total that number. Miss a round and your score is cut in half. The highest score at the end wins.',
-    hint: 'Type the points the round scored, then Enter. 0 halves your score. Ctrl+Z undoes.',
+    hint: 'Enter what the round scored. 0 halves your score.', keys: 'Keys: Enter to score · Ctrl+Z undo',
     init(st) {
       const o = resolveOpts(st);
       const list = (o.targets === 'classic' ? HI_SETS.classic : o.targets === 'random' ? shuffled(HI_SETS.standard) : HI_SETS.standard).map(t => t === 'X' ? exactTarget() : t);
@@ -1486,7 +1486,7 @@ Object.assign(GAMES, {
       { key: 'rounds', label: 'Rounds', choices: [[10, '10'], [25, '25'], [0, 'Unlimited']], def: 10 },
     ],
     rules: 'Check out the target on a double within the darts allowed. Make it and the next target goes up. Miss it and you drop back to your safehouse: the last target you protected, or the start. When a score gets protected depends on the safehouse setting; by default, checking out in one visit protects it. Your highest checkout is the score.',
-    hint: 'Type each visit total, then Enter. Busts count as no score. Ctrl+Z undoes.',
+    hint: 'Enter each visit total. A bust counts as no score.', keys: 'Keys: Enter to score · Ctrl+Z undo',
     init(st) {
       const o = resolveOpts(st);
       return { o, target: o.start, rem: o.start, visit: 0, results: [], high: 0, safe: o.start, streak: 0, ended: false };
@@ -1552,7 +1552,7 @@ Object.assign(GAMES, {
       { ...ORDER_OPT, best: true },
     ],
     rules: 'Hit every number from 1 to 20 and then the bull, in the chosen order. The settings decide which segments count, how many hits each target needs, which bull counts, and whether a double or treble moves you two or three targets on. With other players, the first one round the board wins. Fewer darts is better.',
-    hint: 'Keys: 0 miss, 1 single, 2 double, 3 treble. Ctrl+Z undoes.',
+    hint: '', keys: 'Keys: 0 miss, 1 single, 2 double, 3 treble · Ctrl+Z undo',
     init(st) {
       const o = resolveOpts(st);
       return { o, targets: ordered(T21, o.order), pl: st.players.map(() => ({ i: 0, hits: 0, darts: 0, per: Array(21).fill(0) })), turn: 0, cur: [], round: 1, winner: null, log: [] };
@@ -1600,7 +1600,7 @@ Object.assign(GAMES, {
     title: "Bob's 27", players: [1, 4],
     options: [{ key: 'mode', label: 'Below zero', choices: [['hard', 'Game over (hard)'], ['easy', 'Keep playing (easy)']], def: 'hard' }],
     rules: "Start on 27 points. Three darts at each double from D1 to D20, then the bull. Every hit adds the double's value; if all three miss, you lose the double's value instead. In hard mode, dropping below zero ends your game; in easy mode you play on. The maximum is 1437. With other players, the highest score wins.",
-    hint: 'Keys: 0 to 3 for the number of doubles hit. Ctrl+Z undoes.',
+    hint: '', keys: 'Keys: 0 to 3 for the doubles hit · Ctrl+Z undo',
     init: st => ({ o: resolveOpts(st), pl: st.players.map(() => ({ r: 0, score: 27, hits: [], dead: false })), turn: 0, round: 1, winner: null, tied: null, log: [] }),
     done: g => g.winner != null,
     act(g, a, v) { bobApply(g, +v); },
@@ -1637,7 +1637,7 @@ Object.assign(GAMES, {
     title: 'Singles Training',
     options: [ORDER_OPT],
     rules: 'Three darts at each number from 1 to 20 and the bull, in the chosen order. A single scores 1 point, a double 2 and a treble 3. On the bull, the outer 25 scores 1 and the bullseye 2. The maximum is 186.',
-    hint: 'Keys: 0 miss, 1 single, 2 double, 3 treble. Ctrl+Z undoes.',
+    hint: '', keys: 'Keys: 0 miss, 1 single, 2 double, 3 treble · Ctrl+Z undo',
     init: st => { const o = resolveOpts(st); return { o, targets: ordered(T21, o.order), i: 0, cur: [], rows: [] }; },
     done: g => g.i >= 21,
     act(g, a, v) { g.cur.push(+v); if (g.cur.length === 3) { g.rows.push(g.cur); g.cur = []; g.i++; } },
@@ -1666,7 +1666,7 @@ Object.assign(GAMES, {
       ORDER_OPT,
     ],
     rules: 'Work through the doubles in the chosen order. Until you hit it: stay on each double until you hit it, and finish in as few darts as you can. Three darts each: throw three darts at every double and count the hits, out of 63 (60 without the bull).',
-    hint: 'Keys: H hit, M miss (or 0 to 3 hits in three-dart mode). Ctrl+Z undoes.',
+    hint: '', keys: 'Keys: H hit, M miss (0 to 3 hits in three-dart mode) · Ctrl+Z undo',
     init(st) {
       const o = resolveOpts(st);
       const list = ordered(o.bull === 'on' ? T21 : T21.slice(0, 20), o.order);
@@ -1706,7 +1706,7 @@ Object.assign(GAMES, {
     title: 'Score Training', keypad: true,
     options: [{ key: 'rounds', label: 'Length', choices: [[10, '10 visits'], [20, '20 visits'], [33, '33 visits (99 darts)'], [0, 'Unlimited']], def: 10 }],
     rules: 'Score as much as you can, three darts a visit. Aim wherever you like; the treble 20 is the usual target. Pick a fixed number of visits to compare sessions, or play unlimited and finish when you want.',
-    hint: 'Type the visit total, then Enter. Ctrl+Z undoes.',
+    hint: 'Enter each visit total.', keys: 'Keys: Enter to score · Ctrl+Z undo',
     init: st => ({ o: resolveOpts(st), visits: [], ended: false }),
     done: g => g.ended || (g.o.rounds > 0 && g.visits.length >= g.o.rounds),
     act(g, a, v) { if (a === 'end') g.ended = true; else g.visits.push(+v); },
@@ -1777,7 +1777,7 @@ const PLAYER_LIMITS = { x01: [1, 4], cricket: [2, 2], killer: [2, 6], shanghai: 
 const limitsFor = mode => PLAYER_LIMITS[mode] || [1, 1];
 const MENU = [
   ['Matches', [
-    ['x01', 'X01', '301, 501 or 701 down to zero, finishing on a double. Checkout routes shown for every score.'],
+    ['x01', 'X01', '301, 501 or 701 down to zero, finishing on a double. Checkout routes shown for every finish.'],
     ['cricket', 'Cricket', 'Close 15 to 20 and the bull, and score on numbers your opponent has left open.'],
     ['killer', 'Killer', 'Hit your own double to become a killer, then take lives from everyone else.'],
     ['shanghai', 'Shanghai', 'Seven rounds, 1 to 7. A single, double and treble in one visit wins outright.'],
@@ -1787,9 +1787,9 @@ const MENU = [
     ['c121', '121 Checkout', 'Nine darts to check out. Make it and the target goes up, miss and it drops.'],
     ['atc', 'Around the Clock', 'Hit 1 to 20 in order, then the bull, in as few darts as you can.'],
     ['bobs27', "Bob's 27", 'Three darts at every double. Hits add points, three misses take them away.'],
-    ['doubles', 'Doubles Training', 'Three darts at each double from D1 to the bull. Out of 63.'],
+    ['doubles', 'Doubles Training', 'Every double from D1 to the bull: stay on each until you hit it, or three darts each.'],
     ['singles', 'Singles Training', 'Three darts at each number, scoring by ring. Out of 186.'],
-    ['score', 'Score Training', '99 darts at the treble 20. Keep your average as high as you can.'],
+    ['score', 'Score Training', 'Three darts a visit at the treble 20. Keep your average as high as you can.'],
   ]],
 ];
 </script>
@@ -2047,7 +2047,7 @@ function render() {
   const canCO = human && E.minDarts(rem, st.out) <= 3 && (opened(leg, turn) || OPEN_SETS[st.inRule]?.has(rem));
   // With a finish on, the readout offers a one-tap checkout instead of showing who is throwing
   $('who').innerHTML = canCO && !buffer ? `<button class="chip co rco" type="button" data-score="${rem}">Checkout ${rem}</button>`
-    : turn >= 0 ? `<span class="label">To throw</span><br><b>${esc(players()[turn].name)}</b> needs ${rem}` : '';
+    : turn >= 0 ? `<span class="label">To throw</span><br><b>${esc(players()[turn].name)}</b> · ${rem} left` : '';
   const quick = [26, 41, 45, 60, 81, 85, 100, 140, 180];
   $('quick').innerHTML =
     `<button class="chip zero" type="button" data-score="0" ${human ? '' : 'disabled'}>No score</button>` +
@@ -2065,7 +2065,7 @@ function render() {
   const lastVisit = live ? { p: live.p, darts: live.darts, score: liveScore, bust: false, live: true } : lastVisitAnywhere();
   const showDarts = lastVisit && lastVisit.darts && lastVisit.darts.length;
   drawDarts(showDarts ? lastVisit.darts : []);
-  $('boardLabel').textContent = route ? `${players()[turn].name} checkout` : turn >= 0 ? `${players()[turn].name} needs ${rem}` : 'Final visit';
+  $('boardLabel').textContent = route ? `${players()[turn].name} checkout` : turn >= 0 ? `${players()[turn].name} · ${rem} left` : 'Final visit';
   $('boardRoute').innerHTML = route ? routeChips(route) : turn >= 0 ? (!opened(leg, turn) ? `Open on a ${st.inRule === 'master' ? 'double or treble' : 'double'}` : rem > (st.out === 'double' ? 170 : 180) ? 'Scoring – aim T20' : 'No 3-dart finish') : '';
   $('legend').innerHTML = showDarts
     ? `<span>${esc(players()[lastVisit.p].name)}${lastVisit.live ? ' is throwing' : "'s last visit"}:</span> ${lastVisit.darts.map((d, i) => `<span>${i + 1}. <b>${dartLabel(d)}</b></span>`).join('')} <span>= <b>${lastVisit.bust ? 'Bust' : lastVisit.score}</b></span>`
@@ -2231,7 +2231,7 @@ function undo() {
   } while (v && players()[v.p].type === 'bot');
   S.replay = keep.concat(S.replay || []);
   buffer = '';
-  save(); render(); toast(`Undid ${v ? (v.bust ? 'bust' : v.score) : 'visit'}`);
+  save(); render(); toast(`Undone: ${v ? (v.bust ? 'bust' : v.score) : 'visit'}`);
   maybeBot();
 }
 
@@ -2247,7 +2247,7 @@ function submit(score) {
   const canAimDouble = dbl && opened(leg, p) && rem <= (out === 'master' ? 60 : 50) && E.minDarts(rem, out) <= 3;
   if (score > rem || (dbl && rem - score === 1)) {
     const finish = atDouble => commitVisit({ ...base, score: 0, dartsUsed: 3, dartsAtDouble: atDouble, bust: true, checkout: false });
-    return canAimDouble ? ask('Bust', `How many darts did ${players()[p].name} throw at ${finisher}?`, [{ key: 'd', label: atLabel, options: [0, 1, 2, 3], def: 1 }], a => finish(a.d)) : finish(0);
+    return canAimDouble ? ask('Bust', `How many darts went at ${finisher}?`, [{ key: 'd', label: atLabel, options: [0, 1, 2, 3], def: 1 }], a => finish(a.d)) : finish(0);
   }
   if (score === rem) {
     const md = E.minDarts(rem, out);
@@ -2313,7 +2313,7 @@ function renderGame() {
   const canUndo = S.hist.length > 0 && !botBusy;
   $('gameLeft').innerHTML = G.hud(g, st) + res +
     `<section class="panel gpadwrap">${done ? '' : G.pad(g, st)}<div class="msg" id="gMsg" role="status" aria-live="polite"></div>
-      <div class="row-actions"><button class="btn" type="button" data-act="undo"${canUndo ? '' : ' disabled'}>Undo</button><span class="hint">${G.hint}</span></div></section>`;
+      <div class="row-actions"><button class="btn" type="button" data-act="undo"${canUndo ? '' : ' disabled'}>Undo</button><span class="hint">${G.hint} <span class="kb">${G.keys}</span></span></div></section>`;
   $('gameRight').innerHTML = G.log(g, st) + `<section class="panel"><h2>How to play</h2><p class="rules">${G.rules}</p></section>`;
   const b = G.board(g, st);
   highlight(b.keys.map(k => ({ k })));
@@ -2469,7 +2469,7 @@ function renderMenu() {
   const resume = inProgress()
     ? `<section class="panel resume"><div><span class="label">Game in progress</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><div class="resume-btns"><button class="btn ghost" type="button" data-act="discard">Discard</button><button class="btn primary" type="button" data-act="continue">Continue</button></div></section>`
     : '';
-  const hero = `<section class="menu-hero"><h2 class="num">Step up to the oche<span>.</span></h2><p>Pick a game. Play friends on this device, or bots set to any average from 20 to 120.</p></section>`;
+  const hero = `<section class="menu-hero"><h2 class="num">Step up to the oche<span>.</span></h2><p>Play friends on this device, or bots set to any average from 20 to 120.</p></section>`;
   $('menu').innerHTML = hero + resume + MENU.map(([group, items]) => `<section class="menu-sec"><h2>${group}</h2><div class="cards">${items.map(([mode, title, desc]) => {
     const [lo, hi] = limitsFor(mode), best = getBest(mode);
     const who = hi === 1 ? 'Solo' : lo === hi ? `${lo} players` : `${lo}–${hi} players`;
@@ -2497,7 +2497,7 @@ function openSetup(mode) {
   const ov = $('overlay');
   const title = mode === 'x01' ? 'X01' : G.title;
   const desc = MENU.flatMap(([, items]) => items).find(([m]) => m === mode)?.[2] || '';
-  const coText = a => `checks out ~${Math.round(E.profileFor(a).co)}%`;
+  const coText = a => `~${Math.round(E.profileFor(a).co)}% checkout`;
   const renumber = () => {
     // Give duplicate default names a number: Bot, Bot 2, Bot 3…
     const seen = {};
@@ -2685,16 +2685,22 @@ $('rematchBtn').addEventListener('click', confirmRestart);
 
 // ---------- boot ----------
 function start(data) {
-  const saved = (data && data.S) || load();
-  S = saved || freshMatch(DEFAULT_SETTINGS);
-  S.settings.mode = S.settings.mode || 'x01';
-  if (S.settings.mode === 'x01') normX01(S.settings);
-  S.hist = S.hist || [];
-  if (isGame() && (!GAMES[S.settings.mode] || !S.game)) S = freshMatch(DEFAULT_SETTINGS);
-  // First visit opens on the menu; a saved game picks up where it was
-  S.screen = saved ? (S.screen || 'play') : 'menu';
   buildBoard();
-  render();
+  const saved = (data && data.S) || load();
+  try {
+    S = saved || freshMatch(DEFAULT_SETTINGS);
+    S.settings.mode = S.settings.mode || 'x01';
+    if (S.settings.mode === 'x01') normX01(S.settings);
+    S.hist = S.hist || [];
+    if (isGame() && (!GAMES[S.settings.mode] || !S.game)) S = freshMatch(DEFAULT_SETTINGS);
+    // First visit opens on the menu; a saved game picks up where it was
+    S.screen = saved ? (S.screen || 'play') : 'menu';
+    render();
+  } catch (e) {
+    // A save this version can't show (damaged, or from an older format): start clean rather than stay blank
+    S = freshMatch(DEFAULT_SETTINGS); S.screen = 'menu';
+    save(); render();
+  }
   maybeBot();
 }
 window.claude?.hot?.snapshot?.(() => ({ S }));

@@ -40,7 +40,7 @@ self.addEventListener('fetch', event => {
       if (res.ok) cache.put(req, res.clone());
       return res;
     } catch (e) {
-      return hit || Response.error();
+      return Response.error();
     }
   })());
 });

@@ -1,11 +1,8 @@
-# Tests and the web build, on every push and pull request. The deploy and iOS release workflows
-# call this first, so nothing ships without passing it. Pushes to main and tags are left to those
-# workflows, so the tests don't run twice.
+# Tests and the web build, on every pull request. The deploy and iOS release workflows call this
+# first, so nothing ships without passing it, and pushes to main and tags are tested there.
 name: CI
 
 on:
-  push:
-    branches-ignore: [main]
   pull_request:
   workflow_call:
 
@@ -47,6 +44,9 @@ jobs:
           if grep -Eq "fonts\.(googleapis|gstatic)\.com" dist/index.html; then echo "::error::the build loads Google Fonts"; exit 1; fi
           node --check dist/sw.js
           node --check dist/native.js
+
+      - name: Play a match in the browser
+        run: npm run test:e2e
 
       - name: Keep the built site
         uses: actions/upload-artifact@v4

@@ -6,7 +6,7 @@
 // dist/ is what gets hosted on the web and what Capacitor copies into the iOS app.
 //   node scripts/build.mjs
 import { createHash } from 'node:crypto';
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 
 const root = new URL('../', import.meta.url);
 const dist = new URL('dist/', root);
@@ -54,7 +54,13 @@ ${body}
 </html>
 `;
 
-const version = createHash('sha256').update(html).digest('hex').slice(0, 10);
+// The version covers every file that ships, so a change to any of them refreshes installed copies
+const hash = createHash('sha256').update(html);
+for (const f of (await readdir(new URL('web/', root), { recursive: true })).sort()) {
+  const file = new URL(`web/${f}`, root);
+  if ((await stat(file)).isFile()) hash.update(f).update(await readFile(file));
+}
+const version = hash.digest('hex').slice(0, 10);
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 await cp(new URL('web/', root), dist, { recursive: true });

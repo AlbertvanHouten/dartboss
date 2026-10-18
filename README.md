@@ -109,6 +109,7 @@ In X01 the bot throws dart by dart at a natural pace, pausing before a double.
 ```bash
 npm install            # once
 npm test               # quick checks
+npm run test:e2e       # plays a match in headless Chrome (run npm run build first)
 npm run serve          # build and serve dist/ at http://127.0.0.1:8765
 npm run ios:sync       # build and copy into the iOS project
 npm run ios:open       # open the project in Xcode
@@ -136,7 +137,7 @@ GitHub Actions workflows in `.github/workflows/`:
 
 | Workflow | Runs on | What it does |
 | --- | --- | --- |
-| `ci.yml` | every push and pull request | `npm test`, builds the web app, checks the build, keeps `dist/` as a downloadable artifact for 7 days |
+| `ci.yml` | every pull request | `npm test`, builds the web app, checks the build, plays a match in headless Chrome, keeps `dist/` as a downloadable artifact for 7 days |
 | `deploy-web.yml` | push to `main`, or by hand | runs CI, then publishes `dist/` to Netlify |
 | `ios-release.yml` | a `v*` tag, or by hand | runs CI, then archives the iOS app on a Mac runner and uploads it to TestFlight |
 

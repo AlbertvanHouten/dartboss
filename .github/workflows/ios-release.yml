@@ -37,12 +37,7 @@ jobs:
     needs: ci
     runs-on: macos-latest
     timeout-minutes: 45
-    env:
-      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-      ASC_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
-      UPLOAD: ${{ github.event_name == 'push' || inputs.upload }}
+    # The signing secrets are given only to the steps that use them, never to the whole job
     steps:
       - uses: actions/checkout@v4
 
@@ -50,10 +45,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest-stable
 
       - name: Install and sync the web app into iOS
         run: |
@@ -73,6 +64,11 @@ jobs:
 
       - name: Check signing secrets
         id: signing
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
         run: |
           if [ -n "$TEAM_ID" ] && [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -91,6 +87,12 @@ jobs:
 
       - name: Archive and upload to TestFlight
         if: steps.signing.outputs.ready == 'true'
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
+          UPLOAD: ${{ github.event_name == 'push' || inputs.upload }}
         run: |
           mkdir -p build
           key="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
