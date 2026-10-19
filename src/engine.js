@@ -19,7 +19,7 @@ const E = (() => {
 
   const IMPOSSIBLE = new Set([163, 166, 169, 172, 173, 175, 176, 178, 179]);
   const validVisit = s => Number.isInteger(s) && s >= 0 && s <= 180 && !IMPOSSIBLE.has(s);
-  const label = s => s.k === 'BULL' ? 'Bull' : s.k === 'MISS' ? 'Miss' : s.k;
+  const label = s => s.k === 'BULL' ? 'Bull' : s.k === 'MISS' ? t('Miss') : s.k;
 
   // Route preferences: favourite doubles first, big trebles for set-up, singles are big targets
   const DBL_COST = { 16: 0, 20: 0.05, 8: 0.2, 18: 0.3, 12: 0.35, 10: 0.45, 14: 0.5, 4: 0.55, 6: 0.6, 2: 0.7, 1: 1.3 };

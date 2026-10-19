@@ -121,6 +121,27 @@ try {
   assert.equal(await run("document.getElementById('menu').hidden"), false, 'reset shows the menu');
   assert.equal(await run('SETTINGS.awake'), true, 'reset restores the settings');
 
+  // Language: Dutch and German apply at once to the menu, the play screen and Settings, and survive a reload
+  const speak = async (lang, words) => {
+    await run("goScreen('settings')");
+    await click(`[data-pg="lang"][data-v="${lang}"]`);
+    assert.equal(await run('document.documentElement.lang'), lang, `${lang} sets <html lang>`);
+    assert.match(await text('#page'), words.settings, `Settings in ${lang}`);
+    await page.reload({ waitUntil: 'networkidle0' });
+    assert.equal(await run('SETTINGS.lang + document.documentElement.lang'), lang + lang, `${lang} survives a reload`);
+    assert.match(await text('#tabs'), words.tabs, `the tabs in ${lang}`);
+    await run("goScreen('menu')");
+    assert.match(await text('#menu'), words.menu, `the menu in ${lang}`);
+    await run(`startMatch({ ...DEFAULT_SETTINGS, players: ${humans} })`);
+    assert.match(await text('#play'), words.play, `the play screen in ${lang}`);
+    assert.match(await text('#menuBtn'), words.menuBtn);
+  };
+  await speak('nl', { settings: /Instellingen[\s\S]*Taal[\s\S]*Alle gegevens wissen/i, tabs: /Spelen\s*Geschiedenis/i, menu: /Stap naar de oche[\s\S]*Oefenen[\s\S]*Dubbeltraining/i, play: /Voer score in[\s\S]*Aan de beurt[\s\S]*Laatste beurt terug/i, menuBtn: /Menu/i });
+  await speak('de', { settings: /Einstellungen[\s\S]*Sprache[\s\S]*Alle Daten zurücksetzen/i, tabs: /Spielen\s*Verlauf/, menu: /Ab an die Oche[\s\S]*Training[\s\S]*Double-Training/i, play: /Score eingeben[\s\S]*Am Wurf[\s\S]*Letzte Aufnahme zurück/i, menuBtn: /Menü/i });
+  await run("goScreen('settings')");
+  await click('[data-pg="lang"][data-v="system"]');
+  assert.match(await text('#page'), /Settings[\s\S]*Language/i, 'System goes back to English here');
+
   // A save this version can't show opens the menu with a fresh match, not a blank page
   await run(`localStorage.setItem('oche-match-v1', JSON.stringify({ settings: { mode: 'x01', players: null }, legs: [{}], screen: 'play' }))`);
   errors.length = 0;
