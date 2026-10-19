@@ -1,5 +1,6 @@
-# Tests and the web build, on every pull request. The deploy and iOS release workflows call this
-# first, so nothing ships without passing it, and pushes to main and tags are tested there.
+# Tests and the web build on every pull request, plus an Android build. The deploy, iOS and Android
+# release workflows call this first, so nothing ships without passing it, and pushes to main and tags
+# are tested there.
 name: CI
 
 on:
@@ -54,3 +55,34 @@ jobs:
           name: web-dist
           path: dist
           retention-days: 7
+
+  # Compiles the Android app on pull requests, so a change that breaks it shows up before a release.
+  # Skipped when a deploy or release workflow calls CI (the Android release builds it there anyway).
+  android:
+    name: Android build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Capacitor 8 needs JDK 21; the runner already has the Android SDK
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install and sync the web app into Android
+        run: |
+          npm ci
+          npm run android:sync
+
+      - name: Build a debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
