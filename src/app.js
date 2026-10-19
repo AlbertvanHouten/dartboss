@@ -117,8 +117,9 @@ const fmt = (x, d = 1) => x == null ? '–' : x.toFixed(d);
 
 // Saved in the browser; inside the iOS app also mirrored to native storage (see native.js)
 function save() {
-  const json = JSON.stringify(S);
-  try { localStorage.setItem(STORE_KEY, json); } catch (e) {}
+  // Undo snapshots stay in memory; saving all of them outgrows the browser's storage on long games
+  const json = JSON.stringify({ ...S, hist: (S.hist || []).slice(-10) });
+  try { localStorage.setItem(STORE_KEY, json); } catch (e) { toast('Could not save: device storage is full'); }
   window.ocheNative?.persist(STORE_KEY, json);
 }
 // ---------- history and app settings ----------
@@ -155,7 +156,7 @@ function recordHistory() {
 const forgetHistory = id => writeJSON(HISTORY_KEY, historyAll().filter(e => e.id !== id));
 function matchHeadline() {
   const st = S.settings, sd = standings(), tally = st.unit === 'sets' ? sd.sets : sd.total, w = S.matchWinner;
-  const rest = players().map((_, p) => p).filter(p => p !== w).map(q => tally[q]).join('–') || 0;
+  const rest = Math.max(0, ...players().map((_, p) => p).filter(p => p !== w).map(q => tally[q]));
   return `Match to ${players()[w].name}, ${tally[w]}–${rest}${st.unit === 'sets' ? ' in sets' : ''}`;
 }
 
@@ -252,7 +253,7 @@ function render() {
   if (game) return renderGame();
   const st = S.settings, leg = curLeg(), turn = S.matchWinner == null ? turnOf(leg) : -1;
   const sd = standings();
-  const where = st.unit === 'sets' ? `Set ${sd.setsDone + 1}, leg ${sd.legsInSet + 1}` : `Leg ${S.legs.length}`;
+  const where = S.matchWinner != null ? 'Match over' : st.unit === 'sets' ? `Set ${sd.setsDone + 1}, leg ${sd.legsInSet + 1}` : `Leg ${S.legs.length}`;
   $('meta').textContent = `${st.start} · ${st.inRule !== 'straight' ? RULE_NAME[st.inRule] + ' in · ' : ''}${RULE_NAME[st.out === 'single' ? 'straight' : st.out]} out · ${formatText(st)} · ${where}`;
   const stats = E.stats(S.legs, n());
 
@@ -371,8 +372,8 @@ function statsHTML(stats, pl) {
     ['Highest finish', s => s.highFinish || null, v => v ?? '–', 'max'],
     ['Best leg (darts)', s => s.bestLeg, v => v ?? '–', 'min'],
     ['Highest visit', s => s.highVisit || null, v => v ?? '–', 'max'],
-    ['100+', s => s.t100, v => v, 'max'],
-    ['140+', s => s.t140, v => v, 'max'],
+    ['100–139', s => s.t100, v => v, 'max'],
+    ['140–179', s => s.t140, v => v, 'max'],
     ['180s', s => s.t180, v => v, 'max'],
     ['Darts thrown', s => s.darts, v => v, null],
   ];
@@ -513,7 +514,7 @@ function submit(score) {
     const md = E.minDarts(rem, out);
     if (md > 3) return err(dbl ? `${rem} can't be checked out on ${finisher} in three darts.` : `${rem} can't be checked out in three darts.`);
     const finish = (used, at) => commitVisit({ ...base, score, dartsUsed: used, dartsAtDouble: dbl ? at : 0, bust: false, checkout: true });
-    if (md === 3 && dbl) return finish(3, 1);
+    if (md === 3) return finish(3, 1);
     const qs = [{ key: 'used', label: 'Darts used', options: range(md, 3), def: md }];
     if (dbl) qs.push({ key: 'at', label: atLabel, options: a => range(1, a.used - md + 1), def: 1 });
     return ask(`Checkout ${rem}`, 'How did the finish go?', qs, a => finish(a.used, a.at || 1));
@@ -607,9 +608,12 @@ function afterGameChange() {
   if (G.done(g) && !g.recorded) {
     g.recorded = true;
     const r = G.result(g, S.settings);
-    const rec = r.best != null ? recordBest(g.bk || S.settings.mode, r.best, r.better) : null;
-    recordHistory();
-    toast(rec === 'beaten' ? `New personal best: ${r.best}` : rec === 'first' ? `Saved as your personal best: ${r.best}` : r.headline);
+    // A session with nothing played is not worth a History entry or a personal best
+    const empty = g.results ? !g.results.length : g.visits ? !g.visits.length : false;
+    const rec = r.best != null && r.best > 0 && !empty ? recordBest(g.bk || S.settings.mode, r.best, r.better) : null;
+    if (rec) g.pb = { key: g.bk || S.settings.mode, old: rec.old };
+    if (!empty) recordHistory();
+    toast(rec?.kind === 'beaten' ? `New personal best: ${r.best}` : rec?.kind === 'first' ? `Saved as your personal best: ${r.best}` : r.headline);
   }
   save(); render(); maybeBot();
 }
@@ -618,7 +622,11 @@ function gameUndo() {
   cancelBot();
   const before = S.game;
   do { S.game = JSON.parse(S.hist.pop()); } while (S.hist.length && isBotTurn());
-  if (before.recorded && !S.game.recorded) forgetHistory(S.id);
+  if (before.recorded && !S.game.recorded) {
+    forgetHistory(S.id);
+    // Take back the personal best this result set
+    if (before.pb) { const b = readJSON('oche-bests', {}); if (before.pb.old == null) delete b[before.pb.key]; else b[before.pb.key] = before.pb.old; writeJSON('oche-bests', b); }
+  }
   // Bot visits taken back by this undo are kept and replayed with the same darts
   const undone = (before.log || []).slice((S.game.log || []).length).filter(e => players()[e.p]?.type === 'bot' && e.darts);
   S.gameReplay = undone.map(e => ({ p: e.p, round: e.round, darts: e.darts })).concat(S.gameReplay || []);
@@ -855,7 +863,7 @@ function renderStatsPage() {
   const x01 = t.m ? `<section class="panel"><h2>X01</h2><div class="sheet-wrap"><table class="stats"><tbody>` + [
     ['Matches played', t.m], ['Matches won', `${t.w} (${fmt(t.w / t.m * 100, 0)}%)`], ['3-dart average', avg(t.score, t.darts)], ['First 9 average', avg(t.f9score, t.f9darts)],
     ['Checkout %', t.atDouble ? fmt(t.checkouts / t.atDouble * 100) + '%' : '–'], ['Highest finish', t.highFinish || '–'], ['Best leg (darts)', t.bestLeg ?? '–'],
-    ['100+', t.t100], ['140+', t.t140], ['180s', t.t180], ['Darts thrown', t.darts],
+    ['100–139', t.t100], ['140–179', t.t140], ['180s', t.t180], ['Darts thrown', t.darts],
   ].map(([a, b]) => row(a, b)).join('') + `</tbody></table></div></section>` : '';
   const hi = Math.max(...trend, 1), lo = Math.max(0, Math.min(...trend) - 10);
   const tr = trend.length > 1 ? `<section class="panel"><span class="label">3-dart average, last ${trend.length} matches</span><div class="trend" role="img" aria-label="Averages from ${fmt(trend[0])} to ${fmt(trend.at(-1))}">${trend.map(v => `<i style="height:${(v - lo) / (hi - lo || 1) * 90 + 10}%" title="${fmt(v)}"></i>`).join('')}</div><div class="row-actions" style="margin-top:6px"><span class="label">${fmt(trend[0])}</span><span class="label">${fmt(trend.at(-1))}</span></div></section>` : '';
@@ -957,7 +965,7 @@ function openSetup(mode) {
     const x01 = mode === 'x01';
     const rules = x01 ? x01HTML() : gameHTML();
     const howto = !x01 ? `<details class="howto"><summary>How to play</summary><p class="rules">${G.rules}</p></details>` : '';
-    ov.innerHTML = `<form class="dialog setup" id="setupForm" role="dialog" aria-modal="true" aria-label="${esc(title)} setup">
+    ov.innerHTML = `<form class="dialog setup" id="setupForm" novalidate role="dialog" aria-modal="true" aria-label="${esc(title)} setup">
       <header class="setup-head">${gameTile(mode)}<div><h3>${esc(title)}</h3><p>${esc(desc)}</p></div></header>
       <div class="setup-body">
         ${rules || howto ? `<section class="setup-col"><h4 class="label">Rules</h4><div class="srows">${rules}</div>${howto}</section>` : ''}
@@ -970,7 +978,7 @@ function openSetup(mode) {
   };
   const sync = () => {
     if (!$('setupForm')) return;
-    if ($('startIn')) { const v = Math.round(+$('startIn').value); st.start = v >= 2 && v <= 9999 ? v : 501; }
+    if ($('startIn')) { const v = Math.round(+$('startIn').value); st.start = Number.isFinite(v) && $('startIn').value !== '' ? Math.min(9999, Math.max(2, v)) : 501; }
     list.forEach((p, i) => {
       const nm = $('pn' + i); if (nm) p.name = nm.value.trim() || (i === 0 ? 'You' : p.type === 'bot' ? 'Bot' : `Player ${i + 1}`);
       const av = $('pa' + i); if (av) p.avg = +av.value;
@@ -1028,7 +1036,8 @@ function openSetup(mode) {
     e.preventDefault(); sync();
     st.players = list.map(p => p.type === 'bot' ? { name: p.name, type: 'bot', avg: p.avg } : { name: p.name, type: 'human' });
     close();
-    startMatch(st);
+    if (!inProgress()) return startMatch(st);
+    confirmDialog({ title: `Replace the ${gameWord()} in progress?`, text: 'The scores so far will be lost.', keep: 'Keep it', go: 'Start new', onGo: () => startMatch(st) });
   };
   dialogKey = e => { if (e.key === 'Escape') { close(); return true; } return false; };
   ov.querySelector('[type=submit]').focus();
