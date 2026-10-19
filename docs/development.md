@@ -55,6 +55,16 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 ```
 
+Without Android Studio (smaller; no emulator), Homebrew has both pieces:
+
+```bash
+brew install openjdk@21 && brew install --cask android-commandlinetools
+yes | sdkmanager --sdk_root="$HOME/Library/Android/sdk" --licenses
+sdkmanager --sdk_root="$HOME/Library/Android/sdk" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+```
+
+with `JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"` instead of the path above. Gradle downloads any other SDK pieces it needs on the first build.
+
 Then `cd android && ./gradlew assembleDebug` (or `npm run android:build`) writes `app-debug.apk`. To run it, start an emulator from Android Studio's Device Manager, or plug in a phone with USB debugging on, and press Run in Android Studio.
 
 ## How the code fits together
