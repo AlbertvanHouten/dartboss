@@ -1,4 +1,4 @@
-# Tests and the web build, on every pull request. The deploy and iOS release workflows call this
+# Tests and the web build, on every pull request. The deploy, iOS and Android release workflows call this
 # first, so nothing ships without passing it, and pushes to main and tags are tested there.
 name: CI
 

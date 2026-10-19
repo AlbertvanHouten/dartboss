@@ -1,6 +1,6 @@
 // Connects the game to the platform it runs on.
-// Inside the iOS app (Capacitor): saved games and personal bests are mirrored to native storage,
-// which iOS keeps safely (web storage can be cleared), and buttons give a light haptic tap.
+// Inside the iOS and Android apps (Capacitor): saved games and personal bests are mirrored to native storage,
+// which the OS keeps safely (web storage can be cleared), and buttons give a light haptic tap.
 // On the web: registers the offline cache so the game works without a connection and can be installed.
 // The game itself only calls window.ocheNative?.… so it also runs without this file.
 (function () {
@@ -61,6 +61,15 @@
     document.addEventListener('click', e => {
       if (e.target.closest && e.target.closest('button:not(:disabled)')) window.ocheNative.tap();
     }, true);
+    if (canCall && cap.getPlatform() === 'android') {
+      // Hardware back: the game closes a dialog or goes back to the menu (window.ocheBack); on the menu the app goes to the background
+      cap.addListener('App', 'backButton', () => { if (!window.ocheBack?.()) call('App', 'minimizeApp'); });
+      // Status and navigation bar icons follow the in-app theme (data-theme on <html>), or the system one when it is unset
+      const barStyle = () => call('SystemBars', 'setStyle', { style: { dark: 'DARK', light: 'LIGHT' }[document.documentElement.dataset.theme] || 'DEFAULT' });
+      new MutationObserver(barStyle).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      matchMedia('(prefers-color-scheme: dark)').addEventListener('change', barStyle);
+      barStyle();
+    }
   } else if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }

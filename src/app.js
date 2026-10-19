@@ -1083,6 +1083,14 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'Backspace') { press('del'); e.preventDefault(); }
   else if (e.key === 'Enter' && !e.target.closest('button')) { press('ok'); e.preventDefault(); }
 });
+// Android back button (web/native.js): close a dialog, else leave the screen for the menu (a match in progress
+// stays resumable there); false on the menu lets the app go to the background
+window.ocheBack = () => {
+  if (dialogOpen) { dialogKey?.({ key: 'Escape' }); return true; }
+  if (S.screen === 'menu') return false;
+  goMenu();
+  return true;
+};
 $('undoBtn').addEventListener('click', undo);
 $('menuBtn').addEventListener('click', goMenu);
 $('brand').addEventListener('click', () => { if (S.screen !== 'menu' && !dialogOpen) goMenu(); });
