@@ -25,10 +25,10 @@ GitHub Actions workflows in `.github/workflows/`:
 
 | Workflow | Runs on | What it does |
 | --- | --- | --- |
-| `ci.yml` | every pull request | `npm test`, builds the web app, checks the build, plays a match in headless Chrome, keeps `dist/` as a downloadable artifact for 7 days |
+| `ci.yml` | every pull request | `npm test`, builds the web app, checks the build, plays a match in headless Chrome, keeps `dist/` as a downloadable artifact for 7 days, and compiles a debug build of the Android app |
 | `deploy-web.yml` | push to `main`, or by hand | runs CI, then publishes `dist/` to Netlify |
 | `ios-release.yml` | a `v*` tag, or by hand | runs CI, then archives the iOS app on a Mac runner and uploads it to TestFlight |
-| `android-release.yml` | a `v*` tag, or by hand | runs CI, then builds a signed Android App Bundle (`.aab`) and keeps it as a run artifact |
+| `android-release.yml` | a `v*` tag, or by hand | runs CI, then builds a signed Android App Bundle (`.aab`), uploads it to Google Play's internal testing track and keeps it as a run artifact |
 
 No publishing workflow fails while its secrets are missing. The web deploy is skipped with a note, the iOS release only compiles the app for the Simulator, and the Android release builds an unsigned debug APK instead.
 
@@ -46,6 +46,7 @@ Secrets go under *Settings → Secrets and variables → Actions* on GitHub:
 | `ANDROID_KEYSTORE_PASSWORD` | The keystore password you chose |
 | `ANDROID_KEY_ALIAS` | The key alias you chose, for example `upload` |
 | `ANDROID_KEY_PASSWORD` | The key password you chose |
+| `PLAY_SERVICE_ACCOUNT_JSON` | Optional. The full text of a Google Cloud service account's JSON key, invited in the Play Console with release rights (see *Android app* below). Without it the `.aab` is only kept as an artifact. |
 
 Xcode signs automatically with the API key, so no certificates or profiles need storing.
 
@@ -114,7 +115,9 @@ With the CI secrets set, push a tag such as `v1.1` (see CI/CD). By hand: bump `M
 3. Add the four `ANDROID_*` secrets from the table under CI/CD.
 4. In the Play Console, *Create app*: name *Oche Scorer*, default language, *App*, *Free*. Fill in *App content* (privacy policy URL `https://<your-site>/privacy.html`, no ads, Data safety: no data collected or shared, target audience, content rating questionnaire) and the store listing; the text in `store/app-store.md` works here too. Play needs a 512 px icon (`web/icons/icon-512.png`), a 1024×500 feature graphic and at least two phone screenshots.
 5. Run *Android release* from the Actions tab (or push a tag, below) and download the `.aab` from the run's artifacts.
-6. In the Play Console, *Test and release → Testing → Internal testing → Create new release*, upload the `.aab` and roll it out to yourself. Promote it to closed testing, then production, when it's ready.
+6. In the Play Console, *Test and release → Testing → Internal testing → Create new release*, upload the `.aab` and roll it out to yourself. Google only accepts uploads through the API once this first one has been done by hand.
+7. Optional, to let CI upload from then on: in Google Cloud Console, create a project, enable the *Google Play Android Developer API*, create a service account and download a JSON key for it. In the Play Console, *Users and permissions → Invite new users*, add the service account's email with *Release apps to testing tracks* (and *Release to production* if you want to promote from there) for Oche Scorer. Add the key's full text as the `PLAY_SERVICE_ACCOUNT_JSON` secret.
+8. Promote a build from internal testing to closed testing, then production, in the Play Console when it's ready.
 
 ### Releasing an update
 
@@ -124,6 +127,6 @@ Push a tag, the same one as for iOS:
 git tag v1.1 && git push origin v1.1
 ```
 
-That builds version 1.1 with the run number as the version code, which Play needs to be higher on every upload. Download the `.aab` from the run and upload it as a new release in the Play Console.
+That builds version 1.1 with the run number as the version code, which Play needs to be higher on every upload. With `PLAY_SERVICE_ACCOUNT_JSON` set it lands in internal testing by itself; otherwise download the `.aab` from the run and upload it as a new release in the Play Console. Running *Android release* by hand with *Upload* unticked only keeps the `.aab`.
 
 To build a signed bundle on your own machine instead, set the same values as environment variables (`OCHE_KEYSTORE_FILE` pointing at the `.jks`, plus `OCHE_KEYSTORE_PASSWORD`, `OCHE_KEY_ALIAS` and `OCHE_KEY_PASSWORD`), then run `npm run android:sync` and `cd android && ./gradlew bundleRelease -PversionCode=<n> -PversionName=<version>`.

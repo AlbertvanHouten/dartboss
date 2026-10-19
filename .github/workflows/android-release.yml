@@ -1,19 +1,27 @@
-# Builds the Android app bundle (.aab) for Google Play. Runs on a version tag (git tag v1.0.1 && git
-# push --tags) or by hand from the Actions tab, and keeps the build as a run artifact to upload in the
-# Play Console.
+# Builds the Android app bundle (.aab) and uploads it to Google Play's internal testing track. Runs on
+# a version tag (git tag v1.0.1 && git push --tags) or by hand from the Actions tab, and always keeps
+# the build as a run artifact too.
 #
 # Needs these repository secrets (Settings → Secrets and variables → Actions):
 #   ANDROID_KEYSTORE_BASE64     the upload keystore, base64-encoded (base64 -i upload.jks | pbcopy)
 #   ANDROID_KEYSTORE_PASSWORD   the keystore password
 #   ANDROID_KEY_ALIAS           the key alias inside it (for example "upload")
 #   ANDROID_KEY_PASSWORD        the key password
-# Without the secrets it builds an unsigned debug APK instead, as a check that the app compiles.
+#   PLAY_SERVICE_ACCOUNT_JSON   optional: a Google Cloud service account key (JSON) with release access
+#                               in the Play Console; without it the bundle is only kept as an artifact
+# Without the signing secrets it builds an unsigned debug APK instead, as a check that the app compiles.
+# Google Play only accepts API uploads after the first bundle was uploaded by hand (docs/releasing.md).
 name: Android release
 
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      upload:
+        description: Upload to Google Play (internal testing)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -69,7 +77,9 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
+          [ -n "$PLAY_JSON" ] && echo "play=true" >> "$GITHUB_OUTPUT" || echo "play=false" >> "$GITHUB_OUTPUT"
           if [ -n "$KEYSTORE" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
@@ -95,6 +105,17 @@ jobs:
           trap 'rm -f "$OCHE_KEYSTORE_FILE"' EXIT
           printf '%s' "$KEYSTORE" | base64 --decode > "$OCHE_KEYSTORE_FILE"
           ./gradlew bundleRelease -PversionCode=${{ steps.version.outputs.code }} -PversionName=${{ steps.version.outputs.name }}
+
+      - name: Upload to Google Play (internal testing)
+        if: steps.signing.outputs.ready == 'true' && steps.signing.outputs.play == 'true' && (github.event_name == 'push' || inputs.upload)
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.albertvanhouten.oche
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          releaseName: ${{ steps.version.outputs.name }} (${{ steps.version.outputs.code }})
+          track: internal
+          status: completed
 
       - name: Keep the build
         uses: actions/upload-artifact@v4
