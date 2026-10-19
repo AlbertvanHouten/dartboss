@@ -90,6 +90,17 @@ try {
   await run("goScreen('stats')");
   assert.match(await text('#page'), /3-dart average\s*121\.0/, 'Stats shows the average');
 
+  // Android back button (window.ocheBack): a dialog closes first, then the screen goes to the menu
+  await run("goScreen('history')");
+  await click('.hrow');
+  await click('[data-pg="del"]');
+  assert.equal(await run('ocheBack()'), true);
+  assert.equal(await run("document.getElementById('overlay').hidden"), true, 'back closes the dialog');
+  assert.equal(await run('historyAll().length'), 1, 'closing the dialog with back deletes nothing');
+  assert.equal(await run('ocheBack()'), true);
+  assert.equal(await run('S.screen'), 'menu', 'back from a screen goes to the menu');
+  assert.equal(await run('ocheBack()'), false, 'on the menu back is left to the app');
+
   // Settings: theme sticks across reloads, a switch saves, reset wipes everything
   await run("goScreen('settings')");
   await click('[data-pg="theme"][data-v="dark"]');

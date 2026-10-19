@@ -1,0 +1,128 @@
+# Builds the Android app bundle (.aab) and uploads it to Google Play's internal testing track. Runs on
+# a version tag (git tag v1.0.1 && git push --tags) or by hand from the Actions tab, and always keeps
+# the build as a run artifact too.
+#
+# Needs these repository secrets (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64     the upload keystore, base64-encoded (base64 -i upload.jks | pbcopy)
+#   ANDROID_KEYSTORE_PASSWORD   the keystore password
+#   ANDROID_KEY_ALIAS           the key alias inside it (for example "upload")
+#   ANDROID_KEY_PASSWORD        the key password
+#   PLAY_SERVICE_ACCOUNT_JSON   optional: a Google Cloud service account key (JSON) with release access
+#                               in the Play Console; without it the bundle is only kept as an artifact
+# Without the signing secrets it builds an unsigned debug APK instead, as a check that the app compiles.
+# Google Play only accepts API uploads after the first bundle was uploaded by hand (docs/releasing.md).
+name: Android release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Upload to Google Play (internal testing)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  android:
+    name: Build
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The signing secrets are given only to the steps that use them, never to the whole job
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Capacitor 8 needs JDK 21; the runner already has the Android SDK
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install and sync the web app into Android
+        run: |
+          npm ci
+          npm run android:sync
+
+      - name: Work out the version
+        id: version
+        run: |
+          # Tag v1.2.3 → version 1.2.3; by hand → the version in package.json. The version code is the
+          # run number, so every upload to Play is higher than the last.
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"; else v=$(node -p "require('./package.json').version"); fi
+          echo "name=$v" >> "$GITHUB_OUTPUT"
+          echo "code=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Version $v ($GITHUB_RUN_NUMBER)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check signing secrets
+        id: signing
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          [ -n "$PLAY_JSON" ] && echo "play=true" >> "$GITHUB_OUTPUT" || echo "play=false" >> "$GITHUB_OUTPUT"
+          if [ -n "$KEYSTORE" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Signing secrets aren't set, so this run only builds a debug APK. See the top of android-release.yml."
+          fi
+
+      - name: Build a debug APK (no signing)
+        if: steps.signing.outputs.ready != 'true'
+        working-directory: android
+        run: ./gradlew assembleDebug -PversionCode=${{ steps.version.outputs.code }} -PversionName=${{ steps.version.outputs.name }}
+
+      - name: Build the signed app bundle
+        if: steps.signing.outputs.ready == 'true'
+        working-directory: android
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          OCHE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          OCHE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          OCHE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export OCHE_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+          trap 'rm -f "$OCHE_KEYSTORE_FILE"' EXIT
+          printf '%s' "$KEYSTORE" | base64 --decode > "$OCHE_KEYSTORE_FILE"
+          ./gradlew bundleRelease -PversionCode=${{ steps.version.outputs.code }} -PversionName=${{ steps.version.outputs.name }}
+
+      - name: Upload to Google Play (internal testing)
+        if: steps.signing.outputs.ready == 'true' && steps.signing.outputs.play == 'true' && (github.event_name == 'push' || inputs.upload)
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.albertvanhouten.oche
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          releaseName: ${{ steps.version.outputs.name }} (${{ steps.version.outputs.code }})
+          track: internal
+          status: completed
+
+      - name: Keep the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: oche-android-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}
+          path: |
+            android/app/build/outputs/bundle/release/*.aab
+            android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

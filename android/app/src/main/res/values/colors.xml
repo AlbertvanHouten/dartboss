@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app's page background (the bg colour in src/style.css); values-night has the dark one -->
+    <color name="oche_background">#ECEEE9</color>
+    <color name="oche_splash">#0B100E</color>
+</resources>

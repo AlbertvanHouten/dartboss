@@ -27,6 +27,8 @@ npm run serve      # builds and serves the web app at http://127.0.0.1:8765
 
 For the iOS app, run `npm run ios:sync` and then `npm run ios:open` to build it in Xcode.
 
+For the Android app, run `npm run android:sync` and then `npm run android:open` to build it in Android Studio, or `npm run android:build` for a debug APK from the command line (needs JDK 21 and the Android SDK, see [Development](docs/development.md#android)).
+
 ## Documentation
 
 | | |
@@ -34,6 +36,6 @@ For the iOS app, run `npm run ios:sync` and then `npm run ios:open` to build it 
 | [Games and options](docs/games.md) | every game and its settings |
 | [How the bots play](docs/bots.md) | the throwing model, strategy and calibration |
 | [Development](docs/development.md) | project layout, commands, how the code fits together, data |
-| [Releasing](docs/releasing.md) | web hosting, CI/CD, and getting the iOS app onto the App Store |
+| [Releasing](docs/releasing.md) | web hosting, CI/CD, and getting the apps onto the App Store and Google Play |
 
 The App Store listing text is in [`store/app-store.md`](store/app-store.md).

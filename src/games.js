@@ -6,6 +6,7 @@ const T21 = Array.from({ length: 20 }, (_, i) => i + 1).concat(25);
 const tName = n => n === 25 ? 'Bull' : String(n);
 const dName = n => n === 25 ? 'Bull' : 'D' + n;
 const keysFor = (n, rings = ['S', 'D', 'T']) => n === 25 ? (rings.length === 1 ? [rings[0] === 'D' ? 'BULL' : '25'] : ['25', 'BULL']) : rings.map(r => r + n);
+const andList = a => a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + t(' and ') + a.at(-1);
 const sumOf = a => a.reduce((x, y) => x + y, 0);
 const pctOf = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
 const htmlEsc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -109,7 +110,7 @@ function recordBest(m, v, better) {
   b[m] = v;
   try { localStorage.setItem('oche-bests', JSON.stringify(b)); } catch (e) {}
   window.ocheNative?.persist('oche-bests', JSON.stringify(b));
-  return old == null ? 'first' : 'beaten';
+  return { kind: old == null ? 'first' : 'beaten', old };
 }
 
 const GAMES = {
@@ -205,7 +206,7 @@ function scoreResult(g, st, score, unit, mode) {
   const names = st.players.map(p => p.name);
   unit = t(unit);
   if (st.players.length === 1) return { headline: `${t(GAMES[mode].title)}: ${score(g.pl[0])} ${unit}`, detail: t('Solo game.'), best: score(g.pl[0]), better: 'max' };
-  if (g.winner === -1) return { headline: t('Tie between {names}', { names: g.tied.map(i => names[i]).join(t(' and ')) }), detail: t('{n} {unit} each.', { n: score(g.pl[g.tied[0]]), unit }), best: null };
+  if (g.winner === -1) return { headline: t('Tie between {names}', { names: andList(g.tied.map(i => names[i])) }), detail: t('{n} {unit} each.', { n: score(g.pl[g.tied[0]]), unit }), best: null };
   const rest = g.pl.map((p, i) => i).filter(i => i !== g.winner).map(i => `${names[i]} ${score(g.pl[i])}`).join(', ');
   return { headline: t('Win for {name} with {n} {unit}', { name: names[g.winner], n: score(g.pl[g.winner]), unit }), detail: t('Others: {rest}.', { rest }), best: null };
 }
@@ -300,9 +301,9 @@ Object.assign(GAMES, {
     },
     log: (g, st) => visitsTable(g, st),
     result(g, st) {
-      if (g.winner === -1) return { headline: t('Tie between {names}', { names: g.tied.map(i => st.players[i].name).join(t(' and ')) }), detail: t('Level on lives and lives taken at the {n}-round limit.', { n: KI_ROUNDS }), best: null };
-      const w = g.pl[g.winner];
-      return { headline: t('Last one standing: {name}', { name: st.players[g.winner].name }), detail: t(w.lives === 1 ? '{n} life left after {r} rounds, {h} lives taken' : '{n} lives left after {r} rounds, {h} lives taken', { n: w.lives, r: g.round, h: w.hits }) + (g.capped ? t(', decided at the round limit') : '') + '.', best: null };
+      if (g.winner === -1) return { headline: t('Tie between {names}', { names: andList(g.tied.map(i => st.players[i].name)) }), detail: t('Level on lives and lives taken at the {n}-round limit.', { n: KI_ROUNDS }), best: null };
+      const w = g.pl[g.winner], name = st.players[g.winner].name;
+      return { headline: g.capped ? t('Round limit: {name} wins', { name }) : t('Last one standing: {name}', { name }), detail: t(w.lives === 1 ? '{n} life left after {r} rounds' : '{n} lives left after {r} rounds', { n: w.lives, r: g.round }) + ', ' + t(w.hits === 1 ? '{n} life taken' : '{n} lives taken', { n: w.hits }) + (g.capped ? t(', decided at the round limit') : '') + '.', best: null };
     },
   },
 
@@ -690,7 +691,7 @@ Object.assign(GAMES, {
       { key: 'skip', label: 'Doubles and trebles skip ahead', choices: [['off', 'Off'], ['on', 'On, last target must be hit'], ['past', 'On, can skip past the end']], def: 'off' },
       { ...ORDER_OPT, best: true },
     ],
-    rules: 'Hit every number from 1 to 20 and then the bull, in the chosen order. The settings decide which segments count, how many hits each target needs, which bull counts, and whether a double or treble moves you two or three targets on. A skip stops on the last target unless the setting lets it carry past the end, so a treble 20 can finish the game. With other players, the first one round the board wins. Fewer darts is better.',
+    rules: 'Hit every number from 1 to 20 and then the bull, in the chosen order. The settings decide which segments count, how many hits each target needs, which bull counts, and whether a double or treble moves you two or three targets on. A skip stops on the last target unless the setting lets it carry past the end, so a treble 20 can finish the game. A skip completes the target whatever the hits setting. With other players, the first one round the board wins. Fewer darts is better.',
     hint: '', keys: 'Keys: 0 miss, 1 single, 2 double, 3 treble · Ctrl+Z undo',
     init(st) {
       const o = resolveOpts(st);
@@ -707,7 +708,7 @@ Object.assign(GAMES, {
         st, g, done, eyebrow: t('Around the Clock · target {n} of {of}', { n: Math.min(me.i + 1, 21), of: 21 }),
         target: done ? null : tName(g.targets[me.i]),
         sub: done ? '' : rule + t('Dart {n} of this visit', { n: g.cur.length + 1 }),
-        cells: g.pl.map(p => ({ main: p.i >= 21 ? t('Done') : tName(g.targets[p.i]), sub: t('{n} darts · {p} hit', { n: p.darts, p: pctOf(p.i, p.darts) }) })),
+        cells: g.pl.map(p => ({ main: p.i >= 21 ? t('Done') : tName(g.targets[p.i]), sub: t('{n} darts · {p} hit', { n: p.darts, p: pctOf(Math.min(p.i, p.darts), p.darts) }) })),
       });
     },
     pad(g, st) {
@@ -730,7 +731,7 @@ Object.assign(GAMES, {
     },
     result(g, st) {
       const w = g.pl[g.winner], name = st.players[g.winner].name;
-      if (st.players.length === 1) return { headline: t('Round the board in {n} darts', { n: w.darts }), detail: t('Hit rate {p}.', { p: pctOf(21, w.darts) }), best: w.darts, better: 'min' };
+      if (st.players.length === 1) return { headline: t('Round the board in {n} darts', { n: w.darts }), detail: t('Hit rate {p}.', { p: pctOf(Math.min(21, w.darts), w.darts) }), best: w.darts, better: 'min' };
       return { headline: t('First round the board: {name}', { name }), detail: t('{n} darts.', { n: w.darts }), best: null };
     },
   },
@@ -853,9 +854,9 @@ Object.assign(GAMES, {
       const tot = sumOf(g.visits), avg = g.visits.length ? tot / g.visits.length : null, R = g.o.rounds;
       const c = t => g.visits.filter(v => v >= t).length;
       return hudHTML({
-        eyebrow: t(R ? 'Score Training · visit {n} of {of}' : 'Score Training · visit {n}', { n: g.visits.length + 1, of: R }), target: avg == null ? '0.0' : avg.toFixed(1),
+        eyebrow: GAMES.score.done(g) ? t('Score Training · {n} visits', { n: g.visits.length }) : t(R ? 'Score Training · visit {n} of {of}' : 'Score Training · visit {n}', { n: g.visits.length + 1, of: R }), target: avg == null ? '0.0' : avg.toFixed(1),
         sub: `${t('3-dart average')} · ${R ? t('{n} darts left', { n: (R - g.visits.length) * 3 }) + ' · ' : ''}${t('{n} scored', { n: tot })}`,
-        stats: [['100+', c(100) - c(140)], ['140+', c(140) - c(180)], [t('180s'), c(180)], [t('Best avg'), getBest(g.bk) ?? '–']],
+        stats: [['100–139', c(100) - c(140)], ['140–179', c(140) - c(180)], [t('180s'), c(180)], [t('Best avg'), getBest(g.bk) ?? '–']],
       });
     },
     pad: g => keypadHTML({ chips: [[0, t('No score'), 'zero'], ...[26, 41, 45, 60, 81, 85, 100, 140, 180].map(q => [q, q])], aim: 'T20' }) + (g.o.rounds ? '' : endBtn()),

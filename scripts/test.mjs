@@ -78,7 +78,7 @@ assert.equal(cg.winner, -1, 'Cricket level at the limit is a tie');
 assert.match(cr.headline, /Tie/);
 const [kg, kr] = level('killer', 3, 0);
 assert.equal(kg.winner, -1, 'Killer level at the limit is a tie');
-assert.match(kr.headline, /Tie between P0 and P1 and P2/);
+assert.match(kr.headline, /Tie between P0, P1 and P2/);
 
 // Translations: each table has the same keys and placeholders, and covers the strings the code looks up by
 // their English text (t('…') literals, game names, rules and options, the menu, the static markup)

@@ -67,6 +67,9 @@ const STRINGS = {
     'Discard this match?': 'Deze wedstrijd weggooien?', 'Discard this game?': 'Dit spel weggooien?',
     'The game in progress and its scores will be deleted. Personal bests already set are kept.': 'Het lopende spel en de scores worden gewist. Behaalde persoonlijke records blijven bewaard.',
     'New personal best: {n}': 'Nieuw persoonlijk record: {n}', 'Saved as your personal best: {n}': 'Opgeslagen als persoonlijk record: {n}',
+    'Could not save: device storage is full': 'Opslaan mislukt: de opslag van het apparaat is vol',
+    'Replace the match in progress?': 'Lopende wedstrijd vervangen?', 'Replace the game in progress?': 'Lopend spel vervangen?',
+    'The scores so far will be lost.': 'De scores tot nu toe gaan verloren.', 'Start new': 'Nieuw starten',
     'Copied': 'Gekopieerd', 'Reset all data?': 'Alle gegevens wissen?', 'All data reset': 'Alle gegevens gewist',
     "This deletes your match history, player stats, personal bests, settings and any game in progress. It can't be undone.": 'Dit wist je wedstrijdgeschiedenis, spelersstatistieken, persoonlijke records, instellingen en een lopend spel. Dit kan niet ongedaan worden gemaakt.',
     'Delete this match?': 'Deze wedstrijd verwijderen?',
@@ -97,8 +100,8 @@ const STRINGS = {
     "Opponents' doubles": 'Dubbels van tegenstanders', 'Your double': 'Je dubbel',
     'Level on lives and lives taken at the {n}-round limit.': 'Gelijk in levens en genomen levens bij de limiet van {n} rondes.',
     'Last one standing: {name}': 'Laatste overgebleven: {name}', ', decided at the round limit': ', beslist bij de rondelimiet',
-    '{n} life left after {r} rounds, {h} lives taken': '{n} leven over na {r} rondes, {h} levens genomen',
-    '{n} lives left after {r} rounds, {h} lives taken': '{n} levens over na {r} rondes, {h} levens genomen',
+    '{n} life left after {r} rounds': '{n} leven over na {r} rondes', '{n} lives left after {r} rounds': '{n} levens over na {r} rondes',
+    '{n} life taken': '{n} leven genomen', '{n} lives taken': '{n} levens genomen', 'Round limit: {name} wins': 'Rondelimiet: {name} wint',
     "Every player gets a random number. Hit the double of your own number to become a killer. Killers take a life from an opponent each time they hit that opponent's double, but a killer who hits their own double loses a life. Everyone starts with 3 lives, and the last player standing wins.":
       'Elke speler krijgt een willekeurig nummer. Gooi de dubbel van je eigen nummer om killer te worden. Killers nemen een leven van een tegenstander telkens als ze diens dubbel raken, maar een killer die de eigen dubbel raakt verliest een leven. Iedereen begint met 3 levens, en wie als laatste overblijft wint.',
     'Tap the double each dart hit. Any other segment counts as a miss.': 'Tik de dubbel aan die elke pijl raakte. Elk ander segment telt als mis.',
@@ -146,8 +149,8 @@ const STRINGS = {
     'singles only': 'alleen singles', 'doubles only': 'alleen dubbels', 'trebles only': 'alleen triples', '{a}/{b} hits': '{a}/{b} raak',
     'Dart {n} of this visit': 'Pijl {n} van deze beurt', '{n} darts · {p} hit': '{n} pijlen · {p} raak', 'Darts per target': 'Pijlen per doel',
     'Round the board in {n} darts': 'Het bord rond in {n} pijlen', 'Hit rate {p}.': 'Trefpercentage {p}.', 'First round the board: {name}': 'Eerst het bord rond: {name}', '{n} darts.': '{n} pijlen.',
-    'Hit every number from 1 to 20 and then the bull, in the chosen order. The settings decide which segments count, how many hits each target needs, which bull counts, and whether a double or treble moves you two or three targets on. A skip stops on the last target unless the setting lets it carry past the end, so a treble 20 can finish the game. With other players, the first one round the board wins. Fewer darts is better.':
-      'Gooi elk nummer van 1 t/m 20 en daarna de bull, in de gekozen volgorde. De instellingen bepalen welke segmenten tellen, hoeveel treffers elk doel nodig heeft, welke bull telt, en of een dubbel of triple je twee of drie doelen verder zet. Een sprong stopt op het laatste doel, tenzij de instelling hem voorbij het eind laat gaan, zodat een triple 20 het spel kan uitspelen. Met andere spelers wint wie als eerste het bord rond is. Minder pijlen is beter.',
+    'Hit every number from 1 to 20 and then the bull, in the chosen order. The settings decide which segments count, how many hits each target needs, which bull counts, and whether a double or treble moves you two or three targets on. A skip stops on the last target unless the setting lets it carry past the end, so a treble 20 can finish the game. A skip completes the target whatever the hits setting. With other players, the first one round the board wins. Fewer darts is better.':
+      'Gooi elk nummer van 1 t/m 20 en daarna de bull, in de gekozen volgorde. De instellingen bepalen welke segmenten tellen, hoeveel treffers elk doel nodig heeft, welke bull telt, en of een dubbel of triple je twee of drie doelen verder zet. Een sprong stopt op het laatste doel, tenzij de instelling hem voorbij het eind laat gaan, zodat een triple 20 het spel kan uitspelen. Een sprong telt het doel als gehaald, wat de treffersinstelling ook is. Met andere spelers wint wie als eerste het bord rond is. Minder pijlen is beter.',
     'What counts': 'Wat telt', 'Any segment': 'Elk segment', 'Singles only': 'Alleen singles', 'Doubles only': 'Alleen dubbels', 'Trebles only': 'Alleen triples',
     'Hits per target': 'Treffers per doel', 'Bull': 'Bull', 'Either bull': 'Beide bulls', 'Outer bull': 'Single bull', 'Bullseye': 'Bullseye',
     'Doubles and trebles skip ahead': 'Dubbels en triples springen vooruit', 'Off': 'Uit', 'On, last target must be hit': 'Aan, laatste doel moet geraakt worden', 'On, can skip past the end': 'Aan, mag voorbij het eind',
@@ -179,6 +182,7 @@ const STRINGS = {
     'Format': 'Vorm', 'Until you hit it': 'Tot je hem raakt', 'Three darts each': 'Drie pijlen per dubbel', 'Finish on the bull': 'Eindigen op de bull', 'Yes': 'Ja', 'No': 'Nee',
     'Every double from D1 to the bull: stay on each until you hit it, or three darts each.': 'Elke dubbel van D1 tot de bull: blijf op elke dubbel tot je hem raakt, of drie pijlen per dubbel.',
     'Score Training': 'Scoretraining', 'Score Training · visit {n} of {of}': 'Scoretraining · beurt {n} van {of}', 'Score Training · visit {n}': 'Scoretraining · beurt {n}',
+    'Score Training · {n} visits': 'Scoretraining · {n} beurten', '100–139': '100–139', '140–179': '140–179',
     '{n} darts left': 'nog {n} pijlen', 'Best avg': 'Beste gem.', 'Suggested target': 'Aanbevolen doel', 'No visits thrown': 'Geen beurten gegooid', 'Average {n}': 'Gemiddelde {n}',
     '{p} points from {d} darts. Best visit {b}.': '{p} punten uit {d} pijlen. Beste beurt {b}.',
     'Score as much as you can, three darts a visit. Aim wherever you like; the treble 20 is the usual target. Pick a fixed number of visits to compare sessions, or play unlimited and finish when you want.':
@@ -270,6 +274,9 @@ const STRINGS = {
     'Discard this match?': 'Dieses Match verwerfen?', 'Discard this game?': 'Dieses Spiel verwerfen?',
     'The game in progress and its scores will be deleted. Personal bests already set are kept.': 'Das laufende Spiel und seine Punkte werden gelöscht. Bereits erzielte Bestleistungen bleiben erhalten.',
     'New personal best: {n}': 'Neue Bestleistung: {n}', 'Saved as your personal best: {n}': 'Als Bestleistung gespeichert: {n}',
+    'Could not save: device storage is full': 'Speichern fehlgeschlagen: Gerätespeicher ist voll',
+    'Replace the match in progress?': 'Laufendes Match ersetzen?', 'Replace the game in progress?': 'Laufendes Spiel ersetzen?',
+    'The scores so far will be lost.': 'Die bisherigen Punkte gehen verloren.', 'Start new': 'Neu starten',
     'Copied': 'Kopiert', 'Reset all data?': 'Alle Daten zurücksetzen?', 'All data reset': 'Alle Daten zurückgesetzt',
     "This deletes your match history, player stats, personal bests, settings and any game in progress. It can't be undone.": 'Das löscht deinen Spielverlauf, die Spielerstatistik, Bestleistungen, Einstellungen und ein laufendes Spiel. Das lässt sich nicht rückgängig machen.',
     'Delete this match?': 'Dieses Match löschen?',
@@ -300,8 +307,8 @@ const STRINGS = {
     "Opponents' doubles": 'Doubles der Gegner', 'Your double': 'Dein Double',
     'Level on lives and lives taken at the {n}-round limit.': 'Gleich bei Leben und genommenen Leben am Limit von {n} Runden.',
     'Last one standing: {name}': 'Übrig geblieben: {name}', ', decided at the round limit': ', entschieden am Rundenlimit',
-    '{n} life left after {r} rounds, {h} lives taken': '{n} Leben übrig nach {r} Runden, {h} Leben genommen',
-    '{n} lives left after {r} rounds, {h} lives taken': '{n} Leben übrig nach {r} Runden, {h} Leben genommen',
+    '{n} life left after {r} rounds': '{n} Leben übrig nach {r} Runden', '{n} lives left after {r} rounds': '{n} Leben übrig nach {r} Runden',
+    '{n} life taken': '{n} Leben genommen', '{n} lives taken': '{n} Leben genommen', 'Round limit: {name} wins': 'Rundenlimit: {name} gewinnt',
     "Every player gets a random number. Hit the double of your own number to become a killer. Killers take a life from an opponent each time they hit that opponent's double, but a killer who hits their own double loses a life. Everyone starts with 3 lives, and the last player standing wins.":
       'Jeder Spieler bekommt eine zufällige Zahl. Triff das Double deiner eigenen Zahl, um Killer zu werden. Killer nehmen einem Gegner ein Leben, wenn sie dessen Double treffen, aber ein Killer, der das eigene Double trifft, verliert ein Leben. Alle starten mit 3 Leben, und wer als Letztes übrig ist, gewinnt.',
     'Tap the double each dart hit. Any other segment counts as a miss.': 'Tippe das Double an, das jeder Dart getroffen hat. Jedes andere Feld zählt als daneben.',
@@ -349,8 +356,8 @@ const STRINGS = {
     'singles only': 'nur Singles', 'doubles only': 'nur Doubles', 'trebles only': 'nur Triples', '{a}/{b} hits': '{a}/{b} Treffer',
     'Dart {n} of this visit': 'Dart {n} dieser Aufnahme', '{n} darts · {p} hit': '{n} Darts · {p} Treffer', 'Darts per target': 'Darts pro Ziel',
     'Round the board in {n} darts': 'Einmal rum in {n} Darts', 'Hit rate {p}.': 'Trefferquote {p}.', 'First round the board: {name}': 'Zuerst einmal rum: {name}', '{n} darts.': '{n} Darts.',
-    'Hit every number from 1 to 20 and then the bull, in the chosen order. The settings decide which segments count, how many hits each target needs, which bull counts, and whether a double or treble moves you two or three targets on. A skip stops on the last target unless the setting lets it carry past the end, so a treble 20 can finish the game. With other players, the first one round the board wins. Fewer darts is better.':
-      'Triff jede Zahl von 1 bis 20 und dann das Bull, in der gewählten Reihenfolge. Die Einstellungen legen fest, welche Felder zählen, wie viele Treffer jedes Ziel braucht, welches Bull zählt und ob ein Double oder Triple dich zwei oder drei Ziele weiterbringt. Ein Sprung endet auf dem letzten Ziel, außer die Einstellung erlaubt, darüber hinaus zu springen, sodass eine Triple 20 das Spiel beenden kann. Mit anderen Spielern gewinnt, wer zuerst einmal rum ist. Weniger Darts ist besser.',
+    'Hit every number from 1 to 20 and then the bull, in the chosen order. The settings decide which segments count, how many hits each target needs, which bull counts, and whether a double or treble moves you two or three targets on. A skip stops on the last target unless the setting lets it carry past the end, so a treble 20 can finish the game. A skip completes the target whatever the hits setting. With other players, the first one round the board wins. Fewer darts is better.':
+      'Triff jede Zahl von 1 bis 20 und dann das Bull, in der gewählten Reihenfolge. Die Einstellungen legen fest, welche Felder zählen, wie viele Treffer jedes Ziel braucht, welches Bull zählt und ob ein Double oder Triple dich zwei oder drei Ziele weiterbringt. Ein Sprung endet auf dem letzten Ziel, außer die Einstellung erlaubt, darüber hinaus zu springen, sodass eine Triple 20 das Spiel beenden kann. Ein Sprung erledigt das Ziel, egal wie viele Treffer eingestellt sind. Mit anderen Spielern gewinnt, wer zuerst einmal rum ist. Weniger Darts ist besser.',
     'What counts': 'Was zählt', 'Any segment': 'Jedes Feld', 'Singles only': 'Nur Singles', 'Doubles only': 'Nur Doubles', 'Trebles only': 'Nur Triples',
     'Hits per target': 'Treffer pro Ziel', 'Bull': 'Bull', 'Either bull': 'Beide Bulls', 'Outer bull': 'Single Bull', 'Bullseye': 'Bullseye',
     'Doubles and trebles skip ahead': 'Doubles und Triples springen vor', 'Off': 'Aus', 'On, last target must be hit': 'An, letztes Ziel muss getroffen werden', 'On, can skip past the end': 'An, darf über das Ende hinaus',
@@ -382,6 +389,7 @@ const STRINGS = {
     'Format': 'Format', 'Until you hit it': 'Bis zum Treffer', 'Three darts each': 'Drei Darts pro Double', 'Finish on the bull': 'Mit Bull abschließen', 'Yes': 'Ja', 'No': 'Nein',
     'Every double from D1 to the bull: stay on each until you hit it, or three darts each.': 'Jedes Double von D1 bis zum Bull: bleib auf jedem bis zum Treffer, oder drei Darts pro Double.',
     'Score Training': 'Score-Training', 'Score Training · visit {n} of {of}': 'Score-Training · Aufnahme {n} von {of}', 'Score Training · visit {n}': 'Score-Training · Aufnahme {n}',
+    'Score Training · {n} visits': 'Score-Training · {n} Aufnahmen', '100–139': '100–139', '140–179': '140–179',
     '{n} darts left': 'noch {n} Darts', 'Best avg': 'Bester Avg.', 'Suggested target': 'Empfohlenes Ziel', 'No visits thrown': 'Keine Aufnahmen geworfen', 'Average {n}': 'Average {n}',
     '{p} points from {d} darts. Best visit {b}.': '{p} Punkte aus {d} Darts. Beste Aufnahme {b}.',
     'Score as much as you can, three darts a visit. Aim wherever you like; the treble 20 is the usual target. Pick a fixed number of visits to compare sessions, or play unlimited and finish when you want.':
