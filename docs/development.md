@@ -6,10 +6,10 @@ The game is plain HTML, CSS and JavaScript with no framework or bundler. The bui
 
 | Path | What it is |
 |---|---|
-| `src/` | The game: `head.html`, `style.css`, `body.html`, `engine.js`, `games.js`, `app.js` (the build joins them into one page) |
+| `src/` | The game: `head.html`, `style.css`, `body.html`, `i18n.js`, `engine.js`, `games.js`, `app.js` (the build joins them into one page) |
 | `web/` | Files for the standalone app: `native.js` (iOS bridge, offline cache), `sw.js`, `manifest.webmanifest`, `privacy.html`, `support.html`, icons, bundled fonts |
 | `scripts/build.mjs` | Builds `dist/` from `src/` and `web/`, plus `dist/oche.html` for the Claude artifact preview |
-| `scripts/test.mjs` | Checks without a browser: scripts parse, checkout routes, bot averages, every game finishes |
+| `scripts/test.mjs` | Checks without a browser: scripts parse, checkout routes, bot averages, every game finishes, every string translated |
 | `scripts/screenshots.mjs` | App Store screenshots of `dist/` in Chrome at Apple's sizes |
 | `scripts/make-icons.swift` | Draws the app icon, maskable icon and launch image |
 | `scripts/fetch-fonts.mjs` | Downloads the Google Fonts into `web/fonts` (Open Font License) |
@@ -36,10 +36,11 @@ After changing `src/` or anything in `web/`, run `npm run ios:sync` before build
 
 ## How the code fits together
 
+- **`src/i18n.js`**: the translations (`STRINGS`, one table per language) and `t(key, vars)`, see [Translations](#translations).
 - **`src/engine.js`** (`E`): the board, checkout routes, visit validation, the bot model and X01 stats.
 - **`src/games.js`** (`GAMES`): one object per game besides X01, all with the same functions (`init`, `act`, `done`, `result`, `botVisit`, `hud`, `pad`, `board`, `log`), so the app handles every game the same way.
 - **`src/app.js`**: the state `S` (the match in progress), the screens (menu, play, history, stats, settings), X01 scoring, undo, history, stats and settings.
-- The three scripts are classic scripts that share globals, in that order.
+- The four scripts are classic scripts that share globals, in that order.
 - **`web/native.js`** connects the game to the platform through `window.ocheNative`: native storage, haptics, keep-awake and share in the iOS app, and the offline cache on the web.
 
 ## Data
@@ -51,9 +52,15 @@ Everything is stored on the device, in `localStorage` (mirrored to native storag
 | `oche-match-v1` | the match in progress |
 | `oche-history-v1` | finished matches and games (the last 300) |
 | `oche-bests` | personal bests |
-| `oche-settings-v1` | theme, haptics, keep-awake |
+| `oche-settings-v1` | theme, language, haptics, keep-awake |
 
 Lifetime stats are worked out from the history when the Stats screen opens.
+
+## Translations
+
+The app speaks English, Dutch and German. The English text is the key: code calls `t('Undo')` or `t('{n} left', { n: 121 })`, and `t()` looks the text up in `STRINGS[LANG]` in `src/i18n.js`, falling back to the English. Game names, rules and option labels stay English in `src/games.js` and go through `t()` where they are shown; static markup in `src/body.html` is marked with `data-t` (text) or `data-ta="aria-label"` (an attribute). The Language setting (System, English, Nederlands, Deutsch) switches at once and sets `<html lang>`; System follows the browser's language.
+
+To add a language: add it to `LANGS` in `src/i18n.js` and give it a table with the same keys as `nl`. `npm test` fails on a missing key or a placeholder that doesn't match the English.
 
 ## Notes
 

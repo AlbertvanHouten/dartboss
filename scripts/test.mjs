@@ -1,14 +1,14 @@
 // Quick checks without a browser: the source scripts parse, the checkout logic gives the standard routes,
-// and bots finish every game under its options. Run: npm test
+// bots finish every game under its options, and every language has every string. Run: npm test
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 
-const blocks = await Promise.all(['engine', 'games', 'app'].map(f => readFile(new URL(`../src/${f}.js`, import.meta.url), 'utf8')));
+const blocks = await Promise.all(['i18n', 'engine', 'games', 'app'].map(f => readFile(new URL(`../src/${f}.js`, import.meta.url), 'utf8')));
 for (const b of blocks) new Function(b); // throws on a syntax error
 
 const store = new Map();
 const localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
-const { E, GAMES } = new Function('localStorage', `${blocks[0]}\nlet buffer = ''; const isBotTurn = () => false;\n${blocks[1]}\nreturn { E, GAMES };`)(localStorage);
+const { E, GAMES, MENU, STRINGS } = new Function('localStorage', `${blocks[0]}\n${blocks[1]}\nlet buffer = ''; const isBotTurn = () => false;\n${blocks[2]}\nreturn { E, GAMES, MENU, STRINGS };`)(localStorage);
 
 // Checkout routes
 const route = (r, out = 'double') => (E.bestRoute(r, 3, out) || []).map(E.label).join(' ');
@@ -79,5 +79,22 @@ assert.match(cr.headline, /Tie/);
 const [kg, kr] = level('killer', 3, 0);
 assert.equal(kg.winner, -1, 'Killer level at the limit is a tie');
 assert.match(kr.headline, /Tie between P0 and P1 and P2/);
+
+// Translations: each table has the same keys and placeholders, and covers the strings the code looks up by
+// their English text (t('…') literals, game names, rules and options, the menu, the static markup)
+const holes = s => (s.match(/\{\w+\}/g) || []).sort().join();
+const [nl, de] = [STRINGS.nl, STRINGS.de];
+assert.deepEqual(Object.keys(nl).sort(), Object.keys(de).sort(), 'Dutch and German have the same keys');
+for (const [lang, tab] of Object.entries(STRINGS)) for (const [k, v] of Object.entries(tab)) assert.equal(holes(v), holes(k), `${lang}: placeholders in "${k}"`);
+const used = new Set();
+for (const b of blocks.slice(1)) for (const m of b.matchAll(/\bt\((['"])(.*?)\1/g)) used.add(m[2]);
+const body = await readFile(new URL('../src/body.html', import.meta.url), 'utf8');
+for (const m of body.matchAll(/data-t>(.*?)<\/(button|span|h2)>/g)) used.add(m[1]);
+for (const G of Object.values(GAMES)) {
+  for (const k of ['title', 'rules', 'hint', 'keys']) if (G[k]) used.add(G[k]);
+  for (const o of G.options || []) { used.add(o.label); o.choices.forEach(c => used.add(String(c[1]))); }
+}
+for (const [group, items] of MENU) { used.add(group); for (const [, title, desc] of items) used.add(title).add(desc); }
+for (const k of used) if (/[a-z]/i.test(k)) assert.ok(k in nl, `no translation for "${k}"`);
 
 console.log('All checks passed');

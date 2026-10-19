@@ -70,11 +70,11 @@ function raceWinner(counts, need, twoClear) {
   return -1;
 }
 // Sets and legs so far, worked out from the finished legs
-function standings() {
-  const st = S.settings, N = n();
+function standings(m = S) {
+  const st = m.settings, N = st.players.length;
   const sets = Array(N).fill(0), total = Array(N).fill(0);
   let setLegs = Array(N).fill(0), setsDone = 0;
-  for (const leg of S.legs) {
+  for (const leg of m.legs) {
     if (leg.winner == null) continue;
     total[leg.winner]++;
     if (st.unit === 'sets') {
@@ -102,9 +102,10 @@ function nextStarter() {
   return (first + k) % n();
 }
 function formatText(st) {
-  const unit = st.unit === 'sets' ? 'set' : 'leg';
-  const head = st.kind === 'bestOf' ? `Best of ${st.count} ${unit}s` : `First to ${st.count} ${unit}${st.count > 1 ? 's' : ''}`;
-  return head + (st.unit === 'sets' ? ` (first to ${st.setLegs} leg${st.setLegs > 1 ? 's' : ''})` : '') + (st.twoClear ? ', two clear' : '');
+  const sets = st.unit === 'sets', one = st.count === 1;
+  const head = st.kind === 'bestOf' ? t(sets ? 'Best of {n} sets' : 'Best of {n} legs', { n: st.count })
+    : t(sets ? (one ? 'First to {n} set' : 'First to {n} sets') : one ? 'First to {n} leg' : 'First to {n} legs', { n: st.count });
+  return head + (sets ? ' ' + t(st.setLegs > 1 ? '(first to {n} legs)' : '(first to {n} leg)', { n: st.setLegs }) : '') + (st.twoClear ? t(', two clear') : '');
 }
 function isBotTurn() {
   if (isGame()) {
@@ -129,12 +130,16 @@ function writeJSON(key, value) {
   try { localStorage.setItem(key, json); } catch (e) {}
   window.ocheNative?.persist(key, json);
 }
-const SETTINGS_DEFAULT = { theme: 'system', haptics: true, awake: true };
+const SETTINGS_DEFAULT = { theme: 'system', lang: 'system', haptics: true, awake: true };
 let SETTINGS = { ...SETTINGS_DEFAULT };
 function setSetting(key, value) { SETTINGS[key] = value; writeJSON(SETTINGS_KEY, SETTINGS); applySettings(); }
 function applySettings() {
   if (SETTINGS.theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = SETTINGS.theme;
+  const sys = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  LANG = SETTINGS.lang in LANGS ? SETTINGS.lang : sys in LANGS ? sys : 'en';
+  document.documentElement.lang = LANG;
+  localizeStatic();
   if (window.ocheNative) window.ocheNative.haptics = SETTINGS.haptics;
 }
 // Finished matches and games, newest first. X01 entries keep the legs (for the sheet and lifetime
@@ -153,10 +158,20 @@ function recordHistory() {
   writeJSON(HISTORY_KEY, [entry, ...historyAll().filter(e => e.id !== S.id)].slice(0, HISTORY_MAX));
 }
 const forgetHistory = id => writeJSON(HISTORY_KEY, historyAll().filter(e => e.id !== id));
-function matchHeadline() {
-  const st = S.settings, sd = standings(), tally = st.unit === 'sets' ? sd.sets : sd.total, w = S.matchWinner;
-  const rest = players().map((_, p) => p).filter(p => p !== w).map(q => tally[q]).join('–') || 0;
-  return `Match to ${players()[w].name}, ${tally[w]}–${rest}${st.unit === 'sets' ? ' in sets' : ''}`;
+function matchHeadline(m = S) {
+  const st = m.settings, sd = standings(m), tally = st.unit === 'sets' ? sd.sets : sd.total, w = m.matchWinner;
+  const rest = st.players.map((_, p) => p).filter(p => p !== w).map(q => tally[q]).join('–') || 0;
+  return t(st.unit === 'sets' ? 'Match to {name}, {score} in sets' : 'Match to {name}, {score}', { name: st.players[w].name, score: `${tally[w]}–${rest}` });
+}
+// History words results in the current language, from the saved game; the stored text is the fallback
+function entryResult(e) {
+  try { return e.mode === 'x01' ? { headline: matchHeadline({ settings: e.settings, legs: e.legs, matchWinner: e.winner }) } : GAMES[e.mode].result(e.game, e.settings); }
+  catch (err) { return e; }
+}
+// Static markup in body.html: data-t marks text, data-ta an attribute; the English original is the key
+function localizeStatic() {
+  for (const el of document.querySelectorAll('[data-t]')) el.innerHTML = t(el.dataset.t ||= el.innerHTML);
+  for (const el of document.querySelectorAll('[data-ta]')) el.setAttribute(el.dataset.ta, t(el.dataset.tk ||= el.getAttribute(el.dataset.ta)));
 }
 
 function load() {
@@ -214,13 +229,13 @@ function drawDarts(darts) {
     grp.setAttribute('class', 'dart');
     grp.setAttribute('style', `animation-delay:${j * 0.45}s;transform-origin:${d.x}px ${-d.y}px`);
     grp.innerHTML = d.bounce
-      ? `<circle cx="${d.x}" cy="${-d.y}" r="7" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="3 2"/><title>Bounce-out</title>`
+      ? `<circle cx="${d.x}" cy="${-d.y}" r="7" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="3 2"/><title>${t('Bounce-out')}</title>`
       : `<circle cx="${d.x}" cy="${-d.y}" r="7" fill="#ffffff" stroke="#111" stroke-width="2"/><text x="${d.x}" y="${-d.y}" font-size="9" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="#111" font-family="Barlow, sans-serif">${i + 1}</text>`;
     g.appendChild(grp);
   });
   drawnDarts = darts.slice();
 }
-const dartLabel = d => d.bounce ? 'Bounce-out' : E.label(E.BY[d.k]);
+const dartLabel = d => d.bounce ? t('Bounce-out') : E.label(E.BY[d.k]);
 function highlight(route) {
   const svg = $('board');
   svg.querySelectorAll('.seg.hl').forEach(e => e.classList.remove('hl'));
@@ -244,16 +259,16 @@ function render() {
   for (const b of $('tabs').querySelectorAll('[data-nav]')) b.setAttribute('aria-current', b.dataset.nav === scr ? 'page' : 'false');
   $('menuBtn').hidden = $('rematchBtn').hidden = scr !== 'play';
   window.ocheNative?.keepAwake?.(scr === 'play' && SETTINGS.awake);
-  if (menu) { $('meta').textContent = 'Pick a game'; return renderMenu(); }
-  if (page) { $('meta').textContent = page[0]; return page[1](); }
+  if (menu) { $('meta').textContent = t('Pick a game'); return renderMenu(); }
+  if (page) { $('meta').textContent = t(page[0]); return page[1](); }
   const game = isGame();
   $('x01Left').hidden = $('x01Right').hidden = game;
   $('gameLeft').hidden = $('gameRight').hidden = !game;
   if (game) return renderGame();
   const st = S.settings, leg = curLeg(), turn = S.matchWinner == null ? turnOf(leg) : -1;
   const sd = standings();
-  const where = st.unit === 'sets' ? `Set ${sd.setsDone + 1}, leg ${sd.legsInSet + 1}` : `Leg ${S.legs.length}`;
-  $('meta').textContent = `${st.start} · ${st.inRule !== 'straight' ? RULE_NAME[st.inRule] + ' in · ' : ''}${RULE_NAME[st.out === 'single' ? 'straight' : st.out]} out · ${formatText(st)} · ${where}`;
+  const where = st.unit === 'sets' ? t('Set {s}, leg {l}', { s: sd.setsDone + 1, l: sd.legsInSet + 1 }) : t('Leg {n}', { n: S.legs.length });
+  $('meta').textContent = `${st.start} · ${st.inRule !== 'straight' ? t('{rule} in', { rule: RULE_NAME[st.inRule] }) + ' · ' : ''}${t('{rule} out', { rule: RULE_NAME[st.out === 'single' ? 'straight' : st.out] })} · ${formatText(st)} · ${where}`;
   const stats = E.stats(S.legs, n());
 
   // scoreboard
@@ -266,15 +281,15 @@ function render() {
     const last = mine[mine.length - 1];
     const legDarts = mine.reduce((a, v) => a + v.dartsUsed, 0);
     const legNeed = st.unit === 'sets' ? st.setLegs : needOf(st.count, st.kind);
-    const pips = (st.unit === 'sets' ? `<span class="setnum" title="Sets won">${sd.sets[p]}</span>` : '') +
-      (legNeed <= 9 ? Array.from({ length: legNeed }, (_, i) => `<span class="pip${i < sd.legs[p] ? ' on' : ''}"></span>`).join('') : `<span class="setnum" title="Legs won">${sd.legs[p]}</span>`);
-    const tag = pl.type === 'bot' ? ` <span class="label" title="Favourite double D${botCtx(p).fav}">${botAvg(pl)} avg · D${botCtx(p).fav}</span>` : '';
-    const status = p === turn && pl.type === 'bot' ? `<span class="thinking">Throwing</span>` : '';
+    const pips = (st.unit === 'sets' ? `<span class="setnum" title="${t('Sets won')}">${sd.sets[p]}</span>` : '') +
+      (legNeed <= 9 ? Array.from({ length: legNeed }, (_, i) => `<span class="pip${i < sd.legs[p] ? ' on' : ''}"></span>`).join('') : `<span class="setnum" title="${t('Legs won')}">${sd.legs[p]}</span>`);
+    const tag = pl.type === 'bot' ? ` <span class="label" title="${t('Favourite double {d}', { d: 'D' + botCtx(p).fav })}">${t('{avg} avg', { avg: botAvg(pl) })} · D${botCtx(p).fav}</span>` : '';
+    const status = p === turn && pl.type === 'bot' ? `<span class="thinking">${t('Throwing')}</span>` : '';
     return `<article class="player${p === turn ? ' active' : ''}" aria-current="${p === turn}">
-      <div class="head"><span class="name">${esc(pl.name)}${tag}</span><span class="pips" title="${st.unit === 'sets' ? `Sets ${sd.sets[p]}, legs this set ${sd.legs[p]}` : `Legs won: ${sd.legs[p]}`}">${pips}</span></div>
+      <div class="head"><span class="name">${esc(pl.name)}${tag}</span><span class="pips" title="${st.unit === 'sets' ? t('Sets {s}, legs this set {l}', { s: sd.sets[p], l: sd.legs[p] }) : t('Legs won: {n}', { n: sd.legs[p] })}">${pips}</span></div>
       <div class="rem num">${rem}</div>
-      <div class="route">${route ? routeChips(route) : !opened(leg, p) ? `Open on a ${st.inRule === 'master' ? 'double or treble' : 'double'}` : status}</div>
-      <div class="sub"><span>Avg <b>${fmt(stats[p].avg)}</b></span><span>Last <b>${last ? (last.bust ? 'Bust' : last.score) : '–'}</b></span><span>Darts <b>${legDarts}</b></span></div>
+      <div class="route">${route ? routeChips(route) : !opened(leg, p) ? t(st.inRule === 'master' ? 'Open on a double or treble' : 'Open on a double') : status}</div>
+      <div class="sub"><span>${t('Avg')} <b>${fmt(stats[p].avg)}</b></span><span>${t('Last')} <b>${last ? (last.bust ? t('Bust') : last.score) : '–'}</b></span><span>${t('Darts')} <b>${legDarts}</b></span></div>
     </article>`;
   }).join('');
 
@@ -285,8 +300,8 @@ function render() {
     wp.hidden = false;
     wp.className = 'panel winner';
     wp.innerHTML = `<h2>${esc(matchHeadline())}</h2>
-      <p style="margin:0 0 12px;color:var(--muted)">Match average ${fmt(w.avg)}, highest finish ${w.highFinish || '–'}.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-act="rematch">Play again</button><button class="btn" type="button" data-pg="share">Share</button><button class="btn" type="button" data-act="new">Main menu</button></div>`;
+      <p style="margin:0 0 12px;color:var(--muted)">${t('Match average {avg}, highest finish {hf}.', { avg: fmt(w.avg), hf: w.highFinish || '–' })}</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-act="rematch">${t('Play again')}</button><button class="btn" type="button" data-pg="share">${t('Share')}</button><button class="btn" type="button" data-act="new">${t('Main menu')}</button></div>`;
   } else wp.hidden = true;
 
   // entry
@@ -295,18 +310,18 @@ function render() {
   const ro = $('readout');
   const live = botReveal && botReveal.p === turn ? botReveal : null;
   const liveScore = live ? live.darts.reduce((a, d) => a + d.v, 0) : 0;
-  ro.textContent = buffer || (live && live.darts.length ? String(liveScore) : human ? 'Enter score' : S.matchWinner != null ? 'Match over' : 'Bot throwing…');
+  ro.textContent = buffer || (live && live.darts.length ? String(liveScore) : t(human ? 'Enter score' : S.matchWinner != null ? 'Match over' : 'Bot throwing…'));
   ro.classList.toggle('empty', !buffer && !(live && live.darts.length));
   const canCO = human && E.minDarts(rem, st.out) <= 3 && (opened(leg, turn) || OPEN_SETS[st.inRule]?.has(rem));
   // With a finish on, the readout offers a one-tap checkout instead of showing who is throwing
-  $('who').innerHTML = canCO && !buffer ? `<button class="chip co rco" type="button" data-score="${rem}">Checkout ${rem}</button>`
-    : turn >= 0 ? `<span class="label">To throw</span><br><b>${esc(players()[turn].name)}</b> · ${rem} left` : '';
+  $('who').innerHTML = canCO && !buffer ? `<button class="chip co rco" type="button" data-score="${rem}">${t('Checkout {n}', { n: rem })}</button>`
+    : turn >= 0 ? `<span class="label">${t('To throw')}</span><br><b>${esc(players()[turn].name)}</b> · ${t('{n} left', { n: rem })}` : '';
   const quick = [26, 41, 45, 60, 81, 85, 100, 140, 180];
   $('quick').innerHTML =
-    `<button class="chip zero" type="button" data-score="0" ${human ? '' : 'disabled'}>No score</button>` +
+    `<button class="chip zero" type="button" data-score="0" ${human ? '' : 'disabled'}>${t('No score')}</button>` +
     quick.map(q => `<button class="chip" type="button" data-score="${q}" ${human ? '' : 'disabled'}>${q}</button>`).join('');
   $('keys').innerHTML = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'].map(k =>
-    `<button class="key ${k === 'ok' ? 'ok' : k === 'del' ? 'fn' : ''}" type="button" data-key="${k}" ${human ? '' : 'disabled'} aria-label="${k === 'del' ? 'Delete digit' : k === 'ok' ? 'Submit score' : k}">${k === 'del' ? '⌫' : k === 'ok' ? 'Score' : k}</button>`).join('');
+    `<button class="key ${k === 'ok' ? 'ok' : k === 'del' ? 'fn' : ''}" type="button" data-key="${k}" ${human ? '' : 'disabled'} aria-label="${k === 'del' ? t('Delete digit') : k === 'ok' ? t('Submit score') : k}">${k === 'del' ? '⌫' : k === 'ok' ? t('Score') : k}</button>`).join('');
   $('undoBtn').disabled = !hasHumanVisit() || botBusy;
 
   // board: current thrower's route, plus the last bot visit's darts
@@ -318,11 +333,11 @@ function render() {
   const lastVisit = live ? { p: live.p, darts: live.darts, score: liveScore, bust: false, live: true } : lastVisitAnywhere();
   const showDarts = lastVisit && lastVisit.darts && lastVisit.darts.length;
   drawDarts(showDarts ? lastVisit.darts : []);
-  $('boardLabel').textContent = route ? `${players()[turn].name} checkout` : turn >= 0 ? `${players()[turn].name} · ${rem} left` : 'Final visit';
-  $('boardRoute').innerHTML = route ? routeChips(route) : turn >= 0 ? (!opened(leg, turn) ? `Open on a ${st.inRule === 'master' ? 'double or treble' : 'double'}` : rem > (st.out === 'double' ? 170 : 180) ? 'Scoring – aim T20' : 'No 3-dart finish') : '';
+  $('boardLabel').textContent = route ? t('{name} checkout', { name: players()[turn].name }) : turn >= 0 ? `${players()[turn].name} · ${t('{n} left', { n: rem })}` : t('Final visit');
+  $('boardRoute').innerHTML = route ? routeChips(route) : turn >= 0 ? t(!opened(leg, turn) ? (st.inRule === 'master' ? 'Open on a double or treble' : 'Open on a double') : rem > (st.out === 'double' ? 170 : 180) ? 'Scoring – aim T20' : 'No 3-dart finish') : '';
   $('legend').innerHTML = showDarts
-    ? `<span>${esc(players()[lastVisit.p].name)}${lastVisit.live ? ' is throwing' : "'s last visit"}:</span> ${lastVisit.darts.map((d, i) => `<span>${i + 1}. <b>${dartLabel(d)}</b></span>`).join('')} <span>= <b>${lastVisit.bust ? 'Bust' : lastVisit.score}</b></span>`
-    : `<span>Highlighted segments show the suggested finish.</span>`;
+    ? `<span>${t(lastVisit.live ? '{name} is throwing:' : "{name}'s last visit:", { name: esc(players()[lastVisit.p].name) })}</span> ${lastVisit.darts.map((d, i) => `<span>${i + 1}. <b>${dartLabel(d)}</b></span>`).join('')} <span>= <b>${lastVisit.bust ? t('Bust') : lastVisit.score}</b></span>`
+    : `<span>${t('Highlighted segments show the suggested finish.')}</span>`;
 
   renderSheet();
   renderStats(stats);
@@ -336,11 +351,11 @@ function renderSheet() {
   let leg = curLeg(), idx = S.legs.length;
   if (!leg.visits.length && S.legs.length > 1) { leg = S.legs[S.legs.length - 2]; idx--; }
   const pl = players();
-  $('sheetTitle').textContent = S.settings.unit === 'sets' ? `Leg ${idx} · set ${(leg.set ?? 0) + 1}` : `Leg ${idx}`;
+  $('sheetTitle').textContent = S.settings.unit === 'sets' ? t('Leg {n} · set {s}', { n: idx, s: (leg.set ?? 0) + 1 }) : t('Leg {n}', { n: idx });
   if (leg.winner != null) {
     const d = leg.visits.filter(v => v.p === leg.winner).reduce((a, v) => a + v.dartsUsed, 0);
-    $('sheetNote').textContent = `${pl[leg.winner].name} won in ${d} darts`;
-  } else $('sheetNote').textContent = `${pl[leg.starter].name} threw first`;
+    $('sheetNote').textContent = t('{name} won in {n} darts', { name: pl[leg.winner].name, n: d });
+  } else $('sheetNote').textContent = t('{name} threw first', { name: pl[leg.starter].name });
   $('sheet').innerHTML = sheetHTML(leg, pl, S.settings.start);
 }
 function sheetHTML(leg, pl, start) {
@@ -354,11 +369,11 @@ function sheetHTML(leg, pl, start) {
       left[p] -= v.score;
       const cls = v.bust ? ' bust' : v.checkout ? ' out' : '';
       const title = v.darts ? ` title="${v.darts.map(dartLabel).join(', ')}"` : '';
-      return `<td class="sc sep${cls}"${title}>${v.bust ? 'Bust' : v.score}</td><td class="lf${cls}">${v.checkout ? '✓' : left[p]}</td>`;
+      return `<td class="sc sep${cls}"${title}>${v.bust ? t('Bust') : v.score}</td><td class="lf${cls}">${v.checkout ? '✓' : left[p]}</td>`;
     }).join('');
     rows.push(`<tr><td class="rnd">${(r + 1) * 3}</td>${cells}</tr>`);
   }
-  return `<thead><tr><th>Darts</th>${order.map(p => `<th class="sep">${esc(pl[p].name)}</th><th>Left</th>`).join('')}</tr></thead>
+  return `<thead><tr><th>${t('Darts')}</th>${order.map(p => `<th class="sep">${esc(pl[p].name)}</th><th>${t('Left')}</th>`).join('')}</tr></thead>
     <tbody><tr><td class="rnd">0</td>${order.map(() => `<td class="sc sep"></td><td class="lf">${start}</td>`).join('')}</tr>${rows.join('')}</tbody>`;
 }
 function renderStats(stats) { $('stats').innerHTML = statsHTML(stats, players()); }
@@ -381,7 +396,7 @@ function statsHTML(stats, pl) {
       const vals = stats.map(get);
       const known = vals.filter(v => v != null && v !== 0);
       const best = better && pl.length > 1 && known.length > 1 ? (better === 'max' ? Math.max(...known) : Math.min(...known)) : null;
-      return `<tr><td>${name}</td>${vals.map((v, i) => `<td class="${best != null && v === best ? 'best' : ''}"><span>${show(v, stats[i])}</span></td>`).join('')}</tr>`;
+      return `<tr><td>${t(name)}</td>${vals.map((v, i) => `<td class="${best != null && v === best ? 'best' : ''}"><span>${show(v, stats[i])}</span></td>`).join('')}</tr>`;
     }).join('') + '</tbody>';
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -413,16 +428,16 @@ function commitVisit(v) {
     if (sd.matchWinner >= 0) {
       S.matchWinner = sd.matchWinner;
       recordHistory();
-      toast(`Game shot and the match! ${v.score} checkout for ${players()[v.p].name}.`);
+      toast(t('Game shot and the match! {n} checkout for {name}.', { n: v.score, name: players()[v.p].name }));
     } else {
       const setWon = S.settings.unit === 'sets' && sd.legsInSet === 0;
       S.legs.push({ starter: nextStarter(), visits: [], winner: null, set: sd.setsDone });
-      toast(setWon ? `Game shot and the set! Set to ${players()[v.p].name}, ${sd.sets[v.p]}–${Math.max(...sd.sets.filter((_, q) => q !== v.p))} in sets.` : `Game shot! Leg to ${players()[v.p].name} in ${darts} darts.`);
+      toast(setWon ? t('Game shot and the set! Set to {name}, {score} in sets.', { name: players()[v.p].name, score: `${sd.sets[v.p]}–${Math.max(...sd.sets.filter((_, q) => q !== v.p))}` }) : t('Game shot! Leg to {name} in {n} darts.', { name: players()[v.p].name, n: darts }));
     }
   } else if (v.bust) {
-    toast(`${players()[v.p].name}: bust`);
+    toast(t('{name}: bust', { name: players()[v.p].name }));
   } else if (v.score === 180) {
-    toast('One hundred and eighty!');
+    toast(t('One hundred and eighty!'));
   }
   save(); render(); maybeBot();
 }
@@ -491,34 +506,33 @@ function undo() {
   } while (v && players()[v.p].type === 'bot');
   S.replay = keep.concat(S.replay || []);
   buffer = '';
-  save(); render(); toast(`Undone: ${v ? (v.bust ? 'bust' : v.score) : 'visit'}`);
+  save(); render(); toast(t('Undone: {what}', { what: v ? (v.bust ? t('bust') : v.score) : t('visit') }));
   maybeBot();
 }
 
 function submit(score) {
   if (isBotTurn() || S.matchWinner != null) return;
   const st = S.settings, leg = curLeg(), p = turnOf(leg), rem = remaining(leg, p), out = st.out, dbl = out !== 'single';
-  const finisher = out === 'master' ? 'a double or treble' : 'a double';
-  const atLabel = out === 'master' ? 'Darts at a double or treble' : 'Darts at double';
-  if (!Number.isInteger(score)) return err('Type a score first.');
-  if (!E.validVisit(score)) return err(score > 180 ? 'The most three darts can score is 180.' : `${score} can't be scored with three darts.`);
-  if (!opened(leg, p) && !OPEN_SETS[st.inRule].has(score)) return err(`${score} isn't possible when the visit has to open on ${st.inRule === 'master' ? 'a double or treble' : 'a double'}.`);
+  const mst = out === 'master', atLabel = t(mst ? 'Darts at a double or treble' : 'Darts at double');
+  if (!Number.isInteger(score)) return err(t('Type a score first.'));
+  if (!E.validVisit(score)) return err(score > 180 ? t('The most three darts can score is 180.') : t("{n} can't be scored with three darts.", { n: score }));
+  if (!opened(leg, p) && !OPEN_SETS[st.inRule].has(score)) return err(t(st.inRule === 'master' ? "{n} isn't possible when the visit has to open on a double or treble." : "{n} isn't possible when the visit has to open on a double.", { n: score }));
   const base = { p, before: rem };
   const canAimDouble = dbl && opened(leg, p) && rem <= (out === 'master' ? 60 : 50) && E.minDarts(rem, out) <= 3;
   if (score > rem || (dbl && rem - score === 1)) {
     const finish = atDouble => commitVisit({ ...base, score: 0, dartsUsed: 3, dartsAtDouble: atDouble, bust: true, checkout: false });
-    return canAimDouble ? ask('Bust', `How many darts went at ${finisher}?`, [{ key: 'd', label: atLabel, options: [0, 1, 2, 3], def: 1 }], a => finish(a.d)) : finish(0);
+    return canAimDouble ? ask(t('Bust'), t(mst ? 'How many darts went at a double or treble?' : 'How many darts went at a double?'), [{ key: 'd', label: atLabel, options: [0, 1, 2, 3], def: 1 }], a => finish(a.d)) : finish(0);
   }
   if (score === rem) {
     const md = E.minDarts(rem, out);
-    if (md > 3) return err(dbl ? `${rem} can't be checked out on ${finisher} in three darts.` : `${rem} can't be checked out in three darts.`);
+    if (md > 3) return err(t(!dbl ? "{n} can't be checked out in three darts." : mst ? "{n} can't be checked out on a double or treble in three darts." : "{n} can't be checked out on a double in three darts.", { n: rem }));
     const finish = (used, at) => commitVisit({ ...base, score, dartsUsed: used, dartsAtDouble: dbl ? at : 0, bust: false, checkout: true });
     if (md === 3 && dbl) return finish(3, 1);
-    const qs = [{ key: 'used', label: 'Darts used', options: range(md, 3), def: md }];
+    const qs = [{ key: 'used', label: t('Darts used'), options: range(md, 3), def: md }];
     if (dbl) qs.push({ key: 'at', label: atLabel, options: a => range(1, a.used - md + 1), def: 1 });
-    return ask(`Checkout ${rem}`, 'How did the finish go?', qs, a => finish(a.used, a.at || 1));
+    return ask(t('Checkout {n}', { n: rem }), t('How did the finish go?'), qs, a => finish(a.used, a.at || 1));
   }
-  if (canAimDouble) return ask(`${score} scored`, `${rem} was on. How many darts went at ${finisher}?`, [{ key: 'd', label: atLabel, options: [0, 1, 2, 3], def: 0 }],
+  if (canAimDouble) return ask(t('{n} scored', { n: score }), t(mst ? '{n} was on. How many darts went at a double or treble?' : '{n} was on. How many darts went at a double?', { n: rem }), [{ key: 'd', label: atLabel, options: [0, 1, 2, 3], def: 0 }],
     a => commitVisit({ ...base, score, dartsUsed: 3, dartsAtDouble: a.d, bust: false, checkout: false }));
   commitVisit({ ...base, score, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false });
 }
@@ -537,7 +551,7 @@ function ask(title, text, questions, done) {
         if (!opts.includes(ans[q.key])) ans[q.key] = opts[0];
         return `<div class="field"><span class="label">${q.label}</span><div class="opts">${opts.map(o => `<button type="button" class="opt" data-q="${q.key}" data-v="${o}" aria-pressed="${ans[q.key] === o}">${o}</button>`).join('')}</div></div>`;
       }).join('')}
-      <div class="actions"><button type="button" class="btn" data-act="cancel">Cancel</button><button type="button" class="btn primary" data-act="ok">Confirm</button></div></div>`;
+      <div class="actions"><button type="button" class="btn" data-act="cancel">${t('Cancel')}</button><button type="button" class="btn primary" data-act="ok">${t('Confirm')}</button></div></div>`;
   };
   draw();
   ov.hidden = false; dialogOpen = true;
@@ -562,25 +576,25 @@ let dialogKey = null;
 function renderGame() {
   const st = S.settings, G = GAMES[st.mode], g = S.game, done = G.done(g);
   // Header: game, any options changed from the default, players
-  const changed = (G.options || []).filter(d => g.o && g.o[d.key] !== d.def).map(d => d.choices.find(c => String(c[0]) === String(g.o[d.key]))?.[1]).filter(Boolean);
-  $('meta').textContent = [G.title, ...changed, st.players.map(p => p.name).join(' vs ')].join(' · ');
+  const changed = (G.options || []).filter(d => g.o && g.o[d.key] !== d.def).map(d => d.choices.find(c => String(c[0]) === String(g.o[d.key]))?.[1]).filter(Boolean).map(l => t(l));
+  $('meta').textContent = [t(G.title), ...changed, st.players.map(p => p.name).join(' vs ')].join(' · ');
   let res = '';
   if (done) {
     const r = G.result(g, st);
     res = `<section class="panel winner"><h2>${esc(r.headline)}</h2><p style="margin:0 0 12px;color:var(--muted)">${esc(r.detail)}</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-act="rematch">Play again</button><button class="btn" type="button" data-pg="share">Share</button><button class="btn" type="button" data-act="new">Main menu</button></div></section>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-act="rematch">${t('Play again')}</button><button class="btn" type="button" data-pg="share">${t('Share')}</button><button class="btn" type="button" data-act="new">${t('Main menu')}</button></div></section>`;
   }
   const canUndo = S.hist.length > 0 && !botBusy;
   $('gameLeft').innerHTML = G.hud(g, st) + res +
     `<section class="panel gpadwrap">${done ? '' : G.pad(g, st)}<div class="msg" id="gMsg" role="status" aria-live="polite"></div>
-      <div class="row-actions"><button class="btn" type="button" data-act="undo"${canUndo ? '' : ' disabled'}>Undo</button><span class="hint">${G.hint} <span class="kb">${G.keys}</span></span></div></section>`;
-  $('gameRight').innerHTML = G.log(g, st) + `<section class="panel"><h2>How to play</h2><p class="rules">${G.rules}</p></section>`;
+      <div class="row-actions"><button class="btn" type="button" data-act="undo"${canUndo ? '' : ' disabled'}>${t('Undo')}</button><span class="hint">${t(G.hint)} <span class="kb">${t(G.keys)}</span></span></div></section>`;
+  $('gameRight').innerHTML = G.log(g, st) + `<section class="panel"><h2>${t('How to play')}</h2><p class="rules">${t(G.rules)}</p></section>`;
   const b = G.board(g, st);
   highlight(b.keys.map(k => ({ k })));
   drawDarts(b.darts || []);
   $('boardLabel').textContent = b.label;
   $('boardRoute').textContent = b.text;
-  $('legend').innerHTML = b.legend || (b.keys.length ? '<span>Highlighted segments show what to aim at.</span>' : '');
+  $('legend').innerHTML = b.legend || (b.keys.length ? `<span>${t('Highlighted segments show what to aim at.')}</span>` : '');
 }
 function gameErr(text) {
   const m = $('gMsg'); if (!m) return;
@@ -591,9 +605,9 @@ function gameAct(a, v) {
   const G = GAMES[S.settings.mode];
   if (G.done(S.game) || isBotTurn()) return;
   if (a === 'score') {
-    if (v === '' || v == null) return gameErr('Type a score first.');
+    if (v === '' || v == null) return gameErr(t('Type a score first.'));
     const s = +v;
-    const problem = G.validate ? G.validate(S.game, s) : (!E.validVisit(s) ? (s > 180 ? 'The most three darts can score is 180.' : `${s} can't be scored with three darts.`) : null);
+    const problem = G.validate ? G.validate(S.game, s) : (!E.validVisit(s) ? (s > 180 ? t('The most three darts can score is 180.') : t("{n} can't be scored with three darts.", { n: s })) : null);
     if (problem) { buffer = ''; render(); return gameErr(problem); }
   }
   S.hist.push(JSON.stringify(S.game));
@@ -609,7 +623,7 @@ function afterGameChange() {
     const r = G.result(g, S.settings);
     const rec = r.best != null ? recordBest(g.bk || S.settings.mode, r.best, r.better) : null;
     recordHistory();
-    toast(rec === 'beaten' ? `New personal best: ${r.best}` : rec === 'first' ? `Saved as your personal best: ${r.best}` : r.headline);
+    toast(rec === 'beaten' ? t('New personal best: {n}', { n: r.best }) : rec === 'first' ? t('Saved as your personal best: {n}', { n: r.best }) : r.headline);
   }
   save(); render(); maybeBot();
 }
@@ -672,25 +686,25 @@ function confirmDialog({ title, text, keep, go, onGo, focusBack }) {
   dialogKey = e => { if (e.key === 'Escape') { close(); return true; } return false; };
   ov.querySelector('[data-act="keep"]').focus();
 }
-const gameWord = () => S.settings.mode === 'x01' ? 'match' : 'game';
+const isMatch = () => S.settings.mode === 'x01';
 function confirmRestart() {
   if (!inProgress()) return startMatch(S.settings);
   confirmDialog({
-    title: `Restart this ${gameWord()}?`,
-    text: `The scores so far will be lost. A new ${gameWord()} starts with the same players and settings.`,
-    keep: 'Keep playing', go: 'Restart', onGo: () => startMatch(S.settings), focusBack: () => $('rematchBtn'),
+    title: t(isMatch() ? 'Restart this match?' : 'Restart this game?'),
+    text: t(isMatch() ? 'The scores so far will be lost. A new match starts with the same players and settings.' : 'The scores so far will be lost. A new game starts with the same players and settings.'),
+    keep: t('Keep playing'), go: t('Restart'), onGo: () => startMatch(S.settings), focusBack: () => $('rematchBtn'),
   });
 }
 // Discard from the menu: the settings are kept for next time, the scores go
 function confirmDiscard() {
   confirmDialog({
-    title: `Discard this ${gameWord()}?`,
-    text: 'The game in progress and its scores will be deleted. Personal bests already set are kept.',
-    keep: 'Keep it', go: 'Discard', focusBack: () => $('menu').querySelector('[data-act="continue"]'),
+    title: t(isMatch() ? 'Discard this match?' : 'Discard this game?'),
+    text: t('The game in progress and its scores will be deleted. Personal bests already set are kept.'),
+    keep: t('Keep it'), go: t('Discard'), focusBack: () => $('menu').querySelector('[data-act="continue"]'),
     onGo: () => { cancelBot(); botBusy = false; buffer = ''; S = freshMatch(S.settings); S.screen = 'menu'; save(); render(); },
   });
 }
-function modeTitle(mode) { return mode === 'x01' ? `${S.settings.start || 501}` : GAMES[mode].title; }
+function modeTitle(mode) { return mode === 'x01' ? `${S.settings.start || 501}` : t(GAMES[mode].title); }
 // Each game's tile: a glyph that says what the game is about, on a board colour
 const HEART = '<svg viewBox="0 0 24 22" aria-hidden="true"><path d="M12 21.2 10.6 20C5.4 15.3 2 12.2 2 8.4 2 5.3 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.3 22 8.4c0 3.8-3.4 6.9-8.6 11.6L12 21.2z" fill="currentColor"/></svg>';
 const TILES = {
@@ -729,14 +743,14 @@ function logoBoard() {
 const routeChips = route => route.map(s => `<span class="rchip r-${s.ring}">${E.label(s)}</span>`).join('');
 function renderMenu() {
   const resume = inProgress()
-    ? `<section class="panel resume"><div><span class="label">Game in progress</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><div class="resume-btns"><button class="btn ghost" type="button" data-act="discard">Discard</button><button class="btn primary" type="button" data-act="continue">Continue</button></div></section>`
+    ? `<section class="panel resume"><div><span class="label">${t('Game in progress')}</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><div class="resume-btns"><button class="btn ghost" type="button" data-act="discard">${t('Discard')}</button><button class="btn primary" type="button" data-act="continue">${t('Continue')}</button></div></section>`
     : '';
-  const hero = `<section class="menu-hero"><h2 class="num">Step up to the oche<span>.</span></h2><p>Play friends on this device, or bots set to any average from 20 to 120.</p></section>`;
-  $('menu').innerHTML = hero + resume + MENU.map(([group, items]) => `<section class="menu-sec"><h2>${group}</h2><div class="cards">${items.map(([mode, title, desc]) => {
+  const hero = `<section class="menu-hero"><h2 class="num">${t('Step up to the oche')}<span>.</span></h2><p>${t('Play friends on this device, or bots set to any average from 20 to 120.')}</p></section>`;
+  $('menu').innerHTML = hero + resume + MENU.map(([group, items]) => `<section class="menu-sec"><h2>${t(group)}</h2><div class="cards">${items.map(([mode, title, desc]) => {
     const [lo, hi] = limitsFor(mode), best = getBest(mode);
-    const who = hi === 1 ? 'Solo' : lo === hi ? `${lo} players` : `${lo}–${hi} players`;
-    const bots = PLAYER_LIMITS[mode] ? ' · bots' : '';
-    return `<button class="gcard" type="button" data-menu="${mode}">${gameTile(mode)}<span class="gname">${title}</span><span class="gdesc">${desc}</span><span class="gmeta"><span>${who}${bots}</span>${best != null ? `<span class="pb">Best ${best}</span>` : ''}</span></button>`;
+    const who = hi === 1 ? t('Solo') : t('{n} players', { n: lo === hi ? lo : `${lo}–${hi}` });
+    const bots = PLAYER_LIMITS[mode] ? ' · ' + t('bots') : '';
+    return `<button class="gcard" type="button" data-menu="${mode}">${gameTile(mode)}<span class="gname">${t(title)}</span><span class="gdesc">${t(desc)}</span><span class="gmeta"><span>${who}${bots}</span>${best != null ? `<span class="pb">${t('Best {n}', { n: best })}</span>` : ''}</span></button>`;
   }).join('')}</div></section>`).join('');
 }
 function goScreen(name) {
@@ -749,17 +763,18 @@ const goMenu = () => goScreen('menu');
 // Placeholder until the screen is built
 // ---------- history, stats and sharing ----------
 let histOpen = null, statsWho = null; // histOpen: id of the history entry shown in detail
-const entryTitle = e => e.mode === 'x01' ? `${e.settings.start || 501}` : GAMES[e.mode]?.title || e.mode;
-const playersLine = e => e.settings.players.map(p => esc(p.name) + (p.type === 'bot' ? ` (${botAvg(p)} avg)` : '')).join(' vs ');
+const entryTitle = e => e.mode === 'x01' ? `${e.settings.start || 501}` : GAMES[e.mode] ? t(GAMES[e.mode].title) : e.mode;
+const playersLine = e => e.settings.players.map(p => esc(p.name) + (p.type === 'bot' ? ` (${t('{avg} avg', { avg: botAvg(p) })})` : '')).join(' vs ');
 function shareIt(text) {
-  window.ocheNative?.share({ title: 'Oche Scorer', text }).then(r => { if (r === 'copied') toast('Copied'); });
+  window.ocheNative?.share({ title: 'Oche Scorer', text }).then(r => { if (r === 'copied') toast(t('Copied')); });
 }
 const shareText = (title, headline, extra) => ['Oche', title, headline, extra].filter(Boolean).join(' · ');
-const x01Extra = s => `Avg ${fmt(s.avg)}${s.highFinish ? ` · High finish ${s.highFinish}` : ''}`;
+const x01Extra = s => `${t('Avg')} ${fmt(s.avg)}${s.highFinish ? ` · ${t('High finish')} ${s.highFinish}` : ''}`;
 // X01 quotes the winner's numbers (first player in a tie), other games their result sentence
 function entryShare(e) {
-  if (e.mode !== 'x01') return shareText(entryTitle(e), e.headline, e.detail);
-  return shareText(entryTitle(e), e.headline, x01Extra(E.stats(e.legs, e.settings.players.length)[Math.max(0, e.winner ?? 0)]));
+  const r = entryResult(e);
+  if (e.mode !== 'x01') return shareText(entryTitle(e), r.headline, r.detail);
+  return shareText(entryTitle(e), r.headline, x01Extra(E.stats(e.legs, e.settings.players.length)[Math.max(0, e.winner ?? 0)]));
 }
 function liveShare() {
   if (isGame()) { const r = GAMES[S.settings.mode].result(S.game, S.settings); return shareText(modeTitle(S.settings.mode), r.headline, r.detail); }
@@ -773,54 +788,55 @@ function pageAct(act, v) {
   else if (act in SETTINGS_DEFAULT) setSetting(act, v === 'true' ? true : v === 'false' ? false : v);
   else if (act === 'reset') {
     return confirmDialog({
-      title: 'Reset all data?', text: 'This deletes your match history, player stats, personal bests, settings and any game in progress. It can\'t be undone.',
-      keep: 'Cancel', go: 'Reset', focusBack: () => document.querySelector('[data-pg="reset"]'),
+      title: t('Reset all data?'), text: t("This deletes your match history, player stats, personal bests, settings and any game in progress. It can't be undone."),
+      keep: t('Cancel'), go: t('Reset'), focusBack: () => document.querySelector('[data-pg="reset"]'),
       onGo: () => {
         for (const k of [STORE_KEY, HISTORY_KEY, SETTINGS_KEY, 'oche-bests']) { try { localStorage.removeItem(k); } catch (e) {} window.ocheNative?.remove(k); }
         SETTINGS = { ...SETTINGS_DEFAULT }; applySettings();
-        S = freshMatch(DEFAULT_SETTINGS); S.screen = 'menu'; save(); render(); toast('All data reset');
+        S = freshMatch(DEFAULT_SETTINGS); S.screen = 'menu'; save(); render(); toast(t('All data reset'));
       },
     });
   }
   else if (act === 'del') {
     const id = histOpen;
     return confirmDialog({
-      title: 'Delete this match?', text: 'It is removed from your history and lifetime stats. Personal bests are kept.',
-      keep: 'Keep it', go: 'Delete', focusBack: () => document.querySelector('[data-pg="del"]'),
+      title: t('Delete this match?'), text: t('It is removed from your history and lifetime stats. Personal bests are kept.'),
+      keep: t('Keep it'), go: t('Delete'), focusBack: () => document.querySelector('[data-pg="del"]'),
       onGo: () => { forgetHistory(+id); histOpen = null; renderHistory(); },
     });
   }
   render();
-  if (act in SETTINGS_DEFAULT) document.querySelector(`[data-pg="${act}"]${act === 'theme' ? `[data-v="${v}"]` : ''}`)?.focus();
+  if (act in SETTINGS_DEFAULT) document.querySelector(`[data-pg="${act}"]${typeof SETTINGS_DEFAULT[act] === 'string' ? `[data-v="${v}"]` : ''}`)?.focus();
   if (act === 'open' || act === 'back') window.scrollTo(0, 0);
 }
 function dayLabel(d) {
   const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 864e5);
-  return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : d.toLocaleDateString([], { day: 'numeric', month: 'short', ...(days > 300 ? { year: 'numeric' } : {}) });
+  return days === 0 ? t('Today') : days === 1 ? t('Yesterday') : d.toLocaleDateString(LANG, { day: 'numeric', month: 'short', ...(days > 300 ? { year: 'numeric' } : {}) });
 }
-const timeLabel = d => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const emptyPage = (title, text) => `<section class="panel"><h2>${title}</h2><p style="margin:0 0 12px;color:var(--muted)">${text}</p><button class="btn primary" type="button" data-nav="menu">Start a game</button></section>`;
+const timeLabel = d => d.toLocaleTimeString(LANG, { hour: '2-digit', minute: '2-digit' });
+const emptyPage = (title, text) => `<section class="panel"><h2>${title}</h2><p style="margin:0 0 12px;color:var(--muted)">${text}</p><button class="btn primary" type="button" data-nav="menu">${t('Start a game')}</button></section>`;
 function renderHistory() {
   const all = historyAll(), open = all.find(e => String(e.id) === histOpen);
-  if (!all.length) { $('page').innerHTML = emptyPage('Match history', 'Finished matches and games show up here.'); return; }
+  if (!all.length) { $('page').innerHTML = emptyPage(t('Match history'), t('Finished matches and games show up here.')); return; }
   if (!open) {
     let day = '';
     $('page').innerHTML = all.map(e => {
       const d = new Date(e.at), lab = dayLabel(d);
       const head = lab !== day ? `<h2 class="hday label">${lab}</h2>` : '';
       day = lab;
-      return `${head}<button class="hrow" type="button" data-pg="open" data-v="${esc(e.id)}">${gameTile(e.mode, e.mode === 'x01' ? esc(entryTitle(e)) : undefined)}<span><b>${e.headline.startsWith(entryTitle(e)) ? '' : esc(entryTitle(e)) + ' · '}${esc(e.headline)}</b><span class="hsub">${playersLine(e)}</span></span><span class="when">${timeLabel(d)}</span></button>`;
+      const hl = entryResult(e).headline;
+      return `${head}<button class="hrow" type="button" data-pg="open" data-v="${esc(e.id)}">${gameTile(e.mode, e.mode === 'x01' ? esc(entryTitle(e)) : undefined)}<span><b>${hl.startsWith(entryTitle(e)) ? '' : esc(entryTitle(e)) + ' · '}${esc(hl)}</b><span class="hsub">${playersLine(e)}</span></span><span class="when">${timeLabel(d)}</span></button>`;
     }).join('');
     return;
   }
-  const d = new Date(open.at), pl = open.settings.players;
+  const d = new Date(open.at), pl = open.settings.players, res = entryResult(open);
   let body = '';
   if (open.mode === 'x01') {
-    body = open.legs.map((l, i) => `<section class="panel"><h2>Leg ${i + 1}${l.winner != null ? ` · ${esc(pl[l.winner].name)}` : ''}</h2><div class="sheet-wrap"><table class="sheet">${sheetHTML(l, pl, open.settings.start)}</table></div></section>`).join('')
-      + `<section class="panel"><h2>Match stats</h2><div class="sheet-wrap"><table class="stats">${statsHTML(E.stats(open.legs, pl.length), pl)}</table></div></section>`;
-  } else body = `<section class="panel"><p style="margin:0">${esc(open.detail || '')}</p></section>`;
-  $('page').innerHTML = `<section class="panel"><span class="label">${esc(entryTitle(open))} · ${dayLabel(d)}, ${timeLabel(d)}</span><h2>${esc(open.headline)}</h2><p style="margin:0 0 12px;color:var(--muted)">${playersLine(open)}</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-pg="back">Back</button><button class="btn primary" type="button" data-pg="share">Share</button><button class="btn" type="button" data-pg="del">Delete</button></div></section>` + body;
+    body = open.legs.map((l, i) => `<section class="panel"><h2>${t('Leg {n}', { n: i + 1 })}${l.winner != null ? ` · ${esc(pl[l.winner].name)}` : ''}</h2><div class="sheet-wrap"><table class="sheet">${sheetHTML(l, pl, open.settings.start)}</table></div></section>`).join('')
+      + `<section class="panel"><h2>${t('Match stats')}</h2><div class="sheet-wrap"><table class="stats">${statsHTML(E.stats(open.legs, pl.length), pl)}</table></div></section>`;
+  } else body = `<section class="panel"><p style="margin:0">${esc(res.detail || '')}</p></section>`;
+  $('page').innerHTML = `<section class="panel"><span class="label">${esc(entryTitle(open))} · ${dayLabel(d)}, ${timeLabel(d)}</span><h2>${esc(res.headline)}</h2><p style="margin:0 0 12px;color:var(--muted)">${playersLine(open)}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-pg="back">${t('Back')}</button><button class="btn primary" type="button" data-pg="share">${t('Share')}</button><button class="btn" type="button" data-pg="del">${t('Delete')}</button></div></section>` + body;
 }
 // Lifetime numbers for one human, summed from the raw X01 fields so averages weigh every dart equally
 function lifetime(name, all) {
@@ -841,54 +857,57 @@ function lifetime(name, all) {
 function bestLabel(key) {
   const [mode, ...opts] = key.split(':'), G = GAMES[mode];
   if (!G) return null;
-  const v = opts.join(':').split(',').filter(Boolean).map(kv => { const [k, val] = kv.split('='), d = (G.options || []).find(o => o.key === k); return d?.choices.find(c => String(c[0]) === val)?.[1] || val; });
-  return [G.title, ...v].join(' · ');
+  const v = opts.join(':').split(',').filter(Boolean).map(kv => { const [k, val] = kv.split('='), d = (G.options || []).find(o => o.key === k); const l = d?.choices.find(c => String(c[0]) === val)?.[1]; return l ? t(l) : val; });
+  return [t(G.title), ...v].join(' · ');
 }
 function renderStatsPage() {
   const all = historyAll(), count = {};
   for (const e of all) new Set(e.settings.players.filter(p => p.type === 'human').map(p => p.name.trim())).forEach(n => count[n] = (count[n] || 0) + 1);
   const names = Object.keys(count).sort((a, b) => count[b] - count[a]);
-  if (!names.length) { $('page').innerHTML = emptyPage('Player stats', 'Play a match and your lifetime stats show up here.'); return; }
+  if (!names.length) { $('page').innerHTML = emptyPage(t('Player stats'), t('Play a match and your lifetime stats show up here.')); return; }
   if (!names.includes(statsWho)) statsWho = names[0];
-  const { t, trend, games } = lifetime(statsWho, all);
+  const { t: tot, trend, games } = lifetime(statsWho, all);
   const row = (a, b) => `<tr><td>${a}</td><td>${b}</td></tr>`, avg = (a, d) => d ? fmt(a / d * 3) : '–';
-  const x01 = t.m ? `<section class="panel"><h2>X01</h2><div class="sheet-wrap"><table class="stats"><tbody>` + [
-    ['Matches played', t.m], ['Matches won', `${t.w} (${fmt(t.w / t.m * 100, 0)}%)`], ['3-dart average', avg(t.score, t.darts)], ['First 9 average', avg(t.f9score, t.f9darts)],
-    ['Checkout %', t.atDouble ? fmt(t.checkouts / t.atDouble * 100) + '%' : '–'], ['Highest finish', t.highFinish || '–'], ['Best leg (darts)', t.bestLeg ?? '–'],
-    ['100+', t.t100], ['140+', t.t140], ['180s', t.t180], ['Darts thrown', t.darts],
-  ].map(([a, b]) => row(a, b)).join('') + `</tbody></table></div></section>` : '';
+  const x01 = tot.m ? `<section class="panel"><h2>X01</h2><div class="sheet-wrap"><table class="stats"><tbody>` + [
+    ['Matches played', tot.m], ['Matches won', `${tot.w} (${fmt(tot.w / tot.m * 100, 0)}%)`], ['3-dart average', avg(tot.score, tot.darts)], ['First 9 average', avg(tot.f9score, tot.f9darts)],
+    ['Checkout %', tot.atDouble ? fmt(tot.checkouts / tot.atDouble * 100) + '%' : '–'], ['Highest finish', tot.highFinish || '–'], ['Best leg (darts)', tot.bestLeg ?? '–'],
+    ['100+', tot.t100], ['140+', tot.t140], ['180s', tot.t180], ['Darts thrown', tot.darts],
+  ].map(([a, b]) => row(t(a), b)).join('') + `</tbody></table></div></section>` : '';
   const hi = Math.max(...trend, 1), lo = Math.max(0, Math.min(...trend) - 10);
-  const tr = trend.length > 1 ? `<section class="panel"><span class="label">3-dart average, last ${trend.length} matches</span><div class="trend" role="img" aria-label="Averages from ${fmt(trend[0])} to ${fmt(trend.at(-1))}">${trend.map(v => `<i style="height:${(v - lo) / (hi - lo || 1) * 90 + 10}%" title="${fmt(v)}"></i>`).join('')}</div><div class="row-actions" style="margin-top:6px"><span class="label">${fmt(trend[0])}</span><span class="label">${fmt(trend.at(-1))}</span></div></section>` : '';
-  const gl = Object.entries(games).map(([m, g]) => row(esc(GAMES[m]?.title || m), g.multi ? `${g.n} played · ${g.w} won` : `${g.n} played`)).join('');
+  const tr = trend.length > 1 ? `<section class="panel"><span class="label">${t('3-dart average, last {n} matches', { n: trend.length })}</span><div class="trend" role="img" aria-label="${t('Averages from {a} to {b}', { a: fmt(trend[0]), b: fmt(trend.at(-1)) })}">${trend.map(v => `<i style="height:${(v - lo) / (hi - lo || 1) * 90 + 10}%" title="${fmt(v)}"></i>`).join('')}</div><div class="row-actions" style="margin-top:6px"><span class="label">${fmt(trend[0])}</span><span class="label">${fmt(trend.at(-1))}</span></div></section>` : '';
+  const gl = Object.entries(games).map(([m, g]) => row(esc(GAMES[m] ? t(GAMES[m].title) : m), g.multi ? t('{n} played · {w} won', { n: g.n, w: g.w }) : t('{n} played', { n: g.n }))).join('');
   const bests = Object.entries(readJSON('oche-bests', {})).map(([k, v]) => [bestLabel(k), v]).filter(([l]) => l).map(([l, v]) => row(esc(l), v)).join('');
-  $('page').innerHTML = `<section class="panel"><span class="label">Player</span><div class="chips" style="margin-top:6px">${names.map(n => `<button class="chip" type="button" data-pg="who" data-v="${esc(n)}" aria-pressed="${n === statsWho}">${esc(n)}</button>`).join('')}</div></section>`
+  $('page').innerHTML = `<section class="panel"><span class="label">${t('Player')}</span><div class="chips" style="margin-top:6px">${names.map(n => `<button class="chip" type="button" data-pg="who" data-v="${esc(n)}" aria-pressed="${n === statsWho}">${esc(n)}</button>`).join('')}</div></section>`
     + x01 + tr
-    + (gl ? `<section class="panel"><h2>Other games</h2><div class="sheet-wrap"><table class="stats"><tbody>${gl}</tbody></table></div></section>` : '')
-    + (bests ? `<section class="panel"><h2>Personal bests on this device</h2><div class="sheet-wrap"><table class="stats"><tbody>${bests}</tbody></table></div></section>` : '');
+    + (gl ? `<section class="panel"><h2>${t('Other games')}</h2><div class="sheet-wrap"><table class="stats"><tbody>${gl}</tbody></table></div></section>` : '')
+    + (bests ? `<section class="panel"><h2>${t('Personal bests on this device')}</h2><div class="sheet-wrap"><table class="stats"><tbody>${bests}</tbody></table></div></section>` : '');
 }
 function renderSettings() {
   const native = !!window.ocheNative?.isNative;
   const row = (label, hint, inner) => `<div class="srow"><div><span class="slabel">${label}</span>${hint ? `<div class="hint">${hint}</div>` : ''}</div><div class="sctl">${inner}</div></div>`;
   const sw = (key, label) => `<button type="button" class="switch" role="switch" aria-checked="${SETTINGS[key]}" aria-label="${label}" data-pg="${key}" data-v="${!SETTINGS[key]}"><span></span></button>`;
-  const seg = `<div class="seg" role="group" aria-label="Appearance">${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<button type="button" class="segb" data-pg="theme" data-v="${v}" aria-pressed="${SETTINGS.theme === v}">${l}</button>`).join('')}</div>`;
+  const seg = (key, label, choices) => `<div class="seg" role="group" aria-label="${label}">${choices.map(([v, l]) => `<button type="button" class="segb" data-pg="${key}" data-v="${v}" aria-pressed="${SETTINGS[key] === v}">${l}</button>`).join('')}</div>`;
   // Both pages ship next to the app, on the web and in the iOS app, and link back to it
-  const links = '<a href="privacy.html">Privacy policy</a> · <a href="support.html">Support</a>';
+  const links = `<a href="privacy.html">${t('Privacy policy')}</a> · <a href="support.html">${t('Support')}</a>`;
   const bests = Object.keys(readJSON('oche-bests', {})).length, games = historyAll().length;
-  $('page').innerHTML = `<section class="panel"><h2>Settings</h2><div class="srows">`
-    + row('Appearance', '', seg)
-    + (native ? row('Haptics', 'A light tap on every button', sw('haptics', 'Haptics')) : '')
-    + row('Keep screen awake during play', 'Stops the screen locking between visits', sw('awake', 'Keep screen awake during play'))
+  $('page').innerHTML = `<section class="panel"><h2>${t('Settings')}</h2><div class="srows">`
+    + row(t('Appearance'), '', seg('theme', t('Appearance'), [['system', t('System')], ['light', t('Light')], ['dark', t('Dark')]]))
+    + row(t('Language'), '', seg('lang', t('Language'), [['system', t('System')], ...Object.entries(LANGS)]))
+    + (native ? row(t('Haptics'), t('A light tap on every button'), sw('haptics', t('Haptics'))) : '')
+    + row(t('Keep screen awake during play'), t('Stops the screen locking between visits'), sw('awake', t('Keep screen awake during play')))
     + `</div></section>
-    <section class="panel"><h2>Your data</h2><p style="margin:0 0 12px;color:var(--muted)">Everything is stored only on this device. ${games} ${games === 1 ? 'match' : 'matches'} in history, ${bests} personal ${bests === 1 ? 'best' : 'bests'}.</p>
-      <button class="btn danger" type="button" data-pg="reset">Reset all data</button></section>
-    <section class="panel"><h2>About</h2><p style="margin:0 0 4px"><b>Oche Scorer</b> <span class="hint">version ${APP_VERSION.startsWith('__') ? 'development' : esc(APP_VERSION)}</span></p>
-      <p style="margin:0 0 12px;color:var(--muted)">Darts scoring and training, kept on your device.</p>
+    <section class="panel"><h2>${t('Your data')}</h2><p style="margin:0 0 12px;color:var(--muted)">${t('Everything is stored only on this device.')} ${t(games === 1 ? '{n} match in history' : '{n} matches in history', { n: games })}, ${t(bests === 1 ? '{n} personal best' : '{n} personal bests', { n: bests })}.</p>
+      <button class="btn danger" type="button" data-pg="reset">${t('Reset all data')}</button></section>
+    <section class="panel"><h2>${t('About')}</h2><p style="margin:0 0 4px"><b>Oche Scorer</b> <span class="hint">${t('version {v}', { v: APP_VERSION.startsWith('__') ? t('development') : esc(APP_VERSION) })}</span></p>
+      <p style="margin:0 0 12px;color:var(--muted)">${t('Darts scoring and training, kept on your device.')}</p>
       ${links ? `<p style="margin:0 0 12px">${links}</p>` : ''}
-      ${APP_STORE_ID ? `<a class="btn" href="https://apps.apple.com/app/id${APP_STORE_ID}?action=write-review" target="_blank" rel="noopener">Rate Oche Scorer</a>` : ''}</section>`;
+      ${APP_STORE_ID ? `<a class="btn" href="https://apps.apple.com/app/id${APP_STORE_ID}?action=write-review" target="_blank" rel="noopener">${t('Rate Oche Scorer')}</a>` : ''}</section>`;
 }
 
 // ---------- setup ----------
-const isDefaultName = name => /^(Bot|Player)( \d+)?$/.test(name);
+// Default names in any language, so setup renames them when the language changes
+const defaultWords = key => [key, ...Object.values(STRINGS).map(s => s[key])];
+const isDefaultName = name => ['Bot', ...defaultWords('Player')].includes(name.replace(/ \d+$/, ''));
 function openSetup(mode) {
   const G = GAMES[mode];
   const [lo, hi] = limitsFor(mode);
@@ -898,20 +917,22 @@ function openSetup(mode) {
   list[0].type = 'human';
   if (list.length > hi) list = list.slice(0, hi);
   while (list.length < lo) list.push({ name: 'Bot', type: 'bot', avg: 50 });
+  if (defaultWords('You').includes(list[0].name)) list[0].name = t('You');
   const ov = $('overlay');
-  const title = mode === 'x01' ? 'X01' : G.title;
-  const desc = MENU.flatMap(([, items]) => items).find(([m]) => m === mode)?.[2] || '';
-  const coText = a => `~${Math.round(E.profileFor(a).co)}% checkout`;
+  const title = mode === 'x01' ? 'X01' : t(G.title);
+  const desc = t(MENU.flatMap(([, items]) => items).find(([m]) => m === mode)?.[2] || '');
+  const coText = a => t('~{n}% checkout', { n: Math.round(E.profileFor(a).co) });
   const renumber = () => {
     // Give duplicate default names a number: Bot, Bot 2, Bot 3…
     const seen = {};
     list.forEach(p => {
       if (!isDefaultName(p.name)) return;
-      const base = p.type === 'bot' ? 'Bot' : 'Player';
+      const base = p.type === 'bot' ? 'Bot' : t('Player');
       seen[base] = (seen[base] || 0) + 1;
-      p.name = seen[base] === 1 && base === 'Bot' ? 'Bot' : `${base} ${base === 'Player' ? list.indexOf(p) + 1 : seen[base]}`;
+      p.name = seen[base] === 1 && base === 'Bot' ? 'Bot' : `${base} ${base !== 'Bot' ? list.indexOf(p) + 1 : seen[base]}`;
     });
   };
+  renumber();
 
   // ---- controls: one line per setting ----
   // Two on/off choices become a switch; short choice lists a segmented control; long ones a dropdown.
@@ -928,51 +949,51 @@ function openSetup(mode) {
     return `<div class="seg" role="group" aria-label="${esc(label)}">${choices.map(([v, l]) => `<button type="button" class="segb" ${attrs(scope, key)} data-v="${v}" aria-pressed="${String(cur) === String(v)}">${l}</button>`).join('')}</div>`;
   };
   const row = (label, inner, forId = '') => `<div class="srow">${forId ? `<label class="slabel" for="${forId}">${label}</label>` : `<span class="slabel">${label}</span>`}<div class="sctl">${inner}</div></div>`;
-  const stepper = (key, value, unit) => `<span class="stepper"><button type="button" data-set="step" data-key="${key}" data-v="-1" aria-label="Fewer">−</button><output class="num" aria-live="polite">${value}</output><button type="button" data-set="step" data-key="${key}" data-v="1" aria-label="More">+</button></span>${unit ? `<span class="unit">${unit}</span>` : ''}`;
+  const stepper = (key, value, unit) => `<span class="stepper"><button type="button" data-set="step" data-key="${key}" data-v="-1" aria-label="${t('Fewer')}">−</button><output class="num" aria-live="polite">${value}</output><button type="button" data-set="step" data-key="${key}" data-v="1" aria-label="${t('More')}">+</button></span>${unit ? `<span class="unit">${unit}</span>` : ''}`;
 
   const x01HTML = () => {
     const custom = ![301, 501, 701].includes(st.start);
-    const unitWord = (c, u) => `${u}${c > 1 ? 's' : ''}`;
-    return row('Start score', control('Start score', 'startPick', [[301, '301'], [501, '501'], [701, '701'], ['custom', 'Custom']], custom ? 'custom' : st.start, 'x01'))
-      + (custom ? row('Custom score', `<input type="number" id="startIn" min="2" max="9999" step="1" value="${st.start}">`, 'startIn') : '')
+    const unitWord = (c, u) => t(c > 1 ? u + 's' : u);
+    return row(t('Start score'), control(t('Start score'), 'startPick', [[301, '301'], [501, '501'], [701, '701'], ['custom', t('Custom')]], custom ? 'custom' : st.start, 'x01'))
+      + (custom ? row(t('Custom score'), `<input type="number" id="startIn" min="2" max="9999" step="1" value="${st.start}">`, 'startIn') : '')
       + row('In', control('In', 'inRule', [['straight', 'Straight'], ['double', 'Double'], ['master', 'Master']], st.inRule, 'x01'))
       + row('Out', control('Out', 'out', [['single', 'Straight'], ['double', 'Double'], ['master', 'Master']], st.out, 'x01'))
-      + row('Match', `<span class="sentence"><select ${attrs('x01', 'kind')} aria-label="Match format"><option value="firstTo" ${st.kind === 'firstTo' ? 'selected' : ''}>First to</option><option value="bestOf" ${st.kind === 'bestOf' ? 'selected' : ''}>Best of</option></select>${stepper('count', st.count, '')}<select ${attrs('x01', 'unit')} aria-label="Legs or sets"><option value="legs" ${st.unit === 'legs' ? 'selected' : ''}>${unitWord(st.count, 'leg')}</option><option value="sets" ${st.unit === 'sets' ? 'selected' : ''}>${unitWord(st.count, 'set')}</option></select></span>`)
-      + (st.unit === 'sets' ? row('Each set', `<span class="sentence"><span class="unit">first to</span>${stepper('setLegs', st.setLegs, unitWord(st.setLegs, 'leg'))}</span>`) : '')
-      + row('Two clear legs', control('Two clear legs', 'twoClear', [[false, 'Off'], [true, 'On']], st.twoClear, 'x01'))
-      + row('Throws first', control('Throws first', 'first', [['p1', 'Player 1'], ['random', 'Random']], st.first, 'x01'));
+      + row(t('Match'), `<span class="sentence"><select ${attrs('x01', 'kind')} aria-label="${t('Match format')}"><option value="firstTo" ${st.kind === 'firstTo' ? 'selected' : ''}>${t('First to')}</option><option value="bestOf" ${st.kind === 'bestOf' ? 'selected' : ''}>${t('Best of')}</option></select>${stepper('count', st.count, '')}<select ${attrs('x01', 'unit')} aria-label="${t('Legs or sets')}"><option value="legs" ${st.unit === 'legs' ? 'selected' : ''}>${unitWord(st.count, 'leg')}</option><option value="sets" ${st.unit === 'sets' ? 'selected' : ''}>${unitWord(st.count, 'set')}</option></select></span>`)
+      + (st.unit === 'sets' ? row(t('Each set'), `<span class="sentence"><span class="unit">${t('first to')}</span>${stepper('setLegs', st.setLegs, unitWord(st.setLegs, 'leg'))}</span>`) : '')
+      + row(t('Two clear legs'), control(t('Two clear legs'), 'twoClear', [[false, t('Off')], [true, t('On')]], st.twoClear, 'x01'))
+      + row(t('Throws first'), control(t('Throws first'), 'first', [['p1', t('Player {n}', { n: 1 })], ['random', t('Random')]], st.first, 'x01'));
   };
-  const gameHTML = () => (G?.options || []).map(d => { const c = control(d.label, d.key, d.choices, st.opts[mode]?.[d.key] ?? d.def, 'game'); return row(d.label, c, c.startsWith('<select') ? `sel-${d.key}` : ''); }).join('');
+  const gameHTML = () => (G?.options || []).map(d => { const c = control(t(d.label), d.key, d.choices.map(([v, l]) => [v, t(l)]), st.opts[mode]?.[d.key] ?? d.def, 'game'); return row(t(d.label), c, c.startsWith('<select') ? `sel-${d.key}` : ''); }).join('');
 
   const playerHTML = (p, i) => `<div class="prow${p.type === 'bot' ? ' isbot' : ''}">
       <div class="prow-top">
-        <input type="text" id="pn${i}" maxlength="16" value="${esc(p.name)}" aria-label="Player ${i + 1} name">
-        ${i > 0 ? `<div class="seg small" role="group" aria-label="Player ${i + 1} type">${[['human', 'Human'], ['bot', 'Bot']].map(([v, l]) => `<button type="button" class="segb" data-set="ptype" data-i="${i}" data-v="${v}" aria-pressed="${p.type === v}">${l}</button>`).join('')}</div>` : ''}
-        ${i > 0 && list.length > lo ? `<button type="button" class="xbtn" data-set="premove" data-i="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : ''}
+        <input type="text" id="pn${i}" maxlength="16" value="${esc(p.name)}" aria-label="${t('Player {n} name', { n: i + 1 })}">
+        ${i > 0 ? `<div class="seg small" role="group" aria-label="${t('Player {n} type', { n: i + 1 })}">${[['human', t('Human')], ['bot', 'Bot']].map(([v, l]) => `<button type="button" class="segb" data-set="ptype" data-i="${i}" data-v="${v}" aria-pressed="${p.type === v}">${l}</button>`).join('')}</div>` : ''}
+        ${i > 0 && list.length > lo ? `<button type="button" class="xbtn" data-set="premove" data-i="${i}" aria-label="${t('Remove {name}', { name: esc(p.name) })}">✕</button>` : ''}
       </div>
-      ${p.type === 'bot' ? `<div class="avgrow"><label class="unit" for="pa${i}">Avg</label><input type="range" id="pa${i}" data-i="${i}" min="${E.AVG_MIN}" max="${E.AVG_MAX}" step="1" value="${p.avg}"><b class="num avgval">${p.avg}</b><span class="hint co">${coText(p.avg)}</span></div>` : ''}
+      ${p.type === 'bot' ? `<div class="avgrow"><label class="unit" for="pa${i}">${t('Avg')}</label><input type="range" id="pa${i}" data-i="${i}" min="${E.AVG_MIN}" max="${E.AVG_MAX}" step="1" value="${p.avg}"><b class="num avgval">${p.avg}</b><span class="hint co">${coText(p.avg)}</span></div>` : ''}
     </div>`;
 
   const draw = () => {
     const x01 = mode === 'x01';
     const rules = x01 ? x01HTML() : gameHTML();
-    const howto = !x01 ? `<details class="howto"><summary>How to play</summary><p class="rules">${G.rules}</p></details>` : '';
-    ov.innerHTML = `<form class="dialog setup" id="setupForm" role="dialog" aria-modal="true" aria-label="${esc(title)} setup">
+    const howto = !x01 ? `<details class="howto"><summary>${t('How to play')}</summary><p class="rules">${t(G.rules)}</p></details>` : '';
+    ov.innerHTML = `<form class="dialog setup" id="setupForm" role="dialog" aria-modal="true" aria-label="${esc(t('{game} setup', { game: title }))}">
       <header class="setup-head">${gameTile(mode)}<div><h3>${esc(title)}</h3><p>${esc(desc)}</p></div></header>
       <div class="setup-body">
-        ${rules || howto ? `<section class="setup-col"><h4 class="label">Rules</h4><div class="srows">${rules}</div>${howto}</section>` : ''}
-        <section class="setup-col"><h4 class="label">${hi === 1 ? 'Player' : `Players · ${lo === hi ? lo : `${lo}–${hi}`}`}</h4>
+        ${rules || howto ? `<section class="setup-col"><h4 class="label">${t('Rules')}</h4><div class="srows">${rules}</div>${howto}</section>` : ''}
+        <section class="setup-col"><h4 class="label">${hi === 1 ? t('Player') : t('Players · {n}', { n: lo === hi ? lo : `${lo}–${hi}` })}</h4>
           <div class="plist">${list.map(playerHTML).join('')}</div>
-          ${list.length < hi ? `<div class="addrow"><button type="button" class="addb" data-set="padd" data-v="bot">+ Bot</button><button type="button" class="addb" data-set="padd" data-v="human">+ Player</button></div>` : ''}
+          ${list.length < hi ? `<div class="addrow"><button type="button" class="addb" data-set="padd" data-v="bot">+ Bot</button><button type="button" class="addb" data-set="padd" data-v="human">+ ${t('Player')}</button></div>` : ''}
         </section>
       </div>
-      <footer class="setup-foot"><button type="button" class="btn" data-act="cancel">Cancel</button><button type="submit" class="btn primary go">Start ${esc(title)}</button></footer></form>`;
+      <footer class="setup-foot"><button type="button" class="btn" data-act="cancel">${t('Cancel')}</button><button type="submit" class="btn primary go">${esc(t('Start {game}', { game: title }))}</button></footer></form>`;
   };
   const sync = () => {
     if (!$('setupForm')) return;
     if ($('startIn')) { const v = Math.round(+$('startIn').value); st.start = v >= 2 && v <= 9999 ? v : 501; }
     list.forEach((p, i) => {
-      const nm = $('pn' + i); if (nm) p.name = nm.value.trim() || (i === 0 ? 'You' : p.type === 'bot' ? 'Bot' : `Player ${i + 1}`);
+      const nm = $('pn' + i); if (nm) p.name = nm.value.trim() || (i === 0 ? t('You') : p.type === 'bot' ? 'Bot' : t('Player {n}', { n: i + 1 }));
       const av = $('pa' + i); if (av) p.avg = +av.value;
     });
   };
@@ -1004,9 +1025,9 @@ function openSetup(mode) {
       if (key === 'count') st.count = st.kind === 'bestOf' ? Math.max(1, Math.min(21, st.count + 2 * d)) : Math.max(1, Math.min(15, st.count + d));
       if (key === 'setLegs') st.setLegs = Math.max(1, Math.min(6, st.setLegs + d));
     }
-    if (set === 'ptype') { list[i].type = v; if (isDefaultName(list[i].name)) list[i].name = v === 'bot' ? 'Bot' : 'Player'; renumber(); }
+    if (set === 'ptype') { list[i].type = v; if (isDefaultName(list[i].name)) list[i].name = v === 'bot' ? 'Bot' : t('Player'); renumber(); }
     if (set === 'premove') { list.splice(i, 1); renumber(); }
-    if (set === 'padd') { list.push({ name: v === 'bot' ? 'Bot' : 'Player', type: v, avg: 50 }); renumber(); }
+    if (set === 'padd') { list.push({ name: v === 'bot' ? 'Bot' : t('Player'), type: v, avg: 50 }); renumber(); }
     redraw(set === 'o' ? `[data-key="${key}"]${b.classList.contains('switch') ? '' : `[data-v="${v}"]`}` : set === 'step' ? `[data-set="step"][data-key="${key}"][data-v="${v}"]` : set === 'ptype' ? `[data-set="ptype"][data-i="${i}"][data-v="${v}"]` : null);
   };
   ov.onchange = e => {

@@ -14,8 +14,9 @@ const dist = new URL('dist/', root);
 const part = f => readFile(new URL(`src/${f}`, root), 'utf8');
 // Single-file page = head.html, "<style>\n", style.css, "</style>\n", body.html (which owns its leading and
 // trailing blank lines), then each script as its tag line + file + "</script>\n", with a blank line between
-// scripts: engine.js, games.js, app.js. The text files hold only what is between the tags.
+// scripts: i18n.js, engine.js, games.js, app.js. The text files hold only what is between the tags.
 const src = (await part('head.html')) + '<style>\n' + (await part('style.css')) + '</style>\n' + (await part('body.html'))
+  + '<script id="i18n">\n' + (await part('i18n.js')) + '</script>\n\n'
   + '<script id="engine">\n' + (await part('engine.js')) + '</script>\n\n'
   + '<script id="games">\n' + (await part('games.js')) + '</script>\n\n'
   + '<script>\n' + (await part('app.js')) + '</script>\n';

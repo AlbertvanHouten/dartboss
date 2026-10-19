@@ -2,20 +2,20 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <h1 id="brand" title="Main menu"><span class="logo" id="logo"></span><span>Oche<span class="dot">.</span></span></h1>
+      <h1 id="brand" title="Main menu" data-ta="title"><span class="logo" id="logo"></span><span>Oche<span class="dot">.</span></span></h1>
       <div class="meta" id="meta"></div>
     </div>
     <div class="hbtns">
-      <button class="btn" id="rematchBtn" type="button">Restart</button>
-      <button class="btn primary" id="menuBtn" type="button">Menu</button>
+      <button class="btn" id="rematchBtn" type="button" data-t>Restart</button>
+      <button class="btn primary" id="menuBtn" type="button" data-t>Menu</button>
     </div>
   </header>
 
-  <nav class="tabs" id="tabs" aria-label="Sections" hidden>
-    <button type="button" data-nav="menu">Play</button>
-    <button type="button" data-nav="history">History</button>
-    <button type="button" data-nav="stats">Stats</button>
-    <button type="button" data-nav="settings">Settings</button>
+  <nav class="tabs" id="tabs" aria-label="Sections" data-ta="aria-label" hidden>
+    <button type="button" data-nav="menu" data-t>Play</button>
+    <button type="button" data-nav="history" data-t>History</button>
+    <button type="button" data-nav="stats" data-t>Stats</button>
+    <button type="button" data-nav="settings" data-t>Settings</button>
   </nav>
 
   <div class="menu" id="menu" hidden></div>
@@ -25,9 +25,9 @@
     <div class="col">
       <div class="col" id="gameLeft" hidden></div>
       <div class="col" id="x01Left">
-      <section class="players" id="players" aria-label="Scoreboard"></section>
+      <section class="players" id="players" aria-label="Scoreboard" data-ta="aria-label"></section>
       <section class="panel" id="winnerPanel" hidden></section>
-      <section class="panel entry" aria-label="Score entry">
+      <section class="panel entry" aria-label="Score entry" data-ta="aria-label">
         <div class="readout">
           <div class="val num" id="readout"></div>
           <div class="who" id="who"></div>
@@ -36,15 +36,15 @@
         <div class="quick" id="quick"></div>
         <div class="keys" id="keys"></div>
         <div class="row-actions">
-          <button class="btn" id="undoBtn" type="button">Undo last visit</button>
-          <span class="hint"><span class="kb">Keys: <kbd>Enter</kbd> to score · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo</span></span>
+          <button class="btn" id="undoBtn" type="button" data-t>Undo last visit</button>
+          <span class="hint"><span class="kb" data-t>Keys: <kbd>Enter</kbd> to score · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo</span></span>
         </div>
       </section>
       </div>
     </div>
 
     <div class="col">
-      <section class="panel board-panel" aria-label="Dartboard">
+      <section class="panel board-panel" aria-label="Dartboard" data-ta="aria-label">
         <div class="cap">
           <span class="label" id="boardLabel">Checkout route</span>
           <span class="cap-route" id="boardRoute"></span>
@@ -59,7 +59,7 @@
         <div class="sheet-wrap"><table class="sheet" id="sheet"></table></div>
       </section>
       <section class="panel">
-        <h2>Match stats</h2>
+        <h2 data-t>Match stats</h2>
         <div class="sheet-wrap"><table class="stats" id="stats"></table></div>
       </section>
       </div>
