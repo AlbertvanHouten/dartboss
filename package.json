@@ -9,7 +9,7 @@
     "serve": "npm run build && python3 -m http.server 8765 --bind 127.0.0.1 --directory dist",
     "ios:sync": "npm run build && cap sync ios",
     "ios:open": "cap open ios",
-    "icons": "swift scripts/make-icons.swift icon 1024 web/icons/icon-1024.png && swift scripts/make-icons.swift mask 512 web/icons/maskable-512.png && swift scripts/make-icons.swift splash 2732 store/splash-2732.png",
+    "icons": "swift scripts/make-icons.swift icon 1024 web/icons/icon-1024.png && swift scripts/make-icons.swift mask 512 web/icons/maskable-512.png && swift scripts/make-icons.swift splash 2732 store/splash-2732.png && for n in 512 192 32; do sips -Z $n web/icons/icon-1024.png --out web/icons/icon-$n.png; done && mv web/icons/icon-32.png web/icons/favicon-32.png && sips -Z 180 web/icons/icon-1024.png --out web/icons/apple-touch-icon.png && cp web/icons/icon-1024.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png && for f in splash-2732x2732 splash-2732x2732-1 splash-2732x2732-2; do cp store/splash-2732.png ios/App/App/Assets.xcassets/Splash.imageset/$f.png; done",
     "fonts": "node scripts/fetch-fonts.mjs",
     "screenshots": "npm run build && node scripts/screenshots.mjs",
     "test": "node scripts/test.mjs",
