@@ -3,10 +3,10 @@
 A darts scorer and trainer for your phone, tablet or browser. Score X01, Cricket, Killer and more against friends, or against bots that throw like real players, and keep your stats over time. It works offline, and everything stays on your device.
 
 <p align="center">
-  <img src="store/screenshots/iphone-6.9/1-x01-match.png" width="200" alt="An X01 match against a bot, with the checkout route shown">
-  <img src="store/screenshots/iphone-6.9/2-menu.png" width="200" alt="The main menu with every game">
-  <img src="store/screenshots/iphone-6.9/3-history.png" width="200" alt="Match history">
-  <img src="store/screenshots/iphone-6.9/4-stats.png" width="200" alt="Lifetime player stats with an average trend">
+  <img src="store/screenshots/en/iphone-6.9/1-x01-match.png" width="200" alt="An X01 match against a bot, with the checkout route shown">
+  <img src="store/screenshots/en/iphone-6.9/2-menu.png" width="200" alt="The main menu with every game">
+  <img src="store/screenshots/en/iphone-6.9/3-history.png" width="200" alt="Match history">
+  <img src="store/screenshots/en/iphone-6.9/4-stats.png" width="200" alt="Lifetime player stats with an average trend">
 </p>
 
 ## Highlights
