@@ -1008,7 +1008,7 @@ function openSetup(mode) {
     const custom = ![301, 501, 701].includes(st.start);
     const unitWord = (c, u) => t(c > 1 ? u + 's' : u);
     return row(t('Start score'), control(t('Start score'), 'startPick', [[301, '301'], [501, '501'], [701, '701'], ['custom', t('Custom')]], custom ? 'custom' : st.start, 'x01'))
-      + (custom ? row(t('Custom score'), `<input type="number" id="startIn" min="2" max="9999" step="1" value="${st.start}">`, 'startIn') : '')
+      + (custom ? row(t('Custom score'), `<input type="number" inputmode="numeric" id="startIn" min="2" max="9999" step="1" value="${st.start}">`, 'startIn') : '')
       + row('In', control('In', 'inRule', [['straight', 'Straight'], ['double', 'Double'], ['master', 'Master']], st.inRule, 'x01'))
       + row('Out', control('Out', 'out', [['single', 'Straight'], ['double', 'Double'], ['master', 'Master']], st.out, 'x01'))
       + row(t('Match'), `<span class="sentence"><select ${attrs('x01', 'kind')} aria-label="${t('Match format')}"><option value="firstTo" ${st.kind === 'firstTo' ? 'selected' : ''}>${t('First to')}</option><option value="bestOf" ${st.kind === 'bestOf' ? 'selected' : ''}>${t('Best of')}</option></select>${stepper('count', st.count, '')}<select ${attrs('x01', 'unit')} aria-label="${t('Legs or sets')}"><option value="legs" ${st.unit === 'legs' ? 'selected' : ''}>${unitWord(st.count, 'leg')}</option><option value="sets" ${st.unit === 'sets' ? 'selected' : ''}>${unitWord(st.count, 'set')}</option></select></span>`)

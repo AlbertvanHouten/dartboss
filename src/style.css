@@ -443,6 +443,8 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 
 /* Dialogs and toast */
 .overlay { backdrop-filter: blur(3px); }
+/* iOS zooms the page into any field with text under 16px and leaves it zoomed, scrollable sideways */
+@media (pointer: coarse) { input, select, textarea { font-size: max(16px, 1em) !important; } }
 .dialog { background: var(--surface); border: 1px solid var(--line); padding: 20px; width: min(440px, 100%); display: grid; gap: 16px; max-height: 100%; overflow-y: auto; border-radius: 18px; box-shadow: 0 30px 80px -30px rgba(0, 0, 0, .6); }
 .opt { border: 1px solid var(--line); background: var(--surface-2); padding: 8px 14px; font-weight: 600; min-width: 46px; border-radius: 999px; }
 .prow { border: 1px solid var(--line); padding: 8px; display: grid; gap: 6px; min-width: 0; border-radius: 12px; background: var(--surface-2); }
