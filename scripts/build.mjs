@@ -3,7 +3,7 @@
 //   - wraps the page in a full HTML document with the app manifest, icons and theme colours
 //   - swaps Google Fonts for the bundled copies in web/fonts, so nothing loads from third parties
 //   - adds native.js (haptics and native storage inside the iOS app; offline cache on the web)
-//   - stamps the offline cache with a version so updates reach installed copies
+//   - stamps the offline cache with a version so updates reach installed copies, and lists the caller's clips for it
 // dist/ is what gets hosted on the web and what Capacitor copies into the iOS app.
 //   node scripts/build.mjs
 import { createHash } from 'node:crypto';
@@ -77,6 +77,8 @@ await mkdir(dist, { recursive: true });
 await cp(new URL('web/', root), dist, { recursive: true });
 await writeFile(new URL('index.html', dist), html);
 await writeFile(new URL('oche.html', dist), src);
-const sw = (await readFile(new URL('web/sw.js', root), 'utf8')).replace('__VERSION__', version);
+const caller = (await readdir(new URL('web/caller/', root))).sort().map(f => `caller/${f}`);
+const sw = (await readFile(new URL('web/sw.js', root), 'utf8')).replace('__VERSION__', version)
+  .replace('/*__CALLER__*/[]', JSON.stringify(caller));
 await writeFile(new URL('sw.js', dist), sw);
 console.log(`Built dist/ (version ${version})`);

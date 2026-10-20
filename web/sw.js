@@ -8,6 +8,8 @@ const SHELL = [
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
   'fonts/fonts.css',
 ];
+// The caller's clips (web/caller/), listed by the build
+const CALLER = /*__CALLER__*/[];
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
@@ -17,6 +19,8 @@ self.addEventListener('install', event => {
     const css = await (await cache.match('fonts/fonts.css')).text();
     const fonts = [...css.matchAll(/url\(([^)]+)\)/g)].map(m => 'fonts/' + m[1]);
     await cache.addAll(fonts);
+    // A clip that fails to load is fetched when it first plays instead; it never stops the install
+    await Promise.allSettled(CALLER.map(f => cache.add(f)));
     await self.skipWaiting();
   })());
 });

@@ -4,7 +4,7 @@
 //   npm run build && npm run test:e2e
 import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import assert from 'node:assert/strict';
 import puppeteer from 'puppeteer-core';
@@ -30,6 +30,13 @@ try {
   await page.goto(url, { waitUntil: 'networkidle0' });
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'networkidle0' });
+  // The offline cache holds every clip once installed (checked before anything plays one), so the caller works offline from the first match
+  const clips = (await readdir(new URL('../web/caller/', import.meta.url))).map(f => `caller/${f}`).sort();
+  const cached = await page.evaluate(`navigator.serviceWorker.ready.then(async () => {
+    const cache = await caches.open((await caches.keys()).find(k => k.startsWith('oche-')));
+    return (await cache.keys()).map(r => new URL(r.url).pathname.slice(1)).filter(p => p.startsWith('caller/')).sort();
+  })`);
+  assert.deepEqual(cached, clips, 'the offline cache holds every caller clip');
 
   // The page's own functions and state are globals, so the test drives the match through them
   const run = fn => page.evaluate(fn);
