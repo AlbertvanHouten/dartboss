@@ -9,7 +9,7 @@ const STRINGS = {
   nl: {
     // menu, tabs and static markup
     'Menu': 'Menu', 'Restart': 'Opnieuw', 'Main menu': 'Hoofdmenu', 'Sections': 'Onderdelen',
-    'Play': 'Spellen', 'History': 'Geschiedenis', 'Stats': 'Statistieken', 'Settings': 'Instellingen',
+    'Play': 'Spelen', 'History': 'Geschiedenis', 'Stats': 'Statistieken', 'Settings': 'Instellingen',
     'Scoreboard': 'Scorebord', 'Score entry': 'Score invoeren', 'Dartboard': 'Dartbord',
     'Undo last visit': 'Laatste beurt terug',
     'Keys: <kbd>Enter</kbd> to score · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo': 'Toetsen: <kbd>Enter</kbd> om te scoren · <kbd>Ctrl</kbd>+<kbd>Z</kbd> ongedaan maken',
@@ -217,7 +217,7 @@ const STRINGS = {
   de: {
     // menu, tabs and static markup
     'Menu': 'Menü', 'Restart': 'Neustart', 'Main menu': 'Hauptmenü', 'Sections': 'Bereiche',
-    'Play': 'Spiele', 'History': 'Verlauf', 'Stats': 'Statistik', 'Settings': 'Einstellungen',
+    'Play': 'Spielen', 'History': 'Verlauf', 'Stats': 'Statistik', 'Settings': 'Einstellungen',
     'Scoreboard': 'Anzeigetafel', 'Score entry': 'Score-Eingabe', 'Dartboard': 'Dartscheibe',
     'Undo last visit': 'Letzte Aufnahme zurück',
     'Keys: <kbd>Enter</kbd> to score · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo': 'Tasten: <kbd>Enter</kbd> zum Eintragen · <kbd>Strg</kbd>+<kbd>Z</kbd> rückgängig',
