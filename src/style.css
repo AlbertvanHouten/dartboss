@@ -356,6 +356,10 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .srows { display: grid; grid-template-columns: minmax(0, 1fr); border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
 .srow { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 8px 10px 8px 14px; min-height: 48px; flex-wrap: wrap; }
 .srow + .srow { border-top: 1px solid var(--line); }
+/* A switch stays beside its label; the label and hint wrap instead */
+.srow:has(> .sctl > .switch) { flex-wrap: nowrap; }
+.srow:has(> .sctl > .switch) > :first-child { min-width: 0; }
+.srow:has(> .sctl > .switch) > .sctl { flex-shrink: 0; }
 .slabel { font-weight: 600; font-size: 14px; }
 .sctl { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
 .sctl select, .sctl input[type=number] { font: inherit; font-weight: 600; padding: 6px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 100%; }

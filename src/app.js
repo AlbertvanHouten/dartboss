@@ -944,7 +944,8 @@ function renderSettings() {
   const bests = Object.keys(readJSON('oche-bests', {})).length, games = historyAll().length;
   $('page').innerHTML = `<section class="panel"><h2>${t('Settings')}</h2><div class="srows">`
     + row(t('Appearance'), '', seg('theme', t('Appearance'), [['system', t('System')], ['light', t('Light')], ['dark', t('Dark')]]))
-    + row(t('Language'), '', seg('lang', t('Language'), [['system', t('System')], ...Object.entries(LANGS)]))
+    // A dropdown, not a segmented control: four or more language names don't fit beside each other on a phone
+    + row(t('Language'), '', `<select data-pg="lang" aria-label="${t('Language')}">${[['system', t('System')], ...Object.entries(LANGS)].map(([v, l]) => `<option value="${v}"${SETTINGS.lang === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`)
     + (native ? row(t('Haptics'), t('A light tap on every button'), sw('haptics', t('Haptics'))) : '')
     + row(t('Caller'), t('Calls out scores and finishes in X01'), sw('caller', t('Caller')))
     + row(t('Keep screen awake during play'), t('Stops the screen locking between visits'), sw('awake', t('Keep screen awake during play')))
@@ -1166,6 +1167,7 @@ window.ocheBack = () => {
   goMenu();
   return true;
 };
+document.addEventListener('change', e => { if (e.target.matches('#page select[data-pg]')) pageAct(e.target.dataset.pg, e.target.value); });
 $('undoBtn').addEventListener('click', undo);
 $('menuBtn').addEventListener('click', goMenu);
 $('brand').addEventListener('click', () => { if (S.screen !== 'menu' && !dialogOpen) goMenu(); });

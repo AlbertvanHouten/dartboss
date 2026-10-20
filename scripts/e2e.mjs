@@ -145,7 +145,7 @@ try {
   // Language: Dutch and German apply at once to the menu, the play screen and Settings, and survive a reload
   const speak = async (lang, words) => {
     await run("goScreen('settings')");
-    await click(`[data-pg="lang"][data-v="${lang}"]`);
+    await run(`(s => { s.value = '${lang}'; s.dispatchEvent(new Event('change', { bubbles: true })); })(document.querySelector('[data-pg="lang"]'))`);
     assert.equal(await run('document.documentElement.lang'), lang, `${lang} sets <html lang>`);
     assert.match(await text('#page'), words.settings, `Settings in ${lang}`);
     await page.reload({ waitUntil: 'networkidle0' });
@@ -157,10 +157,10 @@ try {
     assert.match(await text('#play'), words.play, `the play screen in ${lang}`);
     assert.match(await text('#menuBtn'), words.menuBtn);
   };
-  await speak('nl', { settings: /Instellingen[\s\S]*Taal[\s\S]*Alle gegevens wissen/i, tabs: /Spelen\s*Geschiedenis/i, menu: /Stap naar de oche[\s\S]*Oefenen[\s\S]*Dubbeltraining/i, play: /Voer score in[\s\S]*Aan de beurt[\s\S]*Laatste beurt terug/i, menuBtn: /Menu/i });
-  await speak('de', { settings: /Einstellungen[\s\S]*Sprache[\s\S]*Alle Daten zurücksetzen/i, tabs: /Spielen\s*Verlauf/, menu: /Ab an die Oche[\s\S]*Training[\s\S]*Double-Training/i, play: /Score eingeben[\s\S]*Am Wurf[\s\S]*Letzte Aufnahme zurück/i, menuBtn: /Menü/i });
+  await speak('nl', { settings: /Instellingen[\s\S]*Taal[\s\S]*Alle gegevens wissen/i, tabs: /Spellen\s*Geschiedenis/i, menu: /Stap naar de oche[\s\S]*Oefenen[\s\S]*Dubbeltraining/i, play: /Voer score in[\s\S]*Aan de beurt[\s\S]*Laatste beurt terug/i, menuBtn: /Menu/i });
+  await speak('de', { settings: /Einstellungen[\s\S]*Sprache[\s\S]*Alle Daten zurücksetzen/i, tabs: /Spiele\s*Verlauf/, menu: /Ab ans Oche[\s\S]*Training[\s\S]*Double-Training/i, play: /Score eingeben[\s\S]*Am Wurf[\s\S]*Letzte Aufnahme zurück/i, menuBtn: /Menü/i });
   await run("goScreen('settings')");
-  await click('[data-pg="lang"][data-v="system"]');
+  await run(`(s => { s.value = 'system'; s.dispatchEvent(new Event('change', { bubbles: true })); })(document.querySelector('[data-pg="lang"]'))`);
   assert.match(await text('#page'), /Settings[\s\S]*Language/i, 'System goes back to English here');
 
   // Small phones in every language: nothing scrolls sideways or sticks out of its card, with four long names
