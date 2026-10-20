@@ -163,6 +163,33 @@ try {
   await click('[data-pg="lang"][data-v="system"]');
   assert.match(await text('#page'), /Settings[\s\S]*Language/i, 'System goes back to English here');
 
+  // Small phones in every language: nothing scrolls sideways or sticks out of its card, with four long names
+  const long = "[{ name: 'Alexandria Whitfield', type: 'human' }, { name: 'Maximilian Schreiber', type: 'human' }, { name: 'Bartholomeus Jansen', type: 'human' }, { name: 'Bot', type: 'bot', avg: 60 }]";
+  const outside = () => run(`(() => {
+    if (document.documentElement.scrollWidth > innerWidth) return ['page ' + document.documentElement.scrollWidth];
+    return [...document.querySelectorAll('.panel *, .player *, .mp *, .gbtn *, .dialog *')].filter(el => {
+      const r = el.getBoundingClientRect(), box = el.parentElement.closest('.panel, .player, .mp, .gbtn, .dialog').getBoundingClientRect();
+      return r.width && !el.closest('.sheet-wrap, [hidden]') && (r.right > box.right + 1 || r.left < box.left - 1);
+    }).map(el => el.className || el.tagName);
+  })()`);
+  for (const width of [320, 360]) for (const lang of ['en', 'nl', 'de']) {
+    await page.setViewport({ width, height: 700, isMobile: true, hasTouch: true });
+    await run(`setSetting('lang', '${lang}')`);
+    for (const scr of ['menu', 'history', 'stats', 'settings']) {
+      await run(`goScreen('${scr}')`);
+      assert.deepEqual(await outside(), [], `${scr} fits ${width} px in ${lang}`);
+    }
+    for (const mode of await run('MENU.flatMap(([, items]) => items.map(([m]) => m))')) {
+      await run(`startMatch({ ...DEFAULT_SETTINGS, mode: '${mode}', count: 5, players: ${long}.slice(0, PLAYER_LIMITS['${mode}']?.[1] ?? 1) }); cancelBot(); render()`);
+      assert.deepEqual(await outside(), [], `${mode} fits ${width} px in ${lang}`);
+      await run(`goMenu(); document.querySelector('[data-menu="${mode}"]').click()`);
+      assert.deepEqual(await outside(), [], `${mode} setup fits ${width} px in ${lang}`);
+      await run(`document.querySelector('#overlay [data-act="cancel"]').click()`);
+    }
+  }
+  await run("setSetting('lang', 'system')");
+  await page.setViewport({ width: 800, height: 600 });
+
   // A save this version can't show opens the menu with a fresh match, not a blank page
   await run(`localStorage.setItem('oche-match-v1', JSON.stringify({ settings: { mode: 'x01', players: null }, legs: [{}], screen: 'play' }))`);
   errors.length = 0;
