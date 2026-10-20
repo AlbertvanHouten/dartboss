@@ -38,7 +38,7 @@ jobs:
 
       - name: Check the build
         run: |
-          for f in index.html oche.html sw.js native.js manifest.webmanifest privacy.html fonts/fonts.css icons/icon-512.png; do
+          for f in index.html oche.html sw.js native.js manifest.webmanifest privacy.html fonts/fonts.css icons/icon-512.png caller/180.mp3 caller/req-170.mp3 caller/gameshot.mp3; do
             test -s "dist/$f" || { echo "::error::dist/$f is missing"; exit 1; }
           done
           if grep -q "__VERSION__" dist/sw.js; then echo "::error::offline cache version was not stamped"; exit 1; fi

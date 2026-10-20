@@ -131,7 +131,7 @@ function writeJSON(key, value) {
   try { localStorage.setItem(key, json); } catch (e) {}
   window.ocheNative?.persist(key, json);
 }
-const SETTINGS_DEFAULT = { theme: 'system', lang: 'system', haptics: true, awake: true };
+const SETTINGS_DEFAULT = { theme: 'system', lang: 'system', haptics: true, awake: true, caller: true };
 let SETTINGS = { ...SETTINGS_DEFAULT };
 function setSetting(key, value) { SETTINGS[key] = value; writeJSON(SETTINGS_KEY, SETTINGS); applySettings(); }
 function applySettings() {
@@ -415,6 +415,49 @@ function toast(text) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
 }
 
+// ---------- caller ----------
+// Pre-recorded X01 calls in caller/ (a designed voice, see docs/caller.md). Web Audio, unlocked by the
+// first tap or key, so bot visits that land later are called too. Missing files (the artifact preview) stay quiet.
+const caller = (() => {
+  let ctx = null, chain = Promise.resolve(), at = 0;
+  const bufs = {};
+  const load = name => bufs[name] || (bufs[name] = fetch(`caller/${name}.mp3`)
+    .then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status)).then(b => ctx.decodeAudioData(b))
+    .catch(e => { delete bufs[name]; throw e; }));
+  return {
+    unlock() {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!ctx && AC) ctx = new AC();
+      if (ctx?.state === 'suspended') ctx.resume();
+    },
+    say(...names) {
+      if (!SETTINGS.caller || !ctx) return;
+      const loads = names.map(load);
+      // One after another, in order, even when a later file loads first
+      chain = chain.then(async () => {
+        for (const p of loads) {
+          try {
+            const buf = await p, src = ctx.createBufferSource();
+            src.buffer = buf; src.connect(ctx.destination);
+            const t = Math.max(ctx.currentTime, at);
+            src.start(t); at = t + buf.duration + 0.15;
+          } catch (e) {}
+        }
+      });
+    },
+  };
+})();
+// What the caller says after a visit: the score (or bust, or game shot), then what the next player needs
+function callVisit(v) {
+  if (v.checkout) return caller.say('gameshot');
+  const said = v.bust ? 'bust' : v.score === 0 ? 'noscore' : String(v.score);
+  const leg = curLeg(), next = turnOf(leg), rem = remaining(leg, next), out = S.settings.out;
+  // Requirement calls exist for every double-out finish from 2 to 170
+  const onFinish = opened(leg, next) && rem >= 2 && rem <= 170 && E.minDarts(rem, 'double') <= 3 && E.minDarts(rem, out) <= 3;
+  caller.say(...(onFinish ? [said, `req-${rem}`] : [said]));
+}
+['click', 'keydown'].forEach(t => document.addEventListener(t, () => caller.unlock(), true));
+
 // ---------- game flow ----------
 function commitVisit(v) {
   const leg = curLeg();
@@ -440,6 +483,7 @@ function commitVisit(v) {
   } else if (v.score === 180) {
     toast(t('One hundred and eighty!'));
   }
+  callVisit(v);
   save(); render(); maybeBot();
 }
 function maybeBot() {
@@ -902,6 +946,7 @@ function renderSettings() {
     + row(t('Appearance'), '', seg('theme', t('Appearance'), [['system', t('System')], ['light', t('Light')], ['dark', t('Dark')]]))
     + row(t('Language'), '', seg('lang', t('Language'), [['system', t('System')], ...Object.entries(LANGS)]))
     + (native ? row(t('Haptics'), t('A light tap on every button'), sw('haptics', t('Haptics'))) : '')
+    + row(t('Caller'), t('Calls out scores and finishes in X01'), sw('caller', t('Caller')))
     + row(t('Keep screen awake during play'), t('Stops the screen locking between visits'), sw('awake', t('Keep screen awake during play')))
     + `</div></section>
     <section class="panel"><h2>${t('Your data')}</h2><p style="margin:0 0 12px;color:var(--muted)">${t('Everything is stored only on this device.')} ${t(games === 1 ? '{n} match in history' : '{n} matches in history', { n: games })}, ${t(bests === 1 ? '{n} personal best' : '{n} personal bests', { n: bests })}.</p>

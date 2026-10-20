@@ -66,6 +66,20 @@ try {
   assert.equal(await run('raceWinner([3, 1], 2, true)'), 0);
   assert.equal(await run('raceWinner([2, 1], 2, false)'), 0);
 
+  // The caller: the score, then what the next player needs when they're on a finish; bust; game shot
+  await run('window.calls = []; caller.say = (...n) => calls.push(n)');
+  // Two legs, so the checkout wins a leg and leaves nothing in History for the checks below
+  await run(`startMatch({ ...DEFAULT_SETTINGS, start: 301, count: 2, players: ${humans} })`);
+  await run('submit(0)');                       // You: no score; Ann is on 301
+  await run('submit(140)');                     // Ann: 161 left; You are on 301
+  await run('submit(180)');                     // You: 121 left; Ann's 161 is a finish
+  await run('submit(1)');                       // Ann: 160 left; You need 121
+  await run('submit(130)');                     // You bust; Ann needs 160
+  await run('submit(60)');                      // Ann: 100 left; You need 121
+  await run('submit(121)');                     // You check out the leg
+  assert.deepEqual(await run('calls'), [['noscore'], ['140'], ['180', 'req-161'], ['1', 'req-121'], ['bust', 'req-160'], ['60', 'req-121'], ['gameshot']]);
+  assert.ok(await run("fetch('caller/180.mp3').then(r => r.ok)"), 'the caller files ship with the app');
+
   // A finished match shows in History (sheet, delete) and in Stats
   await run(`startMatch({ ...DEFAULT_SETTINGS, start: 121, count: 1, players: ${humans} })`);
   await run('submit(121)');

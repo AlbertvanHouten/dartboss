@@ -7,12 +7,13 @@ The game is plain HTML, CSS and JavaScript with no framework or bundler. The bui
 | Path | What it is |
 |---|---|
 | `src/` | The game: `head.html`, `style.css`, `body.html`, `i18n.js`, `engine.js`, `games.js`, `app.js` (the build joins them into one page) |
-| `web/` | Files for the standalone app: `native.js` (native bridge, offline cache), `sw.js`, `manifest.webmanifest`, `privacy.html`, `support.html`, icons, bundled fonts |
+| `web/` | Files for the standalone app: `native.js` (native bridge, offline cache), `sw.js`, `manifest.webmanifest`, `privacy.html`, `support.html`, icons, bundled fonts, `caller/` clips |
 | `scripts/build.mjs` | Builds `dist/` from `src/` and `web/`, plus `dist/oche.html` for the Claude artifact preview |
 | `scripts/test.mjs` | Checks without a browser: scripts parse, checkout routes, bot averages, every game finishes, every string translated |
 | `scripts/screenshots.mjs` | App Store screenshots of `dist/` in Chrome at Apple's sizes |
 | `scripts/make-icons.swift` | Draws the app icon, maskable icon and launch image |
 | `scripts/android-icons.sh` | Writes the Android launcher icons (legacy and adaptive) from the same artwork |
+| `scripts/caller/` | Generates the caller clips (see [the caller](caller.md)) |
 | `scripts/fetch-fonts.mjs` | Downloads the Google Fonts into `web/fonts` (Open Font License) |
 | `capacitor.config.json` | App ID, name and web directory for the iOS and Android apps |
 | `ios/` | The Xcode project (Capacitor 8, Swift Package Manager) |

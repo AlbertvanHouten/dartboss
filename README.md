@@ -15,6 +15,7 @@ A darts scorer and trainer for your phone, tablet or browser. Score X01, Cricket
 - **Ten more games:** Cricket, Killer, Shanghai and Halve It to play, plus practice with 121 Checkout, Around the Clock, Bob's 27, and Doubles, Singles and Score Training.
 - **Bots that feel human:** set any average from 20 to 120. They miss up and down more than sideways, find the doubles harder at lower levels and feel the pressure on a match dart.
 - **History and stats:** every match is kept with its score sheet. Lifetime averages, checkout %, 180s and a trend for each player.
+- **A caller:** scores, finishes and "game shot" called out loud in X01, with the shout saved for the big ones.
 - **Made for the oche:** quick scores, a one-tap checkout, undo, and a screen that stays awake between visits.
 - **Private:** no accounts, no ads and no tracking. It works fully offline.
 
@@ -35,6 +36,7 @@ For the Android app, run `npm run android:sync` and then `npm run android:open` 
 |---|---|
 | [Games and options](docs/games.md) | every game and its settings |
 | [How the bots play](docs/bots.md) | the throwing model, strategy and calibration |
+| [The caller](docs/caller.md) | how the X01 calls are made and regenerated |
 | [Development](docs/development.md) | project layout, commands, how the code fits together, data |
 | [Releasing](docs/releasing.md) | web hosting, CI/CD, and getting the apps onto the App Store and Google Play |
 

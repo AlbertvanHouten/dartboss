@@ -97,4 +97,11 @@ for (const G of Object.values(GAMES)) {
 for (const [group, items] of MENU) { used.add(group); for (const [, title, desc] of items) used.add(title).add(desc); }
 for (const k of used) if (/[a-z]/i.test(k)) assert.ok(k in nl, `no translation for "${k}"`);
 
+// The caller has a clip for every call the app can make
+const { existsSync } = await import('node:fs');
+const clip = name => existsSync(new URL(`../web/caller/${name}.mp3`, import.meta.url));
+for (const name of ['noscore', 'bust', 'gameshot']) assert.ok(clip(name), `caller/${name}.mp3`);
+for (let s = 1; s <= 180; s++) if (E.validVisit(s)) assert.ok(clip(String(s)), `caller/${s}.mp3`);
+for (let r = 2; r <= 170; r++) if (E.minDarts(r, 'double') <= 3) assert.ok(clip(`req-${r}`), `caller/req-${r}.mp3`);
+
 console.log('All checks passed');

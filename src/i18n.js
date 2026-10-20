@@ -199,6 +199,7 @@ const STRINGS = {
     // Settings and About
     'Appearance': 'Weergave', 'System': 'Systeem', 'Light': 'Licht', 'Dark': 'Donker', 'Language': 'Taal',
     'Haptics': 'Trillen', 'A light tap on every button': 'Een lichte tik bij elke knop',
+    'Caller': 'Caller', 'Calls out scores and finishes in X01': 'Roept scores en finishes om in X01',
     'Keep screen awake during play': 'Scherm aan houden tijdens het spel', 'Stops the screen locking between visits': 'Voorkomt dat het scherm tussen beurten vergrendelt',
     'Your data': 'Je gegevens', 'Everything is stored only on this device.': 'Alles wordt alleen op dit apparaat bewaard.',
     '{n} match in history': '{n} wedstrijd in de geschiedenis', '{n} matches in history': '{n} wedstrijden in de geschiedenis',
@@ -406,6 +407,7 @@ const STRINGS = {
     // Settings and About
     'Appearance': 'Darstellung', 'System': 'System', 'Light': 'Hell', 'Dark': 'Dunkel', 'Language': 'Sprache',
     'Haptics': 'Haptik', 'A light tap on every button': 'Ein leichtes Tippen bei jeder Taste',
+    'Caller': 'Caller', 'Calls out scores and finishes in X01': 'Ruft Scores und Finishes bei X01 aus',
     'Keep screen awake during play': 'Bildschirm beim Spielen anlassen', 'Stops the screen locking between visits': 'Verhindert, dass sich der Bildschirm zwischen Aufnahmen sperrt',
     'Your data': 'Deine Daten', 'Everything is stored only on this device.': 'Alles wird nur auf diesem Gerät gespeichert.',
     '{n} match in history': '{n} Match im Verlauf', '{n} matches in history': '{n} Matches im Verlauf',
