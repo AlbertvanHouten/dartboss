@@ -269,6 +269,11 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
   .wrap:has(.tabs:not([hidden])) { padding-bottom: 72px; }
   body:has(.tabs:not([hidden])) .toast { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
 }
+/* Narrow phones: tabs size to their labels so long Dutch and German names still fit */
+@media (max-width: 439px) {
+  .tabs { gap: 2px; }
+  .tabs button { flex: 1 1 auto; min-width: 0; padding-inline: 4px; }
+}
 .cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); }
 @media (hover: hover) { .gcard:hover { border-color: var(--ink); transform: translateY(-1px); } }
 .gcard .gmeta .pb { color: var(--green); }
@@ -342,14 +347,14 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .setup-body { overflow-y: auto; padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: 18px 28px; align-content: start; }
 .setup-col { display: grid; gap: 10px; align-content: start; min-width: 0; }
 .setup-col h4 { margin: 0; }
-.srows { display: grid; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.srows { display: grid; grid-template-columns: minmax(0, 1fr); border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
 .srow { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 8px 10px 8px 14px; min-height: 48px; flex-wrap: wrap; }
 .srow + .srow { border-top: 1px solid var(--line); }
 .slabel { font-weight: 600; font-size: 14px; }
 .sctl { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
 .sctl select, .sctl input[type=number] { font: inherit; font-weight: 600; padding: 6px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 100%; }
 .sctl input[type=number] { width: 96px; }
-.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 2px; gap: 2px; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 2px; gap: 2px; }
 .segb { border: 0; background: transparent; border-radius: 8px; padding: 5px 11px; font-weight: 600; font-size: 14px; color: var(--muted); white-space: nowrap; }
 .segb[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
 @media (hover: hover) { .segb:hover:not([aria-pressed="true"]) { color: var(--ink); } }
