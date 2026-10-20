@@ -1,4 +1,4 @@
-# Oche Scorer
+# Dartboss
 
 A darts scorer and trainer for your phone, tablet or browser. Score X01, Cricket, Killer and more against friends, or against bots that throw like real players, and keep your stats over time. It works offline, and everything stays on your device.
 

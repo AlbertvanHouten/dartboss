@@ -818,9 +818,9 @@ let histOpen = null, statsWho = null; // histOpen: id of the history entry shown
 const entryTitle = e => e.mode === 'x01' ? `${e.settings.start || 501}` : GAMES[e.mode] ? t(GAMES[e.mode].title) : e.mode;
 const playersLine = e => e.settings.players.map(p => esc(p.name) + (p.type === 'bot' ? ` (${t('{avg} avg', { avg: botAvg(p) })})` : '')).join(' vs ');
 function shareIt(text) {
-  window.ocheNative?.share({ title: 'Oche Scorer', text }).then(r => { if (r === 'copied') toast(t('Copied')); });
+  window.ocheNative?.share({ title: 'Dartboss', text }).then(r => { if (r === 'copied') toast(t('Copied')); });
 }
-const shareText = (title, headline, extra) => ['Oche', title, headline, extra].filter(Boolean).join(' · ');
+const shareText = (title, headline, extra) => ['Dartboss', title, headline, extra].filter(Boolean).join(' · ');
 const x01Extra = s => `${t('Avg')} ${fmt(s.avg)}${s.highFinish ? ` · ${t('High finish')} ${s.highFinish}` : ''}`;
 // X01 quotes the winner's numbers (first player in a tie), other games their result sentence
 function entryShare(e) {
@@ -951,10 +951,10 @@ function renderSettings() {
     + `</div></section>
     <section class="panel"><h2>${t('Your data')}</h2><p style="margin:0 0 12px;color:var(--muted)">${t('Everything is stored only on this device.')} ${t(games === 1 ? '{n} match in history' : '{n} matches in history', { n: games })}, ${t(bests === 1 ? '{n} personal best' : '{n} personal bests', { n: bests })}.</p>
       <button class="btn danger" type="button" data-pg="reset">${t('Reset all data')}</button></section>
-    <section class="panel"><h2>${t('About')}</h2><p style="margin:0 0 4px"><b>Oche Scorer</b> <span class="hint">${t('version {v}', { v: APP_VERSION.startsWith('__') ? t('development') : esc(APP_VERSION) })}</span></p>
+    <section class="panel"><h2>${t('About')}</h2><p style="margin:0 0 4px"><b>Dartboss</b> <span class="hint">${t('version {v}', { v: APP_VERSION.startsWith('__') ? t('development') : esc(APP_VERSION) })}</span></p>
       <p style="margin:0 0 12px;color:var(--muted)">${t('Darts scoring and training, kept on your device.')}</p>
       ${links ? `<p style="margin:0 0 12px">${links}</p>` : ''}
-      ${APP_STORE_ID ? `<a class="btn" href="https://apps.apple.com/app/id${APP_STORE_ID}?action=write-review" target="_blank" rel="noopener">${t('Rate Oche Scorer')}</a>` : ''}</section>`;
+      ${APP_STORE_ID ? `<a class="btn" href="https://apps.apple.com/app/id${APP_STORE_ID}?action=write-review" target="_blank" rel="noopener">${t('Rate Dartboss')}</a>` : ''}</section>`;
 }
 
 // ---------- setup ----------

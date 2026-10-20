@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Oche Scorer</string>
-    <string name="title_activity_main">Oche Scorer</string>
+    <string name="app_name">Dartboss</string>
+    <string name="title_activity_main">Dartboss</string>
     <string name="package_name">com.albertvanhouten.oche</string>
     <string name="custom_url_scheme">com.albertvanhouten.oche</string>
 </resources>

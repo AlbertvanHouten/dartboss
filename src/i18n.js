@@ -205,7 +205,7 @@ const STRINGS = {
     '{n} match in history': '{n} wedstrijd in de geschiedenis', '{n} matches in history': '{n} wedstrijden in de geschiedenis',
     '{n} personal best': '{n} persoonlijk record', '{n} personal bests': '{n} persoonlijke records', 'Reset all data': 'Alle gegevens wissen',
     'About': 'Over', 'version {v}': 'versie {v}', 'development': 'ontwikkeling', 'Darts scoring and training, kept on your device.': 'Darts scoren en trainen, bewaard op je apparaat.',
-    'Privacy policy': 'Privacybeleid', 'Support': 'Support', 'Rate Oche Scorer': 'Beoordeel Oche Scorer',
+    'Privacy policy': 'Privacybeleid', 'Support': 'Support', 'Rate Dartboss': 'Beoordeel Dartboss',
     // Setup
     'You': 'Jij', 'Player {n}': 'Speler {n}', 'Human': 'Mens', '~{n}% checkout': '~{n}% checkout', 'Fewer': 'Minder', 'More': 'Meer',
     'Start score': 'Startscore', 'Custom': 'Anders', 'Custom score': 'Eigen startscore', 'Match': 'Wedstrijd', 'Match format': 'Wedstrijdvorm',
@@ -413,7 +413,7 @@ const STRINGS = {
     '{n} match in history': '{n} Match im Verlauf', '{n} matches in history': '{n} Matches im Verlauf',
     '{n} personal best': '{n} Bestleistung', '{n} personal bests': '{n} Bestleistungen', 'Reset all data': 'Alle Daten zurücksetzen',
     'About': 'Über', 'version {v}': 'Version {v}', 'development': 'Entwicklung', 'Darts scoring and training, kept on your device.': 'Darts zählen und trainieren, gespeichert auf deinem Gerät.',
-    'Privacy policy': 'Datenschutz', 'Support': 'Support', 'Rate Oche Scorer': 'Oche Scorer bewerten',
+    'Privacy policy': 'Datenschutz', 'Support': 'Support', 'Rate Dartboss': 'Dartboss bewerten',
     // Setup
     'You': 'Du', 'Player {n}': 'Spieler {n}', 'Human': 'Mensch', '~{n}% checkout': '~{n}% Checkout', 'Fewer': 'Weniger', 'More': 'Mehr',
     'Start score': 'Startpunkte', 'Custom': 'Eigene', 'Custom score': 'Eigene Startpunkte', 'Match': 'Match', 'Match format': 'Matchformat',

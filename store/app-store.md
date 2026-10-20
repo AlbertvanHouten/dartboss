@@ -8,7 +8,7 @@ limited field is noted next to it. Items marked **(you)** need your decision or 
 
 | Field | Value |
 |---|---|
-| Name (30) | Oche Scorer (11), the same in every language |
+| Name (30) | English and Dutch: `Dartboss: Darts Scorer` (22). German: `Dartboss: Darts-Zähler` (22). The words in the name count most in store search, so "darts" and "scorer" are not repeated in the subtitle or keywords |
 | Bundle ID / application ID | com.albertvanhouten.oche on both stores **(you: change it in `capacitor.config.json`, Xcode and `android/app/build.gradle` before the first upload if you want another)** |
 | SKU (App Store) | oche-scorer-ios |
 | Primary category | App Store: Sports. Google Play: Sports |
@@ -22,10 +22,10 @@ The caller's voice is English in every language (it calls the way a stage refere
 
 ## English (App Store: English (U.S.) and English (U.K.); Google Play: en-US and en-GB)
 
-**Subtitle (30)** — 27 characters
+**Subtitle (30)** — 24 characters
 
 ```
-Darts scorer with real bots
+501, Cricket & real bots
 ```
 
 **Promotional text (170)** — 159 characters
@@ -34,10 +34,10 @@ Darts scorer with real bots
 Score every leg and hear it called out loud, check out with the right route, and practise with bots that throw like real players. In English, Dutch and German.
 ```
 
-**Description (4000)** — 1667 characters, also the Google Play full description
+**Description (4000)** — 1664 characters, also the Google Play full description
 
 ```
-Oche Scorer is a darts scorer and trainer for your board at home or at the club.
+Dartboss is a darts scorer and trainer for your board at home or at the club.
 
 MATCHES
 • X01: 301, 501, 701 or any start score. Straight, double or master in and out. Legs or sets, first to or best of, two clear legs.
@@ -73,7 +73,7 @@ MADE FOR THE OCHE
 **Keywords (100, App Store only)** — 100 characters
 
 ```
-darts,dart,501,x01,cricket,checkout,killer,shanghai,practice,trainer,bot,history,stats,bobs27,caller
+dart,board,501,x01,cricket,checkout,killer,shanghai,practice,trainer,bot,history,stats,bobs27,caller
 ```
 
 **What's New (first version)**
@@ -93,7 +93,7 @@ Darts scorer and trainer: X01 with a caller, Cricket, Killer and smart bots
 **Subtitel (30)** — 26 characters
 
 ```
-Dartsscorer met echte bots
+501, Cricket en echte bots
 ```
 
 **Promotietekst (170)** — 153 characters
@@ -102,10 +102,10 @@ Dartsscorer met echte bots
 Scoor elke leg en hoor hem omgeroepen, gooi uit met de juiste route en oefen tegen bots die gooien als echte spelers. In het Nederlands, Engels en Duits.
 ```
 
-**Beschrijving (4000)** — 1852 characters, also the Google Play full description
+**Beschrijving (4000)** — 1849 characters, also the Google Play full description
 
 ```
-Oche Scorer is een dartsscorer en trainer voor je bord thuis of in de club.
+Dartboss is een dartsscorer en trainer voor je bord thuis of in de club.
 
 WEDSTRIJDEN
 • X01: 301, 501, 701 of elke andere startscore. Straight, double of master in en out. Legs of sets, first to of best of, twee legs verschil.
@@ -138,10 +138,10 @@ GEMAAKT VOOR DE OCHE
 • Werkt volledig offline. Geen account, geen advertenties, geen tracking.
 ```
 
-**Trefwoorden (100, App Store only)** — 100 characters
+**Trefwoorden (100, App Store only)** — 99 characters
 
 ```
-darts,dart,501,x01,cricket,checkout,killer,shanghai,oefenen,training,bot,scorebord,statistiek,caller
+dart,bord,501,x01,cricket,checkout,killer,shanghai,oefenen,training,bot,scorebord,statistiek,caller
 ```
 
 **Nieuw in deze versie (eerste versie)**
@@ -158,10 +158,10 @@ Dartsscorer en trainer: X01 met caller, Cricket, Killer en slimme bots
 
 ## Deutsch (App Store: German; Google Play: de-DE)
 
-**Untertitel (30)** — 28 characters
+**Untertitel (30)** — 25 characters
 
 ```
-Darts-Zähler mit echten Bots
+501, Cricket & echte Bots
 ```
 
 **Werbetext (170)** — 167 characters
@@ -170,10 +170,10 @@ Darts-Zähler mit echten Bots
 Zähle jedes Leg, hör es laut ausgerufen, check mit dem richtigen Weg aus und trainiere gegen Bots, die wie echte Spieler werfen. Auf Deutsch, Englisch, Niederländisch.
 ```
 
-**Beschreibung (4000)** — 1899 characters, also the Google Play full description
+**Beschreibung (4000)** — 1896 characters, also the Google Play full description
 
 ```
-Oche Scorer ist ein Darts-Zähler und Trainer für dein Board zu Hause oder im Verein.
+Dartboss ist ein Darts-Zähler und Trainer für dein Board zu Hause oder im Verein.
 
 MATCHES
 • X01: 301, 501, 701 oder jeder andere Startwert. Straight, Double oder Master In und Out. Legs oder Sets, First to oder Best of, zwei Legs Vorsprung.
@@ -209,7 +209,7 @@ GEMACHT FÜR DAS OCHE
 **Suchbegriffe (100, App Store only)** — 96 characters (97 bytes; the ä counts twice if App Store Connect counts bytes)
 
 ```
-darts,dart,501,x01,cricket,checkout,killer,shanghai,training,trainer,bot,zähler,statistik,caller
+dart,board,501,x01,cricket,checkout,killer,shanghai,training,trainer,bot,zähler,statistik,caller
 ```
 
 **Neue Funktionen (erste Version)**
