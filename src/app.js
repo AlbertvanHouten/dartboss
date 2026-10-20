@@ -1022,7 +1022,7 @@ function openSetup(mode) {
   const playerHTML = (p, i) => `<div class="prow${p.type === 'bot' ? ' isbot' : ''}">
       <div class="prow-top">
         <input type="text" id="pn${i}" maxlength="16" value="${esc(p.name)}" aria-label="${t('Player {n} name', { n: i + 1 })}">
-        ${i > 0 ? `<div class="seg small" role="group" aria-label="${t('Player {n} type', { n: i + 1 })}">${[['human', t('Human')], ['bot', 'Bot']].map(([v, l]) => `<button type="button" class="segb" data-set="ptype" data-i="${i}" data-v="${v}" aria-pressed="${p.type === v}">${l}</button>`).join('')}</div>` : ''}
+        ${i > 0 ? `<div class="seg small" role="group" aria-label="${t('Player {n} type', { n: i + 1 })}">${[['human', t('Player')], ['bot', 'Bot']].map(([v, l]) => `<button type="button" class="segb" data-set="ptype" data-i="${i}" data-v="${v}" aria-pressed="${p.type === v}">${l}</button>`).join('')}</div>` : ''}
         ${i > 0 && list.length > lo ? `<button type="button" class="xbtn" data-set="premove" data-i="${i}" aria-label="${t('Remove {name}', { name: esc(p.name) })}">✕</button>` : ''}
       </div>
       ${p.type === 'bot' ? `<div class="avgrow"><label class="unit" for="pa${i}">${t('Avg')}</label><input type="range" id="pa${i}" data-i="${i}" min="${E.AVG_MIN}" max="${E.AVG_MAX}" step="1" value="${p.avg}"><b class="num avgval">${p.avg}</b><span class="hint co">${coText(p.avg)}</span></div>` : ''}

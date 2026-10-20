@@ -4,7 +4,12 @@
 // Dutch says dubbel and triple, German Double and Triple. To add a language, add it to LANGS and give it a table.
 const LANGS = { en: 'English', nl: 'Nederlands', de: 'Deutsch' };
 let LANG = 'en';
-const t = (key, vars) => (STRINGS[LANG]?.[key] ?? key).replace(/\{(\w+)\}/g, (m, k) => vars?.[k] ?? m);
+// Apple keyboards undo with Cmd, so the key hints say ⌘ there instead of Ctrl (Strg in German)
+const MOD_KEY = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform || '') ? '⌘' : null;
+const t = (key, vars) => {
+  const s = (STRINGS[LANG]?.[key] ?? key).replace(/\{(\w+)\}/g, (m, k) => vars?.[k] ?? m);
+  return MOD_KEY ? s.replace(/\b(Ctrl|Strg)\b/g, MOD_KEY) : s;
+};
 const STRINGS = {
   nl: {
     // menu, tabs and static markup
@@ -207,7 +212,7 @@ const STRINGS = {
     'About': 'Over', 'version {v}': 'versie {v}', 'development': 'ontwikkeling', 'Darts scoring and training, kept on your device.': 'Darts scoren en trainen, bewaard op je apparaat.',
     'Privacy policy': 'Privacybeleid', 'Support': 'Support', 'Rate Dartboss': 'Beoordeel Dartboss',
     // Setup
-    'You': 'Jij', 'Player {n}': 'Speler {n}', 'Human': 'Mens', '~{n}% checkout': '~{n}% checkout', 'Fewer': 'Minder', 'More': 'Meer',
+    'You': 'Jij', 'Player {n}': 'Speler {n}', '~{n}% checkout': '~{n}% checkout', 'Fewer': 'Minder', 'More': 'Meer',
     'Start score': 'Startscore', 'Custom': 'Eigen', 'Custom score': 'Eigen startscore', 'Match': 'Wedstrijd', 'Match format': 'Wedstrijdvorm',
     'First to': 'First to', 'Best of': 'Best of', 'first to': 'first to', 'Legs or sets': 'Legs of sets', 'leg': 'leg', 'legs': 'legs', 'set': 'set', 'sets': 'sets',
     'Each set': 'Per set', 'Two clear legs': 'Twee legs verschil', 'On': 'Aan', 'Throws first': 'Begint',
@@ -415,7 +420,7 @@ const STRINGS = {
     'About': 'Über', 'version {v}': 'Version {v}', 'development': 'Entwicklung', 'Darts scoring and training, kept on your device.': 'Darts zählen und trainieren, gespeichert auf deinem Gerät.',
     'Privacy policy': 'Datenschutz', 'Support': 'Support', 'Rate Dartboss': 'Dartboss bewerten',
     // Setup
-    'You': 'Du', 'Player {n}': 'Spieler {n}', 'Human': 'Mensch', '~{n}% checkout': '~{n}% Checkout', 'Fewer': 'Weniger', 'More': 'Mehr',
+    'You': 'Du', 'Player {n}': 'Spieler {n}', '~{n}% checkout': '~{n}% Checkout', 'Fewer': 'Weniger', 'More': 'Mehr',
     'Start score': 'Startpunkte', 'Custom': 'Eigene', 'Custom score': 'Eigene Startpunkte', 'Match': 'Match', 'Match format': 'Matchformat',
     'First to': 'First to', 'Best of': 'Best of', 'first to': 'first to', 'Legs or sets': 'Legs oder Sets', 'leg': 'Leg', 'legs': 'Legs', 'set': 'Set', 'sets': 'Sets',
     'Each set': 'Pro Set', 'Two clear legs': 'Zwei Legs Vorsprung', 'On': 'An', 'Throws first': 'Beginnt',
