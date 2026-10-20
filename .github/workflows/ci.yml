@@ -1,6 +1,6 @@
 # Tests and the web build on every pull request, plus an Android build. The deploy, iOS and Android
 # release workflows call this first, so nothing ships without passing it, and pushes to main and tags
-# are tested there.
+# are tested there (main gets the Android build too).
 name: CI
 
 on:
@@ -56,11 +56,11 @@ jobs:
           path: dist
           retention-days: 7
 
-  # Compiles the Android app on pull requests, so a change that breaks it shows up before a release.
-  # Skipped when a deploy or release workflow calls CI (the Android release builds it there anyway).
+  # Compiles the Android app on pull requests and pushes to main, so a change that breaks it shows up
+  # before a release. Skipped for release tags: the Android release builds it there anyway.
   android:
     name: Android build
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

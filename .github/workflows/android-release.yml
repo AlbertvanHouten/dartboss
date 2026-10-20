@@ -9,6 +9,9 @@
 #   ANDROID_KEY_PASSWORD        the key password
 #   PLAY_SERVICE_ACCOUNT_JSON   optional: a Google Cloud service account key (JSON) with release access
 #                               in the Play Console; without it the bundle is only kept as an artifact
+# and this repository variable (Settings → Secrets and variables → Actions → Variables):
+#   PLAY_APP_LIVE               set to true once the app's first release is published on Google Play;
+#                               until then uploads go in as drafts, the only kind Google accepts
 # Without the signing secrets it builds an unsigned debug APK instead, as a check that the app compiles.
 # Google Play only accepts API uploads after the first bundle was uploaded by hand (docs/releasing.md).
 name: Android release
@@ -63,9 +66,14 @@ jobs:
       - name: Work out the version
         id: version
         run: |
-          # Tag v1.2.3 → version 1.2.3; by hand → the version in package.json. The version code is the
-          # run number, so every upload to Play is higher than the last.
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"; else v=$(node -p "require('./package.json').version"); fi
+          # package.json is the one place the version is set: the app shows it in Settings, and the store
+          # version must match. A tag has to name that same version.
+          v=$(node -p "require('./package.json').version")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]] && [ "${GITHUB_REF_NAME#v}" != "$v" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json ($v). Set \"version\": \"${GITHUB_REF_NAME#v}\" in package.json, commit, and tag that commit."
+            exit 1
+          fi
+          # The version code is the run number, so every upload to Play is higher than the last.
           echo "name=$v" >> "$GITHUB_OUTPUT"
           echo "code=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
           echo "Version $v ($GITHUB_RUN_NUMBER)" >> "$GITHUB_STEP_SUMMARY"
@@ -115,7 +123,9 @@ jobs:
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
           releaseName: ${{ steps.version.outputs.name }} (${{ steps.version.outputs.code }})
           track: internal
-          status: completed
+          # Google only accepts draft releases until the app's first release is published; then set the
+          # repository variable PLAY_APP_LIVE to true so builds roll out to internal testers by themselves
+          status: ${{ vars.PLAY_APP_LIVE == 'true' && 'completed' || 'draft' }}
 
       - name: Keep the build
         uses: actions/upload-artifact@v4

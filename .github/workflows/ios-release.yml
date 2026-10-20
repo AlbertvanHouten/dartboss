@@ -41,6 +41,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Capacitor 8 needs a recent Xcode, and the runner's default can lag behind: use the newest installed
+      - name: Use the newest Xcode
+        run: |
+          xcode=$(find /Applications -maxdepth 1 -name 'Xcode_*.app' | grep -viE 'beta|release_candidate|_rc' | sort -V | tail -n 1)
+          [ -n "$xcode" ] && sudo xcode-select -s "$xcode"
+          xcodebuild -version | tee -a "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -54,10 +61,14 @@ jobs:
       - name: Work out the version
         id: version
         run: |
-          # Tag v1.2.3 → version 1.2.3; by hand → the version in the Xcode project. The build
-          # number is the run number, so every upload is unique.
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"; else
-            v=$(grep -m1 "MARKETING_VERSION" ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*= *([^;]+);.*/\1/'); fi
+          # package.json is the one place the version is set: the app shows it in Settings, and the store
+          # version must match. A tag has to name that same version.
+          v=$(node -p "require('./package.json').version")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]] && [ "${GITHUB_REF_NAME#v}" != "$v" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json ($v). Set \"version\": \"${GITHUB_REF_NAME#v}\" in package.json, commit, and tag that commit."
+            exit 1
+          fi
+          # The build number is the run number, so every upload is unique.
           echo "marketing=$v" >> "$GITHUB_OUTPUT"
           echo "build=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
           echo "Version $v ($GITHUB_RUN_NUMBER)" >> "$GITHUB_STEP_SUMMARY"

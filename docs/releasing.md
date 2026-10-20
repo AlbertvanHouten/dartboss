@@ -25,9 +25,9 @@ GitHub Actions workflows in `.github/workflows/`:
 
 | Workflow | Runs on | What it does |
 | --- | --- | --- |
-| `ci.yml` | every pull request | `npm test`, builds the web app, checks the build, plays a match in headless Chrome, keeps `dist/` as a downloadable artifact for 7 days, and compiles a debug build of the Android app |
+| `ci.yml` | every pull request, and inside the workflows below | `npm test`, builds the web app, checks the build, plays a match in headless Chrome, keeps `dist/` as a downloadable artifact for 7 days, and compiles a debug build of the Android app (on pull requests and pushes to `main`) |
 | `deploy-web.yml` | push to `main`, or by hand | runs CI, then publishes `dist/` to Netlify |
-| `ios-release.yml` | a `v*` tag, or by hand | runs CI, then archives the iOS app on a Mac runner and uploads it to TestFlight |
+| `ios-release.yml` | a `v*` tag, or by hand | runs CI, then archives the iOS app on a Mac runner (with the newest Xcode installed there) and uploads it to TestFlight |
 | `android-release.yml` | a `v*` tag, or by hand | runs CI, then builds a signed Android App Bundle (`.aab`), uploads it to Google Play's internal testing track and keeps it as a run artifact |
 
 No publishing workflow fails while its secrets are missing. The web deploy is skipped with a note, the iOS release only compiles the app for the Simulator, and the Android release builds an unsigned debug APK instead.
@@ -46,17 +46,23 @@ Secrets go under *Settings → Secrets and variables → Actions* on GitHub:
 | `ANDROID_KEYSTORE_PASSWORD` | The keystore password you chose |
 | `ANDROID_KEY_ALIAS` | The key alias you chose, for example `upload` |
 | `ANDROID_KEY_PASSWORD` | The key password you chose |
+| `PLAY_APP_LIVE` (a variable, under the *Variables* tab) | Set it to `true` once the app's first release is published on Google Play. Until then CI uploads go in as drafts, the only kind Google accepts for an unpublished app, and you roll them out in the Play Console. |
 | `PLAY_SERVICE_ACCOUNT_JSON` | Optional. The full text of a Google Cloud service account's JSON key, invited in the Play Console with release rights (see *Android app* below). Without it the `.aab` is only kept as an artifact. |
 
 Xcode signs automatically with the API key, so no certificates or profiles need storing.
 
-To release the iOS app:
+To release the iOS and Android apps:
+
+Set the version in `package.json` first; it is the one place the version lives (the app shows it in Settings). Then tag that commit with the same number:
 
 ```bash
-git tag v1.1 && git push origin v1.1
+npm version 1.1.0 --no-git-tag-version && git commit -am "Version 1.1.0" && git push
+git tag v1.1.0 && git push origin v1.1.0
 ```
 
-That ships version 1.1, with the build number taken from the run number. You can also run *iOS release* from the Actions tab: it keeps the project's version, and with *Upload* unticked it produces a signed `.ipa` to download instead of uploading.
+A tag that doesn't match `package.json` stops both release workflows with an error, so the store version and the in-app version can't drift apart.
+
+The build number is the run number. You can also run *iOS release* from the Actions tab: it uses the version in `package.json`, and with *Upload* unticked it produces a signed `.ipa` to download instead of uploading.
 
 The app still has to exist in App Store Connect before the first upload (step 2 below).
 
@@ -90,7 +96,7 @@ Two things to know:
 
 ### Releasing an update
 
-With the CI secrets set, push a tag such as `v1.1` (see CI/CD). By hand: bump `MARKETING_VERSION` (for example 1.1) and `CURRENT_PROJECT_VERSION` (+1 each upload) in Xcode under the target's *General* tab, then `npm run ios:sync`, archive and upload again.
+With the CI secrets set, set the version and push a tag (see CI/CD). By hand: bump the version in `package.json` and `MARKETING_VERSION` to the same number (for example 1.1.0) and `CURRENT_PROJECT_VERSION` (+1 each upload) in Xcode under the target's *General* tab, then `npm run ios:sync`, archive and upload again.
 
 ## Android app
 
@@ -121,12 +127,6 @@ With the CI secrets set, push a tag such as `v1.1` (see CI/CD). By hand: bump `M
 
 ### Releasing an update
 
-Push a tag, the same one as for iOS:
-
-```bash
-git tag v1.1 && git push origin v1.1
-```
-
-That builds version 1.1 with the run number as the version code, which Play needs to be higher on every upload. With `PLAY_SERVICE_ACCOUNT_JSON` set it lands in internal testing by itself; otherwise download the `.aab` from the run and upload it as a new release in the Play Console. Running *Android release* by hand with *Upload* unticked only keeps the `.aab`.
+Set the version and push a tag, the same one as for iOS (see CI/CD). That builds the version in `package.json` with the run number as the version code, which Play needs to be higher on every upload. With `PLAY_SERVICE_ACCOUNT_JSON` set it lands in internal testing by itself (as a draft until `PLAY_APP_LIVE` is `true`); otherwise download the `.aab` from the run and upload it as a new release in the Play Console. Running *Android release* by hand with *Upload* unticked only keeps the `.aab`.
 
 To build a signed bundle on your own machine instead, set the same values as environment variables (`OCHE_KEYSTORE_FILE` pointing at the `.jks`, plus `OCHE_KEYSTORE_PASSWORD`, `OCHE_KEY_ALIAS` and `OCHE_KEY_PASSWORD`), then run `npm run android:sync` and `cd android && ./gradlew bundleRelease -PversionCode=<n> -PversionName=<version>`.
