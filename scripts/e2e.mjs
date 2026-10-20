@@ -190,6 +190,12 @@ try {
   await run("setSetting('lang', 'system')");
   await page.setViewport({ width: 800, height: 600 });
 
+  // Long games: only the last 10 undo steps are saved, and full storage says so instead of failing silently
+  assert.deepEqual(await run(`(() => { S.hist = Array.from({ length: 50 }, (_, i) => String(i)); save();
+    return [S.hist.length, JSON.parse(localStorage.getItem('oche-match-v1')).hist.length]; })()`), [50, 10], 'a save keeps the last 10 undo steps');
+  assert.match(await run(`(() => { const set = Storage.prototype.setItem; Storage.prototype.setItem = () => { throw new Error('full'); };
+    try { save(); } finally { Storage.prototype.setItem = set; } return document.getElementById('toast').textContent; })()`), /storage is full/, 'full storage shows a message');
+
   // A save this version can't show opens the menu with a fresh match, not a blank page
   await run(`localStorage.setItem('oche-match-v1', JSON.stringify({ settings: { mode: 'x01', players: null }, legs: [{}], screen: 'play' }))`);
   errors.length = 0;
