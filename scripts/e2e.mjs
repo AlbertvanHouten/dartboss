@@ -190,6 +190,21 @@ try {
   await run("setSetting('lang', 'system')");
   await page.setViewport({ width: 800, height: 600 });
 
+  // The act log follows play and undo
+  const three = "[{ name: 'A', type: 'human' }, { name: 'B', type: 'human' }, { name: 'C', type: 'human' }]";
+  await run(`startMatch({ ...DEFAULT_SETTINGS, mode: 'killer', players: ${three} })`);
+  for (let i = 0; i < 4; i++) await run(`gameAct('dart', S.game.pl[S.game.turn].num)`);
+  assert.equal(await run('S.acts.length'), 4, 'one act per dart');
+  assert.deepEqual(await run('[S.acts[0].seat, S.acts[3].seat]'), [0, 1], 'acts record who threw');
+  await run('gameUndo()');
+  assert.equal(await run('S.acts.length'), 3, 'undo takes the act back');
+  await run(`startMatch({ ...DEFAULT_SETTINGS, players: ${three} })`);
+  await run('submit(60)'); await run('submit(60)');
+  assert.deepEqual(await run('S.acts.map(a => a.seat)'), [0, 1], 'x01 acts record who scored');
+  assert.equal(await run('S.acts[1].turnAfter'), 2 % 3, 'x01 acts record whose turn is next');
+  await run('undo()');
+  assert.equal(await run('S.acts.length'), 1, 'x01 undo takes the act back');
+
   // Long games: only the last 10 undo steps are saved, and full storage says so instead of failing silently
   assert.deepEqual(await run(`(() => { S.hist = Array.from({ length: 50 }, (_, i) => String(i)); save();
     return [S.hist.length, JSON.parse(localStorage.getItem('oche-match-v1')).hist.length]; })()`), [50, 10], 'a save keeps the last 10 undo steps');

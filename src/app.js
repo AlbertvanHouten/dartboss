@@ -40,7 +40,7 @@ function freshMatch(settings) {
   s.mode = s.mode || 'x01';
   if (s.mode === 'x01') normX01(s);
   const first = s.first === 'random' ? Math.floor(Math.random() * s.players.length) : 0;
-  const m = { settings: s, legs: [{ starter: first, visits: [], winner: null }], id: Date.now(), matchWinner: null, hist: [], screen: 'play', bots: {}, firstThrower: first };
+  const m = { settings: s, legs: [{ starter: first, visits: [], winner: null }], id: Date.now(), matchWinner: null, hist: [], acts: [], screen: 'play', bots: {}, firstThrower: first };
   if (s.mode !== 'x01') { m.game = GAMES[s.mode].init(s); m.game.bk = bestKey(s); }
   return m;
 }
@@ -56,6 +56,8 @@ const players = () => S.settings.players;
 const n = () => players().length;
 const curLeg = () => S.legs[S.legs.length - 1];
 const turnOf = leg => (leg.starter + leg.visits.length) % n();
+// Whose turn it is now; -1 once the match or game is over
+const currentTurn = () => isGame() ? (GAMES[S.settings.mode].done(S.game) ? -1 : S.game.turn) : S.matchWinner != null ? -1 : turnOf(curLeg());
 const remaining = (leg, p) => S.settings.start - leg.visits.filter(v => v.p === p).reduce((a, v) => a + v.score, 0);
 const legsWon = p => S.legs.filter(l => l.winner === p).length;
 // Has this player opened the leg yet (always true with straight in)? A visit with points means they have.
@@ -119,7 +121,7 @@ const fmt = (x, d = 1) => x == null ? '–' : x.toFixed(d);
 // Saved in the browser; inside the iOS app also mirrored to native storage (see native.js)
 function save() {
   // Undo snapshots stay in memory; saving all of them outgrows the browser's storage on long games
-  const json = JSON.stringify({ ...S, hist: (S.hist || []).slice(-10) });
+  const json = JSON.stringify({ ...S, hist: (S.hist || []).slice(-10), acts: isGame() ? (S.acts || []).slice(-10) : S.acts });
   try { localStorage.setItem(STORE_KEY, json); } catch (e) { toast(t('Could not save: device storage is full')); }
   window.ocheNative?.persist(STORE_KEY, json);
 }
@@ -483,6 +485,7 @@ function commitVisit(v) {
   } else if (v.score === 180) {
     toast(t('One hundred and eighty!'));
   }
+  S.acts.push({ seat: v.p, turnAfter: currentTurn() });
   callVisit(v);
   save(); render(); maybeBot();
 }
@@ -532,6 +535,7 @@ function popOne() {
   if (!leg.visits.length) { if (S.legs.length === 1) return null; S.legs.pop(); leg = curLeg(); }
   const v = leg.visits.pop();
   if (v) {
+    S.acts.pop();
     if (S.matchWinner != null) forgetHistory(S.id);
     leg.winner = null; S.matchWinner = null;
   }
@@ -656,8 +660,10 @@ function gameAct(a, v) {
     if (problem) { buffer = ''; render(); return gameErr(problem); }
   }
   S.hist.push(JSON.stringify(S.game));
-  if (S.hist.length > 400) S.hist.shift();
+  if (S.hist.length > 400) { S.hist.shift(); S.acts.shift(); }
+  const seat = S.game.turn;
   G.act(S.game, a, v, S.settings);
+  S.acts.push({ seat, turnAfter: currentTurn() });
   buffer = '';
   afterGameChange();
 }
@@ -679,7 +685,7 @@ function gameUndo() {
   if (!S.hist.length || botBusy) return;
   cancelBot();
   const before = S.game;
-  do { S.game = JSON.parse(S.hist.pop()); } while (S.hist.length && isBotTurn());
+  do { S.game = JSON.parse(S.hist.pop()); S.acts.pop(); } while (S.hist.length && isBotTurn());
   if (before.recorded && !S.game.recorded) {
     forgetHistory(S.id);
     // Take back the personal best this result set
@@ -710,6 +716,7 @@ function gameBot() {
       ctx.pressure = G.pressure && G.pressure(g, p) ? E.pressureFor(ctx.avg) : 1;
       G.botVisit(g, S.settings, botCtx);
     }
+    S.acts.push({ seat: p, turnAfter: currentTurn() });
     afterGameChange();
   }, 1000);
 }
@@ -1185,6 +1192,7 @@ function start(data) {
     S.settings.mode = S.settings.mode || 'x01';
     if (S.settings.mode === 'x01') normX01(S.settings);
     S.hist = S.hist || [];
+    S.acts = S.acts || [];
     S.id = S.id || Date.now();
     if (isGame() && (!GAMES[S.settings.mode] || !S.game)) S = freshMatch(DEFAULT_SETTINGS);
     // First visit opens on the menu; a saved game picks up where it was
