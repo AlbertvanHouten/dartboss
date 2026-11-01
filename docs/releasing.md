@@ -12,7 +12,7 @@ How the web version is hosted, what the GitHub Actions workflows do, and how the
 ### GitHub Pages
 
 1. On GitHub, open *Settings → Pages* and set *Source* to *GitHub Actions*. A private repo needs a paid GitHub plan for Pages; the site itself is public either way.
-2. Push to `main` (or run *Deploy web* from the Actions tab). The site goes up at `https://<user>.github.io/oche-darts/`.
+2. Push to `main` (or run *Deploy web* from the Actions tab). The site goes up at `https://<user>.github.io/dartboss/`.
 3. Optional: add your own domain on that same Settings page.
 
 Until Pages is on, the Pages deploy is skipped with a note.
@@ -21,7 +21,7 @@ Until Pages is on, the Pages deploy is skipped with a note.
 
 Hosting from a private repo, with Netlify:
 
-1. On netlify.com, choose *Add new site → Import an existing project*, and connect GitHub and the `oche-darts` repo.
+1. On netlify.com, choose *Add new site → Import an existing project*, and connect GitHub and the `dartboss` repo.
 2. Netlify reads `netlify.toml`: build command `npm run build`, publish directory `dist`. Deploy.
 3. Optional: add your own domain under *Domain management*.
 
