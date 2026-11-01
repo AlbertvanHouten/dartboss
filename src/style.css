@@ -474,6 +474,45 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--on-ink); font-weight: 600; z-index: 30; max-width: calc(100% - 32px); text-align: center; border-radius: 999px; padding: 10px 20px; box-shadow: 0 16px 40px -16px rgba(0, 0, 0, .6); animation: toastIn .25s ease-out; }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
+/* Multi-device: the lobby above the scoreboard, its seat list, connection dots, the guest's waiting state */
+.panel.room { padding: 0; overflow: hidden; }
+.room-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 16px; border: 0; background: none; color: inherit; font: inherit; text-align: left; min-height: 44px; }
+.room-head > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.room-head b { color: var(--ink); font-weight: 600; }
+.room-head .chev { flex-shrink: 0; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-2px) rotate(45deg); transition: transform .2s; }
+.room[data-open="true"] .room-head .chev { transform: translateY(2px) rotate(-135deg); }
+.room-body { display: grid; gap: 12px; padding: 0 16px 16px; }
+.room-join { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.qr { flex-shrink: 0; width: 132px; height: 132px; border-radius: 10px; background: #fff; display: grid; place-items: center; overflow: hidden; }
+.qr svg, .qr img { width: 100%; height: 100%; display: block; }
+.room-info { flex: 1 1 160px; min-width: 0; display: grid; gap: 4px; justify-items: start; }
+.room-code { font-size: 34px; font-weight: 700; line-height: 1; letter-spacing: .04em; }
+.room-info .hint { margin: 0; }
+.room-link { max-width: 100%; overflow-wrap: anywhere; font-size: 13px; color: var(--ink); }
+.room-info .btn { margin-top: 4px; }
+.seats { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.seat { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+button.seat { width: 100%; font: inherit; color: inherit; text-align: left; min-height: 44px; }
+button.seat[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+button.seat[aria-pressed="true"] .sstat { color: inherit; opacity: .75; }
+button.seat:disabled { opacity: .5; }
+@media (hover: hover) { button.seat:hover:not(:disabled) { border-color: var(--muted); } }
+.seat .sname { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat .sstat { flex-shrink: 0; font-size: 13px; color: var(--muted); }
+.player .dot, .seat .dot { display: inline-block; flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); opacity: .6; }
+.player .dot { margin-right: 6px; vertical-align: middle; }
+.player .dot.on, .seat .dot.on { background: var(--green); opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 30%, transparent); }
+.player.active .dot:not(.on) { background: var(--on-felt); }
+.seat .dot.none { visibility: hidden; }
+.entry.waiting .quick, .entry.waiting .keys, .gpadwrap.waiting > :not(.waitnote, .msg, .row-actions) { opacity: .45; }
+.waitnote { border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px; color: var(--muted); font-weight: 500; text-align: center; margin-bottom: 10px; }
+.waitnote::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: var(--green); animation: blink 1.2s infinite; vertical-align: middle; }
+.join { display: grid; gap: 10px; }
+.join h2, .join .hint { margin: 0; }
+.joinrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.joinrow input { flex: 1 1 140px; min-width: 0; font: inherit; font-family: var(--font-display); font-size: 24px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); }
+.share { margin-top: 10px; }
+
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 @media (max-width: 480px) {
   .player .route { font-size: 15px; }

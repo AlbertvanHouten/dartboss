@@ -255,6 +255,7 @@ const PAGES = {
   history: ['Match history', () => renderHistory()],
   stats: ['Player stats', () => renderStatsPage()],
   settings: ['Settings', () => renderSettings()],
+  join: ['Join a game', () => renderJoin()],
 };
 function render() {
   const scr = S.screen, menu = scr === 'menu', page = PAGES[scr];
@@ -263,13 +264,16 @@ function render() {
   $('play').hidden = scr !== 'play';
   $('tabs').hidden = scr === 'play';
   for (const b of $('tabs').querySelectorAll('[data-nav]')) b.setAttribute('aria-current', b.dataset.nav === scr ? 'page' : 'false');
-  $('menuBtn').hidden = $('rematchBtn').hidden = scr !== 'play';
+  $('menuBtn').hidden = scr !== 'play';
+  // A guest plays the host's match: only the host restarts it
+  $('rematchBtn').hidden = scr !== 'play' || isGuest();
   window.ocheNative?.keepAwake?.(scr === 'play' && SETTINGS.awake);
   if (menu) { $('meta').textContent = t('Pick a game'); return renderMenu(); }
   if (page) { $('meta').textContent = t(page[0]); return page[1](); }
   const game = isGame();
   $('x01Left').hidden = $('x01Right').hidden = game;
   $('gameLeft').hidden = $('gameRight').hidden = !game;
+  renderRoomBar();
   if (game) return renderGame();
   const st = S.settings, leg = curLeg(), turn = S.matchWinner == null ? turnOf(leg) : -1;
   const sd = standings();
@@ -291,8 +295,9 @@ function render() {
       (legNeed <= 9 ? Array.from({ length: legNeed }, (_, i) => `<span class="pip${i < sd.legs[p] ? ' on' : ''}"></span>`).join('') : `<span class="setnum" title="${t('Legs won')}">${sd.legs[p]}</span>`);
     const tag = pl.type === 'bot' ? ` <span class="label" title="${t('Favourite double {d}', { d: 'D' + botCtx(p).fav })}">${t('{avg} avg', { avg: botAvg(pl) })} · D${botCtx(p).fav}</span>` : '';
     const status = p === turn && pl.type === 'bot' ? `<span class="thinking">${t('Throwing')}</span>` : '';
+    const dot = ROOM?.role === 'host' && p > 0 && pl.type !== 'bot' ? connDot(p) : '';
     return `<article class="player${p === turn ? ' active' : ''}" aria-current="${p === turn}">
-      <div class="head"><span class="name">${esc(pl.name)}${tag}</span><span class="pips" title="${st.unit === 'sets' ? t('Sets {s}, legs this set {l}', { s: sd.sets[p], l: sd.legs[p] }) : t('Legs won: {n}', { n: sd.legs[p] })}">${pips}</span></div>
+      <div class="head"><span class="name">${dot}${esc(pl.name)}${tag}</span><span class="pips" title="${st.unit === 'sets' ? t('Sets {s}, legs this set {l}', { s: sd.sets[p], l: sd.legs[p] }) : t('Legs won: {n}', { n: sd.legs[p] })}">${pips}</span></div>
       <div class="rem num">${rem}</div>
       <div class="route">${route ? routeChips(route) : !opened(leg, p) ? t(st.inRule === 'master' ? 'Open on a double or treble' : 'Open on a double') : status}</div>
       <div class="sub"><span>${t('Avg')} <b>${fmt(stats[p].avg)}</b></span><span>${t('Last')} <b>${last ? (last.bust ? t('Bust') : last.score) : '–'}</b></span><span>${t('Darts')} <b>${legDarts}</b></span></div>
@@ -311,24 +316,26 @@ function render() {
   } else wp.hidden = true;
 
   // entry
-  const human = turn >= 0 && players()[turn].type === 'human';
+  // A guest phone enters only its own players' visits; the others show who it is waiting for
+  const human = turn >= 0 && players()[turn].type === 'human', waiting = human && !myTurn(), can = human && !waiting;
   const rem = turn >= 0 ? remaining(leg, turn) : 0;
   const ro = $('readout');
   const live = botReveal && botReveal.p === turn ? botReveal : null;
   const liveScore = live ? live.darts.reduce((a, d) => a + d.v, 0) : 0;
-  ro.textContent = buffer || (live && live.darts.length ? String(liveScore) : t(human ? 'Enter score' : S.matchWinner != null ? 'Match over' : 'Bot throwing…'));
+  ro.textContent = buffer || (live && live.darts.length ? String(liveScore) : (waiting ? t('Waiting for {name}…', { name: players()[turn].name }) : t(human ? 'Enter score' : S.matchWinner != null ? 'Match over' : 'Bot throwing…')));
+  ro.closest('.entry').classList.toggle('waiting', waiting);
   ro.classList.toggle('empty', !buffer && !(live && live.darts.length));
-  const canCO = human && E.minDarts(rem, st.out) <= 3 && (opened(leg, turn) || OPEN_SETS[st.inRule]?.has(rem));
+  const canCO = can && E.minDarts(rem, st.out) <= 3 && (opened(leg, turn) || OPEN_SETS[st.inRule]?.has(rem));
   // With a finish on, the readout offers a one-tap checkout instead of showing who is throwing
   $('who').innerHTML = canCO && !buffer ? `<button class="chip co rco" type="button" data-score="${rem}">${t('Checkout {n}', { n: rem })}</button>`
     : turn >= 0 ? `<span class="label">${t('To throw')}</span><br><b>${esc(players()[turn].name)}</b> · ${t('{n} left', { n: rem })}` : '';
   const quick = [26, 41, 45, 60, 81, 85, 100, 140, 180];
   $('quick').innerHTML =
-    `<button class="chip zero" type="button" data-score="0" ${human ? '' : 'disabled'}>${t('No score')}</button>` +
-    quick.map(q => `<button class="chip" type="button" data-score="${q}" ${human ? '' : 'disabled'}>${q}</button>`).join('');
+    `<button class="chip zero" type="button" data-score="0" ${can ? '' : 'disabled'}>${t('No score')}</button>` +
+    quick.map(q => `<button class="chip" type="button" data-score="${q}" ${can ? '' : 'disabled'}>${q}</button>`).join('');
   $('keys').innerHTML = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'].map(k =>
-    `<button class="key ${k === 'ok' ? 'ok' : k === 'del' ? 'fn' : ''}" type="button" data-key="${k}" ${human ? '' : 'disabled'} aria-label="${k === 'del' ? t('Delete digit') : k === 'ok' ? t('Submit score') : k}">${k === 'del' ? '⌫' : k === 'ok' ? t('Score') : k}</button>`).join('');
-  $('undoBtn').disabled = !hasHumanVisit() || botBusy;
+    `<button class="key ${k === 'ok' ? 'ok' : k === 'del' ? 'fn' : ''}" type="button" data-key="${k}" ${can ? '' : 'disabled'} aria-label="${k === 'del' ? t('Delete digit') : k === 'ok' ? t('Submit score') : k}">${k === 'del' ? '⌫' : k === 'ok' ? t('Score') : k}</button>`).join('');
+  $('undoBtn').disabled = isGuest() ? !guestCanUndo() : !hasHumanVisit() || botBusy;
 
   // board: current thrower's route, plus the last bot visit's darts
   const botTurn = turn >= 0 && players()[turn].type === 'bot';
@@ -568,7 +575,7 @@ function undo() {
 }
 
 function submit(score) {
-  if (isBotTurn() || S.matchWinner != null) return;
+  if (isBotTurn() || S.matchWinner != null || !myTurn()) return;
   const st = S.settings, leg = curLeg(), p = turnOf(leg), rem = remaining(leg, p), out = st.out, dbl = out !== 'single';
   const mst = out === 'master', atLabel = t(mst ? 'Darts at a double or treble' : 'Darts at double');
   if (!Number.isInteger(score)) return err(t('Type a score first.'));
@@ -645,10 +652,14 @@ function renderGame() {
     res = `<section class="panel winner"><h2>${esc(r.headline)}</h2><p style="margin:0 0 12px;color:var(--muted)">${esc(r.detail)}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-act="rematch">${t('Play again')}</button><button class="btn" type="button" data-pg="share">${t('Share')}</button><button class="btn" type="button" data-act="new">${t('Main menu')}</button></div></section>`;
   }
-  const canUndo = S.hist.length > 0 && !botBusy;
+  // A guest has no undo snapshots: its Undo lights when the host would take it
+  const undoOk = isGuest() ? guestCanUndo() : S.hist.length > 0 && !botBusy;
+  const turn = currentTurn(), waiting = !done && turn >= 0 && players()[turn].type === 'human' && !myTurn();
+  const wait = waiting ? `<div class="waitnote" role="status">${t('Waiting for {name}…', { name: esc(players()[turn].name) })}</div>` : '';
   $('gameLeft').innerHTML = G.hud(g, st) + res +
-    `<section class="panel gpadwrap">${done ? '' : G.pad(g, st)}<div class="msg" id="gMsg" role="status" aria-live="polite"></div>
-      <div class="row-actions"><button class="btn" type="button" data-act="undo"${canUndo ? '' : ' disabled'}>${t('Undo')}</button><span class="hint">${t(G.hint)} <span class="kb">${t(G.keys)}</span></span></div></section>`;
+    `<section class="panel gpadwrap${waiting ? ' waiting' : ''}">${done ? '' : wait + G.pad(g, st)}<div class="msg" id="gMsg" role="status" aria-live="polite"></div>
+      <div class="row-actions"><button class="btn" type="button" data-act="undo"${undoOk ? '' : ' disabled'}>${t('Undo')}</button><span class="hint">${t(G.hint)} <span class="kb">${t(G.keys)}</span></span></div></section>`;
+  if (waiting) $('gameLeft').querySelectorAll('.gpadwrap button:not([data-act])').forEach(b => { b.disabled = true; });
   $('gameRight').innerHTML = G.log(g, st) + `<section class="panel"><h2>${t('How to play')}</h2><p class="rules">${t(G.rules)}</p></section>`;
   const b = G.board(g, st);
   highlight(b.keys.map(k => ({ k })));
@@ -664,7 +675,7 @@ function gameErr(text) {
 }
 function gameAct(a, v) {
   const G = GAMES[S.settings.mode];
-  if (G.done(S.game) || isBotTurn()) return;
+  if (G.done(S.game) || isBotTurn() || !myTurn()) return;
   if (a === 'score') {
     if (v === '' || v == null) return gameErr(t('Type a score first.'));
     const s = +v;
@@ -792,6 +803,7 @@ const TILES = {
   doubles: ['green', 'D'],
   singles: ['cream', 'S'],
   score: ['black', '180'],
+  join: ['felt', '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2" width="11" height="20" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18.2" r="1.3" fill="currentColor"/></svg>'],
 };
 function gameTile(mode, text) {
   const [bg, glyph] = TILES[mode] || ['black', '?'];
@@ -819,12 +831,14 @@ function renderMenu() {
     ? `<section class="panel resume"><div><span class="label">${t('Game in progress')}</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><div class="resume-btns"><button class="btn ghost" type="button" data-act="discard">${t('Discard')}</button><button class="btn primary" type="button" data-act="continue">${t('Continue')}</button></div></section>`
     : '';
   const hero = `<section class="menu-hero"><h2 class="num">${t('Step up to the oche')}<span>.</span></h2><p>${t('Play friends on this device, or bots set to any average from 20 to 120.')}</p></section>`;
-  $('menu').innerHTML = hero + resume + MENU.map(([group, items]) => `<section class="menu-sec"><h2>${t(group)}</h2><div class="cards">${items.map(([mode, title, desc]) => {
+  // Joining another phone's game sits with the matches
+  const join = `<button class="gcard" type="button" data-menu="join">${gameTile('join')}<span class="gname">${t('Join a game')}</span><span class="gdesc">${t('Score on your own phone in a game another phone is hosting.')}</span><span class="gmeta"><span>${t('Room code or QR code')}</span></span></button>`;
+  $('menu').innerHTML = hero + resume + MENU.map(([group, items], gi) => `<section class="menu-sec"><h2>${t(group)}</h2><div class="cards">${items.map(([mode, title, desc]) => {
     const [lo, hi] = limitsFor(mode), best = getBest(mode);
     const who = hi === 1 ? t('Solo') : t('{n} players', { n: lo === hi ? lo : `${lo}–${hi}` });
     const bots = PLAYER_LIMITS[mode] ? ' · ' + t('bots') : '';
     return `<button class="gcard" type="button" data-menu="${mode}">${gameTile(mode)}<span class="gname">${t(title)}</span><span class="gdesc">${t(desc)}</span><span class="gmeta"><span>${who}${bots}</span>${best != null ? `<span class="pb">${t('Best {n}', { n: best })}</span>` : ''}</span></button>`;
-  }).join('')}</div></section>`).join('');
+  }).join('')}${gi === 0 ? join : ''}</div></section>`).join('');
 }
 function goScreen(name) {
   cancelBot(); botBusy = false;
@@ -1049,6 +1063,10 @@ function openSetup(mode) {
       ${p.type === 'bot' ? `<div class="avgrow"><label class="unit" for="pa${i}">${t('Avg')}</label><input type="range" id="pa${i}" data-i="${i}" min="${E.AVG_MIN}" max="${E.AVG_MAX}" step="1" value="${p.avg}"><b class="num avgval">${p.avg}</b><span class="hint co">${coText(p.avg)}</span></div>` : ''}
     </div>`;
 
+  // Players on their own phones: for any game set up with 2 or more players
+  const canShare = () => hi > 1 && list.length >= 2;
+  const roomSwitch = () => canShare() ? `<div class="srows share">${row(t('Players on their own phones'), control(t('Players on their own phones'), 'shared', [[false, t('Off')], [true, t('On')]], !!st.shared, 'room'))}</div>
+          <p class="hint">${t('Each player scores on their own phone. Others join with a room code or QR code.')}</p>` : '';
   const draw = () => {
     const x01 = mode === 'x01';
     const rules = x01 ? x01HTML() : gameHTML();
@@ -1059,6 +1077,7 @@ function openSetup(mode) {
         ${rules || howto ? `<section class="setup-col"><h4 class="label">${t('Rules')}</h4><div class="srows">${rules}</div>${howto}</section>` : ''}
         <section class="setup-col"><h4 class="label">${hi === 1 ? t('Player') : t('Players · {n}', { n: lo === hi ? lo : `${lo}–${hi}` })}</h4>
           <div class="plist">${list.map(playerHTML).join('')}</div>
+          ${roomSwitch()}
           ${list.length < hi ? `<div class="addrow"><button type="button" class="addb" data-set="padd" data-v="bot">+ Bot</button><button type="button" class="addb" data-set="padd" data-v="human">+ ${t('Player')}</button></div>` : ''}
         </section>
       </div>
@@ -1123,6 +1142,7 @@ function openSetup(mode) {
   ov.onsubmit = e => {
     e.preventDefault(); sync();
     st.players = list.map(p => p.type === 'bot' ? { name: p.name, type: 'bot', avg: p.avg } : { name: p.name, type: 'human' });
+    st.shared = canShare() && !!st.shared;
     close();
     if (!inProgress()) return startMatch(st);
     confirmDialog({ title: t(isMatch() ? 'Replace the match in progress?' : 'Replace the game in progress?'), text: t('The scores so far will be lost.'), keep: t('Keep it'), go: t('Start new'), onGo: () => startMatch(st) });
@@ -1135,12 +1155,112 @@ function startMatch(settings) {
   // A rematch on the host stays in the same room
   const room = S?.room;
   S = freshMatch(settings); buffer = '';
-  if (ROOM?.role === 'host' && room) S.room = room;
+  const keep = ROOM?.role === 'host' && room;
+  if (keep) S.room = room;
   save(); render(); maybeBot();
+  if (settings.shared && !keep && !isGuest()) openRoom();
+}
+
+// ---------- rooms: lobby, seats, join ----------
+const isGuest = () => ROOM?.role === 'guest';
+// The host scores for anyone; a guest only for the seats it claimed
+const myTurn = () => !isGuest() || ROOM.mine.includes(currentTurn());
+function openRoom() {
+  roomOpen = null;
+  hostRoom().then(() => { save(); render(); }, () => toast(t("Couldn't open the room")));
+}
+// The lobby is open until the first visit (on a guest: until it has a seat); a tap on its bar overrides that
+let roomOpen = null, qrLoad = null;
+// The QR code generator loads the first time a lobby opens, so single-phone play loads nothing extra
+const loadQR = () => qrLoad ||= new Promise((ok, no) => {
+  const el = document.createElement('script');
+  el.src = 'vendor/qrcode.js'; el.onload = ok; el.onerror = () => { qrLoad = null; no(); };
+  document.head.appendChild(el);
+});
+function qrHTML(link) {
+  if (typeof qrcode !== 'function') { loadQR().then(renderRoomBar, () => {}); return ''; }
+  const q = qrcode(0, 'M'); q.addData(link); q.make();
+  return q.createSvgTag({ cellSize: 4, margin: 2 });
+}
+// The join link: this page's own address, so a test or development transport carries over
+function joinLink(code) {
+  const u = new URL(location.href), local = u.searchParams.get('transport') === 'local';
+  u.search = ''; u.hash = '';
+  u.searchParams.set('join', code);
+  if (local) u.searchParams.set('transport', 'local');
+  return u.href;
+}
+const roomOf = () => S.room || { seats: {}, online: {} };
+const connDot = p => { const r = roomOf(), on = !!(r.seats[p] && r.online[r.seats[p]]); return `<span class="dot${on ? ' on' : ''}" title="${t(on ? 'Connected' : 'Not connected')}"></span>`; };
+function renderRoomBar() {
+  const bar = $('roomBar');
+  bar.hidden = !ROOM;
+  if (!ROOM) { bar.innerHTML = ''; return; }
+  const host = ROOM.role === 'host', pl = players(), r = roomOf(), self = ROOM.transport.selfId;
+  const open = roomOpen ?? (host ? !S.acts.length : !ROOM.mine.length);
+  bar.dataset.open = open;
+  const phones = Object.keys(r.online).length;
+  const sum = host ? t(phones === 1 ? '1 phone' : '{n} phones', { n: phones })
+    : ROOM.mine.length ? t('Playing as {names}', { names: ROOM.mine.map(s => pl[s]?.name).join(', ') }) : t('Tap your name');
+  const head = `<button type="button" class="room-head" data-act="room" aria-expanded="${open}"><span><b>${t('Room {code}', { code: formatRoomCode(ROOM.code) })}</b> · ${esc(sum)}</span><span class="chev" aria-hidden="true"></span></button>`;
+  if (!open) { bar.innerHTML = head; return; }
+  let body;
+  if (host) {
+    const link = joinLink(ROOM.code);
+    const seats = pl.map((p, i) => {
+      const id = r.seats[i], bot = p.type === 'bot';
+      const stat = i === 0 ? t('This phone') : bot ? 'Bot' : !id ? t('Scored here') : r.online[id] ? t('Connected') : t('Not connected');
+      return `<li class="seat">${i > 0 && !bot ? connDot(i) : '<span class="dot none"></span>'}<span class="sname">${esc(p.name)}</span><span class="sstat">${stat}</span></li>`;
+    }).join('');
+    body = `<div class="room-join"><div class="qr">${qrHTML(link)}</div><div class="room-info">
+        <span class="label">${t('Room code')}</span><div class="room-code num">${formatRoomCode(ROOM.code)}</div>
+        <p class="hint">${t('Players scan the code or open the link on their phone, then tap their name.')}</p>
+        <a class="room-link" href="${esc(link)}">${esc(link.replace(/^https?:\/\//, ''))}</a>
+        <button class="btn" type="button" data-act="shareLink">${t('Share link')}</button></div></div>
+      <ul class="seats">${seats}</ul>`;
+  } else {
+    // Seat 0 is the host's, bots play on the host, and a seat another phone has is taken
+    const seats = pl.map((p, i) => {
+      const mine = r.seats[i] === self, taken = r.seats[i] && !mine, bot = p.type === 'bot';
+      const stat = i === 0 ? t('Host') : bot ? 'Bot' : mine ? t('This phone') : taken ? t('Taken') : '';
+      return `<li><button type="button" class="seat" data-act="claim" data-v="${i}" aria-pressed="${mine}"${i === 0 || bot || taken ? ' disabled' : ''}><span class="sname">${esc(p.name)}</span><span class="sstat">${stat}</span></button></li>`;
+    }).join('');
+    body = `<p class="hint">${t('Tap the name or names you are playing as.')}</p><ul class="seats">${seats}</ul>
+      <div class="row-actions"><button class="btn" type="button" data-act="leave">${t('Leave')}</button></div>`;
+  }
+  bar.innerHTML = head + `<div class="room-body">${body}</div>`;
+}
+// The join screen: a code field and Join. A join link fills the code and joins at once.
+let joinCode = '', joinMsg = '', joinBusy = false;
+function openJoin(code = '', nav = true) {
+  joinCode = code; joinMsg = ''; joinBusy = false;
+  if (nav) return goScreen('join');
+  S.screen = 'join'; render();
+}
+function renderJoin() {
+  $('page').innerHTML = `<section class="panel join"><h2>${t('Join a game')}</h2>
+    <p class="hint">${t("Type the room code from the host's phone, or scan its QR code with the camera.")}</p>
+    <form class="joinrow" id="joinForm" novalidate><input type="text" id="joinCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="9" placeholder="K7Q-M2P" aria-label="${t('Room code')}" value="${esc(joinCode)}">
+      <button class="btn primary" type="submit" data-act="join"${joinBusy ? ' disabled' : ''}>${t(joinBusy ? 'Connecting…' : 'Join')}</button></form>
+    <div class="msg" role="status" aria-live="polite">${esc(joinMsg)}</div></section>`;
+}
+async function doJoin(text = $('joinCode')?.value) {
+  joinCode = text || '';
+  const code = parseRoomCode(joinCode);
+  joinMsg = code ? '' : t('A room code is 6 letters and digits, like K7Q-M2P');
+  joinBusy = !!code; roomOpen = null;
+  render();
+  if (!code) return;
+  try { await joinRoomAsGuest(code); }
+  catch (e) {
+    joinBusy = false; joinMsg = t("Couldn't reach the room. Check the code, and that both phones are online");
+    if (S.screen === 'join') render();
+  }
 }
 
 // ---------- input ----------
 function press(k) {
+  if (!myTurn()) return;
   if (isGame()) {
     const G = GAMES[S.settings.mode];
     if (!G.keypad || G.done(S.game) || isBotTurn()) return;
@@ -1164,7 +1284,12 @@ document.addEventListener('click', e => {
   else if (b.dataset.act === 'new') goMenu();
   else if (b.dataset.pg) pageAct(b.dataset.pg, b.dataset.v);
   else if (b.dataset.nav) goScreen(b.dataset.nav);
+  else if (b.dataset.menu === 'join') openJoin();
   else if (b.dataset.menu) openSetup(b.dataset.menu);
+  else if (b.dataset.act === 'room') { roomOpen = $('roomBar').dataset.open !== 'true'; renderRoomBar(); }
+  else if (b.dataset.act === 'claim') claim([+b.dataset.v]);
+  else if (b.dataset.act === 'leave') { leaveRoom(); goMenu(); }
+  else if (b.dataset.act === 'shareLink') shareIt(joinLink(ROOM.code));
   else if (b.dataset.act === 'discard') confirmDiscard();
   else if (b.dataset.act === 'continue') { S.screen = 'play'; save(); render(); maybeBot(); }
 });
@@ -1191,6 +1316,7 @@ window.ocheBack = () => {
   goMenu();
   return true;
 };
+document.addEventListener('submit', e => { if (e.target.id === 'joinForm') { e.preventDefault(); doJoin(); } });
 document.addEventListener('change', e => { if (e.target.matches('#page select[data-pg]')) pageAct(e.target.dataset.pg, e.target.value); });
 $('undoBtn').addEventListener('click', undo);
 $('menuBtn').addEventListener('click', goMenu);
@@ -1220,6 +1346,14 @@ function start(data) {
     // The stored game is kept: the fault may be in this version, not the save
     S = freshMatch(DEFAULT_SETTINGS); S.screen = 'menu';
     render();
+  }
+  // A join link (from the host's QR code): open the join screen and join at once, then drop the code from the address
+  const params = new URLSearchParams(location.search), code = params.get('join');
+  if (code != null) {
+    params.delete('join');
+    history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params : '') + location.hash);
+    openJoin(code, false);
+    return doJoin(code);
   }
   maybeBot();
 }

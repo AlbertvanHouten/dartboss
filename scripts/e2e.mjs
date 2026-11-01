@@ -296,7 +296,7 @@ try {
   await sync();
   // Ann's phone asks while the host's state moves on: the visit goes with the version she started from, and is refused
   await G('submit(10)');
-  await H('save()');
+  await H(`undo(); submit(0); ${ok}`);                  // the host takes back You's visit and enters it again
   await sync();
   await noToast(guestP);
   await G(ok);
@@ -348,6 +348,111 @@ try {
   assert.equal(await G('writes'), 0, 'a guest never saves while in a room');
   assert.equal(await G('S.settings.mode'), 'bobs27', 'leaving brings back the guest\'s own game');
   assert.equal(await G("JSON.parse(localStorage.getItem(STORE_KEY)).settings.mode"), 'bobs27', 'the guest\'s saved game is still stored');
+
+  // ---- the screens: setup switch, lobby, join link, seat list, waiting ----
+  await H('leaveRoom()');
+  const q = (p, sel) => p.evaluate(s => !!document.querySelector(s), sel);
+  const disabled = (p, sel) => p.evaluate(s => [...document.querySelectorAll(s)].map(b => b.disabled), sel);
+  // Single-phone play loads nothing new; without the local transport the room can't open yet and says so
+  assert.equal(await run('!!document.querySelector(\'script[src*="qrcode"]\')'), false, 'single-phone play loads no QR code script');
+  await run(`startMatch({ ...DEFAULT_SETTINGS, shared: true, players: ${humans} })`);
+  await wait(page, () => document.getElementById('toast').textContent.includes("Couldn't open the room"));
+  assert.equal(await run('ROOM'), null, 'no room without a transport');
+  assert.equal(await run("document.getElementById('roomBar').hidden"), true);
+  // The join tile opens the join screen with a code field
+  await run("goMenu(); document.querySelector('[data-menu=\"join\"]').click()");
+  assert.equal(await run('S.screen'), 'join', 'the join tile opens the join screen');
+  await run("document.getElementById('joinCode').value = 'k7q-m2p'; document.querySelector('[data-act=\"join\"]').click()");
+  await wait(page, () => /Couldn't reach the room/.test(document.getElementById('page').innerText));
+  await run("document.getElementById('joinCode').value = 'nope'; document.querySelector('[data-act=\"join\"]').click()");
+  assert.match(await text('#page'), /6 letters and digits/, 'a bad code says what a code looks like');
+  await run('goMenu()');
+
+  // The switch shows for games with 2 or more players, not for solo games
+  const four = "[{ name: 'You', type: 'human' }, { name: 'Ann', type: 'human' }, { name: 'Bob', type: 'human' }, { name: 'Bot', type: 'bot', avg: 50 }]";
+  await H(`startMatch({ ...DEFAULT_SETTINGS, players: ${four} }); goMenu()`);
+  const shared = '#overlay [data-key="shared"]';
+  await H("document.querySelector('[data-menu=\"doubles\"]').click()");
+  assert.equal(await q(hostP, shared), false, 'no phones switch for a solo game');
+  await H("document.querySelector('#overlay [data-act=\"cancel\"]').click(); document.querySelector('[data-menu=\"x01\"]').click()");
+  assert.equal(await q(hostP, shared), true, 'the setup offers players on their own phones');
+  await H(`document.querySelector('${shared}').click()`);
+  assert.equal(await H(`document.querySelector('${shared}').getAttribute('aria-checked')`), 'true');
+  await H("document.querySelector('#overlay [type=submit]').click()");
+  await wait(hostP, () => ROOM?.role === 'host');
+  const code = await H('ROOM.code');
+  assert.equal(await H('S.settings.shared'), true);
+  // The lobby: formatted code, QR code (loaded on demand), join link, seats
+  assert.equal(await H("document.getElementById('roomBar').hidden"), false, 'the lobby shows');
+  assert.match(await H("document.getElementById('roomBar').innerText"), new RegExp(code.slice(0, 3) + '-' + code.slice(3)), 'the lobby shows the formatted code');
+  await wait(hostP, () => !!document.querySelector('#roomBar .qr svg, #roomBar .qr img'));
+  assert.equal(await q(hostP, 'script[src="vendor/qrcode.js"]'), true, 'the QR script loads once a lobby opens');
+  assert.match(await H("document.getElementById('roomBar').innerText"), new RegExp(`\\?join=${code}`), 'the lobby shows the join link');
+
+  // The guest opens the join link: it joins at once and lands on the seat list
+  await guestP.goto(`${url}?join=${code}&transport=local`, { waitUntil: 'networkidle0' });
+  await wait(guestP, () => !!document.querySelector('#roomBar [data-act="claim"]'));
+  assert.equal(await G('location.search'), '?transport=local', 'the join parameter is removed');
+  assert.deepEqual(await disabled(guestP, '#roomBar [data-act="claim"]'), [true, false, false, true], 'the host\'s seat and the bot are greyed out');
+  await G("document.querySelector('#roomBar [data-act=\"claim\"][data-v=\"1\"]').click()");
+  await wait(guestP, () => ROOM.mine.includes(1));
+  await wait(hostP, () => !!document.querySelector('#players .player:nth-child(2) .dot.on'));
+  assert.equal(await q(hostP, '#players .player:nth-child(3) .dot:not(.on)'), true, 'an unclaimed seat has a grey dot');
+  assert.equal(await q(hostP, '#players .player:nth-child(4) .dot'), false, 'a bot has no dot');
+  assert.equal(await G("document.getElementById('roomBar').dataset.open"), 'false', 'the seat list folds once a seat is claimed');
+
+  // Waiting: not the guest's turn, so its keypad is off
+  assert.ok((await disabled(guestP, '#keys button')).every(Boolean), 'keys are off while You throw');
+  await H('submit(60)');                                  // You
+  assert.equal(await H("document.getElementById('roomBar').dataset.open"), 'false', 'the lobby folds after the first visit');
+  assert.match(await H("document.getElementById('roomBar').innerText"), /1 phone/, 'the folded bar counts the phones');
+  await H("document.querySelector('#roomBar [data-act=\"room\"]').click()");
+  assert.equal(await H("document.getElementById('roomBar').dataset.open"), 'true', 'tapping the bar opens the lobby again');
+  await sync();
+  assert.ok((await disabled(guestP, '#keys button')).every(b => !b), 'keys are on for Ann\'s turn');
+  assert.equal(await G("document.getElementById('undoBtn').disabled"), true, 'nothing to undo yet');
+  // The host browses while Ann's visit is on its way: the visit still counts
+  await G('window.v0 = ROOM.ver');
+  await H("goScreen('history'); goScreen('play')");
+  await sync();
+  await viaGuest("guestSend({ type: 'visit', seat: 1, visit: { p: 1, before: 501, score: 100, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false } }, v0)");
+  assert.equal(await H('remaining(curLeg(), 1)'), 401, 'browsing on the host does not make a guest\'s visit stale');
+  assert.equal(await G("document.getElementById('undoBtn').disabled"), false, 'the guest can undo its visit');
+  assert.ok((await disabled(guestP, '#keys button')).every(Boolean), 'keys are off for Bob');
+  assert.match(await G("document.getElementById('readout').textContent"), /Waiting for Bob…/);
+  await H('submit(45)');                                  // Bob, on the host
+  await sync();
+  assert.equal(await G("document.getElementById('undoBtn').disabled"), true, 'too late to undo once Bob has scored');
+  assert.equal(await G("document.getElementById('undoBtn').hidden"), false, 'the disabled undo still shows');
+  // Dart-by-dart games: the pad waits, and undo follows the same rule
+  await H(`startMatch({ ...DEFAULT_SETTINGS, mode: 'killer', shared: true, players: ${four} })`);
+  await sync();
+  assert.ok((await disabled(guestP, '#gameLeft .gpadwrap [data-ga]')).every(Boolean), 'the game pad is off while You throw');
+  assert.match(await G("document.getElementById('gameLeft').innerText"), /Waiting for You…/);
+  for (let i = 0; i < 3; i++) await H("gameAct('dart', 0)");
+  await sync();
+  assert.ok((await disabled(guestP, '#gameLeft .gpadwrap [data-ga]')).some(b => !b), 'the game pad is on for Ann');
+  assert.deepEqual(await disabled(guestP, '#gameLeft [data-act="undo"]'), [true], 'nothing to undo yet in Killer');
+  await viaGuest("gameAct('dart', 0)");
+  assert.deepEqual(await disabled(guestP, '#gameLeft [data-act="undo"]'), [false], 'the guest can undo its dart');
+
+  // Layout at phone width: host lobby and guest waiting state
+  const shots = new URL('../.superpowers/sdd/2026-11-01-multi-device-play/', import.meta.url);
+  if (process.env.SHOTS) {
+    // Changing isMobile would reload the pages and drop the room, so only the size changes
+    for (const p of [hostP, guestP]) await p.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 });
+    await H(`startMatch({ ...DEFAULT_SETTINGS, shared: true, players: ${four} })`);
+    await sync();
+    await wait(hostP, () => !!document.querySelector('#roomBar .qr svg'));
+    await hostP.screenshot({ path: new URL('host-lobby.png', shots).pathname, fullPage: true });
+    await guestP.screenshot({ path: new URL('guest-waiting.png', shots).pathname, fullPage: true });
+    await G("document.querySelector('#roomBar [data-act=\"room\"]').click()");
+    await guestP.screenshot({ path: new URL('guest-seats.png', shots).pathname, fullPage: true });
+  }
+  const wide = p => p.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+  for (const p of [hostP, guestP]) await p.setViewport({ width: 320, height: 700 });
+  assert.equal(await wide(hostP), false, 'the lobby fits 320 px');
+  assert.equal(await wide(guestP), false, 'the guest fits 320 px');
   assert.deepEqual(errors, [], 'no errors on the two phones');
 
   console.log('Browser checks passed');

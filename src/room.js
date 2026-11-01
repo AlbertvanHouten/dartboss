@@ -77,15 +77,20 @@ const pickTransport = () => new URLSearchParams(location.search).get('transport'
 // ROOM is null when this phone is in no room. A guest's own game waits in localS until it leaves.
 let ROOM = null, localS = null;
 let roomQuiet = false, roomNote = null; // quiet: hold broadcasts while one guest undo takes several steps
+let lastSent = null; // the match as last broadcast, so a save that changed nothing (a screen change) sends nothing
 
 // The state message: the match without undo snapshots, bot replays or the host's screen
 function stateMsg() {
   const { hist, replay, gameReplay, screen, ...state } = S;
   return { type: 'state', app: APP_VERSION, ver: S.room.ver, state, ...(roomNote && { note: roomNote }) };
 }
-// Called from save(): every change gets a new version, so inputs made against an older one are refused
+// Called from save(): every change gets a new version, so inputs made against an older one are refused.
+// Saves that leave the match as it was (the host opening History, say) send nothing, so they can't make a guest's visit stale.
 function broadcastState() {
   if (roomQuiet) return;
+  const { hist, replay, gameReplay, screen, room, ...match } = S, json = JSON.stringify(match);
+  if (json === lastSent && !roomNote) return;
+  lastSent = json;
   S.room.ver++;
   ROOM.transport.send(stateMsg());
   roomNote = null;
@@ -96,13 +101,14 @@ const sendState = to => ROOM.transport.send(stateMsg(), to);
 async function hostRoom(code = makeRoomCode()) {
   if (ROOM) leaveRoom();
   const transport = pickTransport();
+  lastSent = null;
   S.room = { code, ver: 0, seats: {}, online: {} };
   ROOM = { role: 'host', code, transport, seats: S.room.seats, online: S.room.online, mine: [0] };
   await transport.join(code, {
     onMessage: hostMessage,
     onPeer(peer, online) {
       if (online) S.room.online[peer] = true; else delete S.room.online[peer];
-      sendState();
+      sendState(); if (S.screen === 'play') render();
     },
   });
 }
@@ -112,7 +118,9 @@ function hostMessage(msg, from) {
   const reject = reason => ROOM.transport.send({ type: 'reject', app: APP_VERSION, reason }, from);
   if (msg.type === 'claim') {
     claimSeats({ room: S.room, peer: from, seats: msg.seats || [], players: players() });
-    return sendState();
+    // The lobby and the scoreboard's dots show who has which seat
+    sendState(); if (S.screen === 'play') render();
+    return;
   }
   if (msg.type === 'visit' || msg.type === 'act') {
     if (msg.type === 'visit' && msg.visit?.p !== msg.seat) return reject('seat');
@@ -145,9 +153,9 @@ function undoFor(seat) {
 
 async function joinRoomAsGuest(code) {
   if (ROOM) leaveRoom();
+  const transport = pickTransport();
   cancelBot(); botBusy = false; buffer = '';
   localS = S;
-  const transport = pickTransport();
   ROOM = { role: 'guest', code, transport, seats: {}, online: {}, mine: [], ver: null };
   await transport.join(code, { onMessage: guestMessage, onPeer() {} });
 }
@@ -169,9 +177,15 @@ function guestMessage(msg) {
 const guestSend = (input, ver = ROOM.ver) => ROOM.transport.send({ ...input, ver, app: APP_VERSION });
 const claim = seats => guestSend({ type: 'claim', seats });
 // Undo the latest act of any seat this phone plays
+const guestUndoSeat = () => S.acts?.findLast(a => ROOM.mine.includes(a.seat))?.seat;
 function guestUndo() {
-  const seat = S.acts?.findLast(a => ROOM.mine.includes(a.seat))?.seat;
+  const seat = guestUndoSeat();
   if (seat != null) guestSend({ type: 'undo', seat });
+}
+// Would the host take this phone's undo? Lights the Undo button on a guest
+function guestCanUndo() {
+  const seat = guestUndoSeat();
+  return seat != null && !canUndo({ from: ROOM.transport.selfId, seat, room: S.room, acts: S.acts });
 }
 function leaveRoom() {
   if (!ROOM) return;
