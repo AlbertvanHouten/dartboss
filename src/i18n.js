@@ -73,6 +73,9 @@ const STRINGS = {
     'The game in progress and its scores will be deleted. Personal bests already set are kept.': 'Het lopende spel en de scores worden gewist. Behaalde persoonlijke records blijven bewaard.',
     'New personal best: {n}': 'Nieuw persoonlijk record: {n}', 'Saved as your personal best: {n}': 'Opgeslagen als persoonlijk record: {n}',
     'Could not save: device storage is full': 'Opslaan mislukt: de opslag van het apparaat is vol',
+    // playing on several phones
+    'Already scored': 'Al gescoord', 'Too late to undo here: ask the host': 'Te laat om hier terug te nemen: vraag het de host',
+    '{name} took back their visit': '{name} heeft de beurt teruggenomen',
     'Replace the match in progress?': 'Lopende wedstrijd vervangen?', 'Replace the game in progress?': 'Lopend spel vervangen?',
     'The scores so far will be lost.': 'De scores tot nu toe gaan verloren.', 'Start new': 'Nieuw starten',
     'Copied': 'Gekopieerd', 'Reset all data?': 'Alle gegevens wissen?', 'All data reset': 'Alle gegevens gewist',
@@ -281,6 +284,9 @@ const STRINGS = {
     'The game in progress and its scores will be deleted. Personal bests already set are kept.': 'Das laufende Spiel und seine Punkte werden gelöscht. Bereits erzielte Bestleistungen bleiben erhalten.',
     'New personal best: {n}': 'Neue Bestleistung: {n}', 'Saved as your personal best: {n}': 'Als Bestleistung gespeichert: {n}',
     'Could not save: device storage is full': 'Speichern fehlgeschlagen: Gerätespeicher ist voll',
+    // playing on several phones
+    'Already scored': 'Schon eingetragen', 'Too late to undo here: ask the host': 'Zu spät, um hier zurückzunehmen: frag den Host',
+    '{name} took back their visit': '{name} hat die Aufnahme zurückgenommen',
     'Replace the match in progress?': 'Laufendes Match ersetzen?', 'Replace the game in progress?': 'Laufendes Spiel ersetzen?',
     'The scores so far will be lost.': 'Die bisherigen Punkte gehen verloren.', 'Start new': 'Neu starten',
     'Copied': 'Kopiert', 'Reset all data?': 'Alle Daten zurücksetzen?', 'All data reset': 'Alle Daten zurückgesetzt',

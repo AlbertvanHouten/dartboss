@@ -1,6 +1,6 @@
 // Plays the built app (dist/) in headless Chrome and checks the X01 match rules that live in the app:
 // busts, checkouts, who starts the next leg, undo, two clear legs, an empty Score, and recovery from a
-// broken save. Uses local Chrome, or the path in CHROME.
+// broken save, and two phones playing in one room. Uses local Chrome, or the path in CHROME.
 //   npm run build && npm run test:e2e
 import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
@@ -218,6 +218,99 @@ try {
   assert.equal(await run('S.screen'), 'menu', 'a broken save falls back to the menu');
   assert.equal(await run("document.getElementById('menu').hidden"), false, 'the menu is shown');
   assert.deepEqual(errors, [], 'no errors on the page');
+
+  // Two phones in one room over the local transport (BroadcastChannel): a host page and a guest page.
+  // Both pages share this browser's storage, so it is cleared once and both load clean.
+  const local = url + '?transport=local';
+  const hostP = await browser.newPage(), guestP = await browser.newPage();
+  for (const p of [hostP, guestP]) { p.on('pageerror', e => errors.push(e.message)); await p.goto(local, { waitUntil: 'networkidle0' }); }
+  await hostP.evaluate(() => localStorage.clear());
+  for (const p of [hostP, guestP]) await p.reload({ waitUntil: 'networkidle0' });
+  const H = fn => hostP.evaluate(fn), G = fn => guestP.evaluate(fn);
+  const wait = (p, fn, arg) => p.waitForFunction(fn, { timeout: 5000 }, arg);
+  // The guest has the host's latest state
+  const sync = async () => wait(guestP, v => ROOM?.ver === v, await H('S.room.ver'));
+  // Run an input on the guest, then wait for the host to apply it and the guest to see the result
+  const viaGuest = async code => {
+    const v = await H('S.room.ver');
+    await G(code);
+    await wait(hostP, v => S.room.ver > v, v);
+    await sync();
+  };
+  const toastOn = (p, text) => wait(p, s => !document.getElementById('toast').hidden && document.getElementById('toast').textContent.includes(s), text);
+
+  // guest joins and sees the host's match
+  const ann = "[{ name: 'You', type: 'human' }, { name: 'Ann', type: 'human' }, { name: 'Bob', type: 'human' }]";
+  await H(`startMatch({ ...DEFAULT_SETTINGS, players: ${ann} })`);
+  await H("hostRoom('K7QM2P')");
+  await G("joinRoomAsGuest('K7QM2P')");
+  await sync();
+  await G('claim([1])');
+  await wait(guestP, () => ROOM.mine.length > 0);
+  assert.equal(await G('S.settings.players.length'), 3, 'the guest has the host\'s players');
+  assert.deepEqual(await G('ROOM.mine'), [1], 'the guest plays seat 1');
+  assert.equal(await H('S.room.seats[1]'), await G('ROOM.transport.selfId'), 'the host gives seat 1 to the guest');
+
+  // guest scores its own visit
+  await H('submit(60)');                                  // You (seat 0, on the host)
+  await sync();
+  await viaGuest('submit(100)');                          // Ann, on her own phone
+  assert.equal(await H('remaining(curLeg(), 1)'), 401, 'the host applies the guest\'s visit');
+  assert.equal(await G('remaining(curLeg(), 1)'), 401, 'the guest sees its visit');
+
+  // host scores for a seat without a phone
+  await H('submit(45)');                                  // Bob has no phone
+  await sync();
+  assert.equal(await H('remaining(curLeg(), 2)'), 456);
+  assert.equal(await G('remaining(curLeg(), 2)'), 456, 'both phones agree');
+
+  // stale input is rejected: the host scores Ann's visit while her phone's visit is on its way
+  await H('submit(60)');                                  // You
+  await sync();
+  await G('window.oldVer = ROOM.ver');
+  await H('submit(80)');                                  // the host enters Ann's visit itself
+  await sync();
+  await G("ROOM.ver = oldVer; guestSend({ type: 'visit', seat: 1, visit: { p: 1, before: 401, score: 100, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false } })");
+  await toastOn(guestP, 'Already scored');
+  assert.deepEqual(await H('curLeg().visits.filter(v => v.p === 1).map(v => v.score)'), [100, 80], 'only the host\'s visit counts for this round');
+  assert.equal(await H('remaining(curLeg(), 1)'), 321);
+
+  // guest undo while the next turn is in progress (Killer, a dart at a time)
+  await H(`startMatch({ ...DEFAULT_SETTINGS, mode: 'killer', players: ${ann} })`);
+  await sync();
+  assert.deepEqual(await G('ROOM.mine'), [1], 'a rematch keeps the guest\'s seat');
+  for (let i = 0; i < 3; i++) await H("gameAct('dart', 0)");   // You: three misses
+  await sync();
+  for (let i = 0; i < 3; i++) await viaGuest("gameAct('dart', 0)"); // Ann: three misses on her phone
+  await H("gameAct('dart', 0)");                                 // Bob's first dart, on the host
+  await sync();
+  assert.equal(await H('S.acts.length'), 7);
+  await viaGuest('gameUndo()');
+  assert.deepEqual(await H('[S.game.turn, S.game.cur.length, S.acts.length]'), [1, 2, 5], 'Bob\'s dart and Ann\'s third dart are taken back');
+  assert.deepEqual(await G('[S.game.turn, S.game.cur.length]'), [1, 2], 'the guest sees the undo');
+  await toastOn(hostP, 'Ann took back their visit');
+  await toastOn(guestP, 'Ann took back their visit');
+  // Refused once Bob has finished his visit
+  await viaGuest("gameAct('dart', 0)");
+  for (let i = 0; i < 3; i++) await H("gameAct('dart', 0)");
+  await sync();
+  await G('gameUndo()');
+  await toastOn(guestP, 'Too late to undo here: ask the host');
+  assert.equal(await H('S.acts.length'), 9, 'the refused undo changes nothing');
+
+  // guest keeps its own saved game: a solo game on the guest phone survives joining and leaving a room
+  await G('leaveRoom()');
+  await G("startMatch({ ...DEFAULT_SETTINGS, mode: 'bobs27', players: [{ name: 'You', type: 'human' }] })");
+  await G(`window.writes = 0; (set => { Storage.prototype.setItem = function (k, v) { if (k === STORE_KEY) writes++; return set.call(this, k, v); }; })(Storage.prototype.setItem)`);
+  await G("joinRoomAsGuest('K7QM2P')");
+  await sync();
+  assert.equal(await G('S.settings.mode'), 'killer', 'in the room the guest shows the host\'s game');
+  await G("goScreen('history'); goScreen('play')");     // screens save as they change, but not on a guest
+  await G('leaveRoom()');
+  assert.equal(await G('writes'), 0, 'a guest never saves while in a room');
+  assert.equal(await G('S.settings.mode'), 'bobs27', 'leaving brings back the guest\'s own game');
+  assert.equal(await G("JSON.parse(localStorage.getItem(STORE_KEY)).settings.mode"), 'bobs27', 'the guest\'s saved game is still stored');
+  assert.deepEqual(errors, [], 'no errors on the two phones');
 
   console.log('Browser checks passed');
 } finally {

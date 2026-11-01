@@ -120,6 +120,9 @@ const fmt = (x, d = 1) => x == null ? '–' : x.toFixed(d);
 
 // Saved in the browser; inside the iOS app also mirrored to native storage (see native.js)
 function save() {
+  // A guest shows the host's match and keeps its own saved game untouched; the host sends each change to the room
+  if (ROOM?.role === 'guest') return;
+  if (ROOM?.role === 'host' && S.room) broadcastState();
   // Undo snapshots stay in memory; saving all of them outgrows the browser's storage on long games
   const json = JSON.stringify({ ...S, hist: (S.hist || []).slice(-10), acts: isGame() ? (S.acts || []).slice(-10) : S.acts });
   try { localStorage.setItem(STORE_KEY, json); } catch (e) { toast(t('Could not save: device storage is full')); }
@@ -462,6 +465,7 @@ function callVisit(v) {
 
 // ---------- game flow ----------
 function commitVisit(v) {
+  if (ROOM?.role === 'guest') { buffer = ''; return guestSend({ type: 'visit', seat: v.p, visit: v }); }
   const leg = curLeg();
   leg.visits.push(v);
   buffer = '';
@@ -491,6 +495,8 @@ function commitVisit(v) {
 }
 function maybeBot() {
   cancelBot();
+  // Bots play on the host
+  if (ROOM?.role === 'guest') { botBusy = false; return; }
   if (S.screen !== 'play') { botBusy = false; return; }
   if (isGame()) return gameBot();
   if (!isBotTurn()) { botBusy = false; return; }
@@ -542,6 +548,7 @@ function popOne() {
   return v;
 }
 function undo() {
+  if (ROOM?.role === 'guest') return guestUndo();
   if (isGame()) return gameUndo();
   if (!hasHumanVisit() || botBusy) return;
   cancelBot();
@@ -659,6 +666,7 @@ function gameAct(a, v) {
     const problem = G.validate ? G.validate(S.game, s) : (!E.validVisit(s) ? (s > 180 ? t('The most three darts can score is 180.') : t("{n} can't be scored with three darts.", { n: s })) : null);
     if (problem) { buffer = ''; render(); return gameErr(problem); }
   }
+  if (ROOM?.role === 'guest') { buffer = ''; render(); return guestSend({ type: 'act', seat: S.game.turn, a, v }); }
   S.hist.push(JSON.stringify(S.game));
   if (S.hist.length > 400) { S.hist.shift(); S.acts.shift(); }
   const seat = S.game.turn;
@@ -682,6 +690,7 @@ function afterGameChange() {
   save(); render(); maybeBot();
 }
 function gameUndo() {
+  if (ROOM?.role === 'guest') return guestUndo();
   if (!S.hist.length || botBusy) return;
   cancelBot();
   const before = S.game;
@@ -1118,7 +1127,10 @@ function openSetup(mode) {
 }
 function startMatch(settings) {
   cancelBot(); botBusy = false;
+  // A rematch on the host stays in the same room
+  const room = S?.room;
   S = freshMatch(settings); buffer = '';
+  if (ROOM?.role === 'host' && room) S.room = room;
   save(); render(); maybeBot();
 }
 
