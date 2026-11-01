@@ -9,7 +9,7 @@ for (const b of blocks) new Function(b); // throws on a syntax error
 
 const store = new Map();
 const localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
-const { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, versionOk, canAct, canUndo, claimSeats, recheckSeats } = new Function('localStorage', `${blocks[0]}\n${blocks[1]}\nlet buffer = ''; const isBotTurn = () => false;\n${blocks[2]}\n${blocks[3]}\nreturn { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, versionOk, canAct, canUndo, claimSeats, recheckSeats };`)(localStorage);
+const { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, ROOM_PROTOCOL, protocolOk, whoUpdates, canAct, canUndo, claimSeats, recheckSeats } = new Function('localStorage', `${blocks[0]}\n${blocks[1]}\nlet buffer = ''; const isBotTurn = () => false;\n${blocks[2]}\n${blocks[3]}\nreturn { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, ROOM_PROTOCOL, protocolOk, whoUpdates, canAct, canUndo, claimSeats, recheckSeats };`)(localStorage);
 
 // Checkout routes
 const route = (r, out = 'double') => (E.bestRoute(r, 3, out) || []).map(E.label).join(' ');
@@ -225,8 +225,15 @@ assert.match(makeRoomCode(), /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/);
 assert.equal(formatRoomCode('K7QM2P'), 'K7Q-M2P');
 assert.equal(parseRoomCode(' k7q-m2p '), 'K7QM2P');
 assert.equal(parseRoomCode('K7QM20'), null);
-assert.equal(versionOk({ app: '1.2.0' }, '1.2.0'), true);
-assert.equal(versionOk({ app: '1.1.0' }, '1.2.0'), false);
+// Phones play together when their room protocol matches, whatever their app versions
+assert.equal(protocolOk({ proto: ROOM_PROTOCOL, app: '1.2.0' }), true);
+assert.equal(protocolOk({ proto: ROOM_PROTOCOL + 1, app: '1.2.0' }), false);
+assert.equal(protocolOk({ app: '1.2.0' }), false, 'a message without a protocol is from before there was one');
+assert.equal(protocolOk(null), false);
+// When the host refuses, the phone on the older protocol is the one to update
+assert.equal(whoUpdates(ROOM_PROTOCOL + 1), 'guest');
+assert.equal(whoUpdates(ROOM_PROTOCOL - 1), 'host');
+assert.equal(whoUpdates(undefined), 'host');
 
 const room = { seats: { 1: 'peerA', 2: 'peerB' } };
 assert.equal(canAct({ from: 'host', input: { type: 'visit', seat: 3, ver: 5 }, room, turn: 3, ver: 5 }), null);

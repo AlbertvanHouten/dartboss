@@ -1317,9 +1317,9 @@ async function doJoin(text = $('joinCode')?.value) {
   catch (e) {
     joinBusy = false;
     if (e?.message === 'left') return; // this phone left while it was still connecting
-    joinFailed = e?.message !== 'version';
-    joinMsg = t(joinFailed ? "Couldn't reach the room. Check the code, and that both phones are online" : 'Update Dartboss on this phone to join');
-    // The join can fail after the room was set up (no host, another version): this phone is in no room then
+    joinFailed = !['version', 'hostVersion'].includes(e?.message);
+    joinMsg = joinFailed ? t("Couldn't reach the room. Check the code, and that both phones are online") : updateText(e.message);
+    // The join can fail after the room was set up (no host, another protocol): this phone is in no room then
     leaveRoom();
     if (S.screen === 'join') render();
   }

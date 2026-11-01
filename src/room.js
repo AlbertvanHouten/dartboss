@@ -8,8 +8,12 @@ const parseRoomCode = text => {
   const code = String(text).toUpperCase().replace(/[-\s]/g, '');
   return code.length === 6 && [...code].every(c => ROOM_ALPHABET.includes(c)) ? code : null;
 };
-// Both devices must run the same app version, or the rules could differ
-const versionOk = (msg, appVersion) => !!msg && msg.app === appVersion;
+// The room protocol: the messages and the match state they carry. It goes up only when either changes, so
+// phones on different app versions play together while it matches. let: the browser test stands in another one.
+let ROOM_PROTOCOL = 1;
+const protocolOk = msg => !!msg && msg.proto === ROOM_PROTOCOL;
+// When the host refuses a phone's protocol, the phone on the older one is the one to update
+const whoUpdates = hostProto => (hostProto || 0) > ROOM_PROTOCOL ? 'guest' : 'host';
 
 // The acts after the last one by `seat` (all of them if the seat has none)
 const actsSince = (log, seat) => log.slice(log.findLastIndex(a => a.seat === seat) + 1);
@@ -122,7 +126,7 @@ let lastSent = null; // the match as last broadcast, so a save that changed noth
 // The state message: the match without undo snapshots, bot replays or the host's screen
 function stateMsg() {
   const { hist, replay, gameReplay, screen, ...state } = S;
-  return { type: 'state', app: APP_VERSION, ver: S.room.ver, state, ...(roomNote && { note: roomNote }) };
+  return { type: 'state', proto: ROOM_PROTOCOL, app: APP_VERSION, ver: S.room.ver, state, ...(roomNote && { note: roomNote }) };
 }
 // Called from save(): every change gets a new version, so inputs made against an older one are refused.
 // Saves that leave the match as it was (the host opening History, say) send nothing, so they can't make a guest's visit stale.
@@ -164,7 +168,7 @@ async function hostRoom(code = makeRoomCode(), reopen = false) {
 // The host ends the room for everyone: guests are told, and go back to their own game
 function endRoom() {
   if (ROOM?.role !== 'host') return;
-  ROOM.transport.send({ type: 'end', app: APP_VERSION });
+  ROOM.transport.send({ type: 'end', proto: ROOM_PROTOCOL, app: APP_VERSION });
   leaveRoom();
 }
 // What a guest may send: a small object of a known type, with a phone id like the ones phoneId() makes
@@ -176,9 +180,10 @@ const guestMsgOk = msg => GUEST_TYPES.includes(msg.type) && typeof msg.phone ===
   && JSON.stringify(msg).length <= 2000;
 function hostMessage(msg, peer) {
   if (!S.room || !msg || typeof msg !== 'object' || Array.isArray(msg)) return;
-  const reject = reason => ROOM.transport.send({ type: 'reject', app: APP_VERSION, reason }, peer);
-  // A guest on another version is told so when it says hello, and not answered after that
-  if (!versionOk(msg, APP_VERSION)) return msg.type === 'hello' && reject('version');
+  const reject = reason => ROOM.transport.send({ type: 'reject', proto: ROOM_PROTOCOL, app: APP_VERSION, reason }, peer);
+  // A guest on another protocol is told so when it says hello, and not answered after that.
+  // The app version goes with every message too, for information only.
+  if (!protocolOk(msg)) return msg.type === 'hello' && reject('version');
   if (!guestMsgOk(msg)) return;
   // 'host' is the host's own name in the rules, so no guest may use it
   const from = msg.phone;
@@ -235,7 +240,7 @@ function undoFor(seat) {
   save();
 }
 
-// Resolves once the host has sent its match; rejects after ROOM_TIMES.connect without one, or with 'version'
+// Resolves once the host has sent its match; rejects after ROOM_TIMES.connect without one, or with 'version' or 'hostVersion'
 async function joinRoomAsGuest(code) {
   if (ROOM?.role === 'host') endRoom(); else if (ROOM) leaveRoom();
   // A hosted room that isn't open right now (a join link at boot comes before it reopens) ends too,
@@ -249,7 +254,7 @@ async function joinRoomAsGuest(code) {
   // queue: inputs waiting for the host's answer to the one sent before them (sent while `waiting` holds its version)
   ROOM = { role: 'guest', code, transport, self: phoneId(), seats: {}, online: {}, mine: [], ver: null, host: null, lost: false, queue: [], waiting: null,
     want: saved?.code === code ? saved.seats || [] : [] };
-  const room = ROOM, hello = to => transport.send({ type: 'hello', app: APP_VERSION, phone: room.self }, to);
+  const room = ROOM, hello = to => transport.send({ type: 'hello', proto: ROOM_PROTOCOL, app: APP_VERSION, phone: room.self }, to);
   const joined = new Promise((ok, no) => {
     room.joined = { ok, no };
     room.connectTimer = setTimeout(() => no(new Error('timeout')), ROOM_TIMES.connect);
@@ -270,10 +275,11 @@ async function joinRoomAsGuest(code) {
 function guestMessage(msg, peer) {
   if (!ROOM || !msg || typeof msg !== 'object') return;
   if (msg.type === 'reject' && msg.reason === 'version') {
-    if (ROOM.joined) return ROOM.joined.no(new Error('version'));
-    leaveRoom(); goMenu(); return toast(t('Update Dartboss on this phone to join'));
+    const why = whoUpdates(msg.proto) === 'guest' ? 'version' : 'hostVersion';
+    if (ROOM.joined) return ROOM.joined.no(new Error(why));
+    leaveRoom(); goMenu(); return toast(updateText(why));
   }
-  if (!versionOk(msg, APP_VERSION)) return;
+  if (!protocolOk(msg)) return;
   if (msg.type === 'end') { leaveRoom(); goMenu(); return toast(t('The host ended the game')); }
   if (msg.type === 'state') {
     ROOM.host = peer;
@@ -306,13 +312,15 @@ function guestMessage(msg, peer) {
     if (msg.reason === 'undo') toast(t('Too late to undo here: ask the host'));
   }
 }
+// Which phone needs a newer Dartboss: version (this one) or hostVersion
+const updateText = why => why === 'version' ? t('Update Dartboss on this phone to join') : t("The host's Dartboss needs updating to play together");
 // A guest keeps the finished match in its own history, so its stats count it (and drops it if the host takes the finish back)
 function guestRecord() {
   const done = isGame() ? GAMES[S.settings.mode].done(S.game) : S.matchWinner != null;
   if (done && ROOM.recorded !== S.id) { recordHistory(); ROOM.recorded = S.id; }
   else if (!done && ROOM.recorded === S.id) { forgetHistory(S.id); ROOM.recorded = null; }
 }
-const guestSend = (input, ver = ROOM.ver) => ROOM.transport.send({ ...input, ver, app: APP_VERSION, phone: ROOM.self }, ROOM.host);
+const guestSend = (input, ver = ROOM.ver) => ROOM.transport.send({ ...input, ver, proto: ROOM_PROTOCOL, app: APP_VERSION, phone: ROOM.self }, ROOM.host);
 // A guest's inputs go one at a time: each waits for the host's answer to the one before (a new state or a
 // refusal), so quick taps aren't refused as made against an old version. The waiting one goes with the newest.
 function guestInput(input, ver = ROOM.ver) {

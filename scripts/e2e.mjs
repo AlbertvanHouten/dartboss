@@ -286,7 +286,7 @@ try {
   // A guest's visit is built again on the host from its own rules: anything a phone could not have entered is
   // refused, and nothing a guest sends is shown as HTML. Messages go out raw, as a tampered phone would send them.
   await G("window.rejects = []; guestMessage = (g => (m, p) => { if (m?.type === 'reject') rejects.push(m.reason); return g(m, p); })(guestMessage)");
-  const rawCode = m => `ROOM.transport.send({ ver: ROOM.ver, app: APP_VERSION, phone: ROOM.self, ...${m} }, ROOM.host)`, raw = m => G(rawCode(m));
+  const rawCode = m => `ROOM.transport.send({ ver: ROOM.ver, proto: ROOM_PROTOCOL, app: APP_VERSION, phone: ROOM.self, ...${m} }, ROOM.host)`, raw = m => G(rawCode(m));
   const refused = async k => { await wait(guestP, k => rejects.length >= k, k); return G('rejects.length'); };
   await H('submit(45); submit(60)');                      // Bob and You: Ann to throw, on 321
   await sync();
@@ -617,7 +617,7 @@ try {
   assert.equal(await G('S.id'), await H('S.id'), 'the guest follows the rematch');
   assert.deepEqual(await G('ROOM.mine'), [1], 'Play again keeps the guest\'s seat');
   // A guest can't pass itself off as the host: You's visit, out of turn for Ann's phone, is ignored
-  await G("ROOM.transport.send({ type: 'visit', seat: 0, ver: ROOM.ver, app: APP_VERSION, phone: 'host', visit: { p: 0, before: 101, score: 60, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false } }, ROOM.host)");
+  await G("ROOM.transport.send({ type: 'visit', seat: 0, ver: ROOM.ver, proto: ROOM_PROTOCOL, app: APP_VERSION, phone: 'host', visit: { p: 0, before: 101, score: 60, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false } }, ROOM.host)");
   await new Promise(r => setTimeout(r, 300));
   assert.equal(await H('remaining(curLeg(), 0)'), 101, 'a guest calling itself host is ignored');
   // Restart keeps the room too (a rematch); Continue later keeps it; Discard ends it
@@ -647,13 +647,21 @@ try {
   await H(`startMatch({ ...${short}, shared: false })`);
   await toastOn(guestP, 'The host ended the game');
   assert.equal(await H('ROOM'), null, 'a match without phones closes the room');
-  // version mismatch refuses to join
+  // Another room protocol refuses to join, and the phone on the older one is told to update; the app version alone doesn't matter
   code2 = await host2();
-  await G("window.realVersion = APP_VERSION; APP_VERSION = '0.0.1-old'");
+  await G("ROOM_PROTOCOL--");
   await G(`openJoin('${code2}', false); doJoin('${code2}')`);
   await wait(guestP, () => /Update Dartboss on this phone to join/.test(document.getElementById('page').innerText));
-  assert.equal(await G('ROOM'), null, 'a guest on another version is not in the room');
-  await G('APP_VERSION = realVersion');
+  assert.equal(await G('ROOM'), null, 'a guest on an older protocol is not in the room');
+  await G("ROOM_PROTOCOL += 2");
+  await G(`doJoin('${code2}')`);
+  await wait(guestP, () => /The host's Dartboss needs updating to play together/.test(document.getElementById('page').innerText));
+  assert.equal(await G('ROOM'), null, 'a guest on a newer protocol is not in the room');
+  await G("ROOM_PROTOCOL--; window.realVersion = APP_VERSION; APP_VERSION = '0.0.1-old'");
+  await G(`doJoin('${code2}')`);
+  await wait(guestP, () => ROOM?.ver != null);
+  assert.equal(await G('ROOM?.role'), 'guest', 'another app version on the same protocol joins');
+  await G('leaveRoom(); APP_VERSION = realVersion');
   // no host: the join gives up after a while and offers Retry
   await G("ROOM_TIMES.connect = 300; doJoin('ZZZZZZ')");
   await wait(guestP, () => /Couldn't reach the room/.test(document.getElementById('page').innerText));

@@ -32,7 +32,7 @@ Players in the same room each score on their own phone, in one shared live match
 - A transport is an object with `join(roomCode, onMessage, onPeer)`, `send(msg, toPeerId?)`, `leave()`. Two implementations:
   - `p2p`: [Trystero](https://github.com/dmotz/trystero) 0.26.0 (MIT), Nostr strategy, bundled into `web/vendor/` so nothing loads from a CDN. Phones find each other through several public Nostr relays at once, with the signalling encrypted by the room code, then talk over a direct WebRTC data channel. STUN: Trystero's defaults (Google's public STUN servers). No TURN server.
   - `local`: `BroadcastChannel`, same browser only, used by the browser test and selectable in development with `?transport=local`.
-- Every message carries the app version (`APP_VERSION`). A guest whose version differs from the host's sees "Update Dartboss on this phone to join" and does not join.
+- Every message carries the room protocol (`ROOM_PROTOCOL` in `src/room.js`, raised only when the messages or the match state change) and, for information, the app version. Phones on different protocols don't play together: a guest on the older one sees "Update Dartboss on this phone to join", and a guest on the newer one sees "The host's Dartboss needs updating to play together".
 
 ### Where the code lives
 
