@@ -9,6 +9,16 @@ How the web version is hosted, what the GitHub Actions workflows do, and how the
 
 ## Web version
 
+### GitHub Pages
+
+1. On GitHub, open *Settings → Pages* and set *Source* to *GitHub Actions*. A private repo needs a paid GitHub plan for Pages; the site itself is public either way.
+2. Push to `main` (or run *Deploy web* from the Actions tab). The site goes up at `https://<user>.github.io/oche-darts/`.
+3. Optional: add your own domain on that same Settings page.
+
+Until Pages is on, the Pages deploy is skipped with a note.
+
+### Netlify
+
 Hosting from a private repo, with Netlify:
 
 1. On netlify.com, choose *Add new site → Import an existing project*, and connect GitHub and the `oche-darts` repo.
@@ -26,11 +36,11 @@ GitHub Actions workflows in `.github/workflows/`:
 | Workflow | Runs on | What it does |
 | --- | --- | --- |
 | `ci.yml` | every pull request, and inside the workflows below | `npm test`, builds the web app, checks the build, plays a match in headless Chrome, keeps `dist/` as a downloadable artifact for 7 days, and compiles a debug build of the Android app (on pull requests and pushes to `main`) |
-| `deploy-web.yml` | push to `main`, or by hand | runs CI, then publishes `dist/` to Netlify |
+| `deploy-web.yml` | push to `main`, or by hand | runs CI, then publishes `dist/` to GitHub Pages and Netlify (each only once it's set up) |
 | `ios-release.yml` | a `v*` tag, or by hand | runs CI, then archives the iOS app on a Mac runner (with the newest Xcode installed there) and uploads it to TestFlight |
 | `android-release.yml` | a `v*` tag, or by hand | runs CI, then builds a signed Android App Bundle (`.aab`), uploads it to Google Play's internal testing track and keeps it as a run artifact |
 
-No publishing workflow fails while its secrets are missing. The web deploy is skipped with a note, the iOS release only compiles the app for the Simulator, and the Android release builds an unsigned debug APK instead.
+No publishing workflow fails while its secrets are missing. The web deploys are skipped with a note, the iOS release only compiles the app for the Simulator, and the Android release builds an unsigned debug APK instead.
 
 Secrets go under *Settings → Secrets and variables → Actions* on GitHub:
 

@@ -1,5 +1,7 @@
-# Publishes the web version to Netlify on every push to main, after the tests pass.
-# Needs two repository secrets (Settings → Secrets and variables → Actions):
+# Publishes the web version to GitHub Pages and/or Netlify on every push to main, after the tests pass.
+# GitHub Pages: set Settings → Pages → Source to "GitHub Actions" (a private repo needs a paid plan).
+# Until then, the Pages deploy is skipped with a note.
+# Netlify: needs two repository secrets (Settings → Secrets and variables → Actions):
 #   NETLIFY_AUTH_TOKEN  a personal access token (Netlify: User settings → Applications)
 #   NETLIFY_SITE_ID     the site's ID (Netlify: Site configuration → Site details)
 # Until they're set, the deploy is skipped with a note. If the Netlify site is also linked to the
@@ -52,3 +54,45 @@ jobs:
           url=$(node -e "const d=require('./deploy.json'); console.log(d.deploy_url || d.url || '')")
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Deployed: $url" >> "$GITHUB_STEP_SUMMARY"
+
+  pages:
+    name: Publish to GitHub Pages
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Check that Pages is on
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .build_type 2>/dev/null || true)
+          if [ "$source" != "workflow" ]; then
+            echo "::notice::Skipping GitHub Pages: set Settings → Pages → Source to GitHub Actions to turn it on."
+            exit 0
+          fi
+          echo "on=true" >> "$GITHUB_OUTPUT"
+
+      - name: Get the built site
+        if: steps.check.outputs.on
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: dist
+
+      - name: Upload for Pages
+        if: steps.check.outputs.on
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy
+        id: deploy
+        if: steps.check.outputs.on
+        uses: actions/deploy-pages@v4
