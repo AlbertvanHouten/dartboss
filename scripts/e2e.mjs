@@ -275,6 +275,44 @@ try {
   assert.deepEqual(await H('curLeg().visits.filter(v => v.p === 1).map(v => v.score)'), [100, 80], 'only the host\'s visit counts for this round');
   assert.equal(await H('remaining(curLeg(), 1)'), 321);
 
+  // A visit that waits on a question (darts at a double) is checked again when the question is answered:
+  // on 40 every visit asks, and anything that lands meanwhile wins
+  const ok = "document.querySelector('#overlay [data-act=\"ok\"]').click()";
+  const noToast = p => p.evaluate(() => { document.getElementById('toast').hidden = true; });
+  await H(`startMatch({ ...DEFAULT_SETTINGS, start: 40, players: ${ann} })`);
+  await H(`submit(0); ${ok}`);                            // You
+  await sync();
+  // Host asks about Ann's visit while Ann's phone scores it: Ann's visit counts, the host's is refused
+  await H('submit(20)');
+  assert.equal(await H("document.getElementById('overlay').hidden"), false, 'the host is asked about darts at double');
+  await viaGuest(`submit(10); ${ok}`);
+  await noToast(hostP);
+  await H(ok);
+  await toastOn(hostP, 'Already scored');
+  assert.deepEqual(await H('curLeg().visits.map(v => [v.p, v.score])'), [[0, 0], [1, 10]], 'one visit for Ann, from her phone');
+  await sync();
+  await H(`submit(0); ${ok}`);                            // Bob
+  await H(`submit(0); ${ok}`);                            // You
+  await sync();
+  // Ann's phone asks while the host's state moves on: the visit goes with the version she started from, and is refused
+  await G('submit(10)');
+  await H('save()');
+  await sync();
+  await noToast(guestP);
+  await G(ok);
+  await toastOn(guestP, 'Already scored');
+  assert.equal(await H('curLeg().visits.length'), 4, 'the visit made against an old version is refused');
+  // Ann's phone asks while the host scores her visit: her phone sees it and sends nothing
+  await G('submit(10)');
+  await H(`submit(5); ${ok}`);
+  await sync();
+  await noToast(guestP);
+  const before = await H('S.room.ver');
+  await G(ok);
+  await toastOn(guestP, 'Already scored');
+  assert.equal(await H('S.room.ver'), before, 'nothing reaches the host');
+  assert.deepEqual(await H('curLeg().visits.filter(v => v.p === 1).map(v => v.score)'), [10, 5]);
+
   // guest undo while the next turn is in progress (Killer, a dart at a time)
   await H(`startMatch({ ...DEFAULT_SETTINGS, mode: 'killer', players: ${ann} })`);
   await sync();

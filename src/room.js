@@ -166,7 +166,7 @@ function guestMessage(msg) {
     if (msg.reason === 'undo') toast(t('Too late to undo here: ask the host'));
   }
 }
-const guestSend = input => ROOM.transport.send({ ...input, ver: ROOM.ver, app: APP_VERSION });
+const guestSend = (input, ver = ROOM.ver) => ROOM.transport.send({ ...input, ver, app: APP_VERSION });
 const claim = seats => guestSend({ type: 'claim', seats });
 // Undo the latest act of any seat this phone plays
 function guestUndo() {

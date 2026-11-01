@@ -464,8 +464,9 @@ function callVisit(v) {
 ['click', 'keydown'].forEach(t => document.addEventListener(t, () => caller.unlock(), true));
 
 // ---------- game flow ----------
-function commitVisit(v) {
-  if (ROOM?.role === 'guest') { buffer = ''; return guestSend({ type: 'visit', seat: v.p, visit: v }); }
+// ver: the room version the visit was started on (a guest sends it with the visit)
+function commitVisit(v, ver) {
+  if (ROOM?.role === 'guest') { buffer = ''; return guestSend({ type: 'visit', seat: v.p, visit: v }, ver); }
   const leg = curLeg();
   leg.visits.push(v);
   buffer = '';
@@ -574,23 +575,27 @@ function submit(score) {
   if (!E.validVisit(score)) return err(score > 180 ? t('The most three darts can score is 180.') : t("{n} can't be scored with three darts.", { n: score }));
   if (!opened(leg, p) && !OPEN_SETS[st.inRule].has(score)) return err(t(st.inRule === 'master' ? "{n} isn't possible when the visit has to open on a double or treble." : "{n} isn't possible when the visit has to open on a double.", { n: score }));
   const base = { p, before: rem };
+  // A question can stay open while another phone changes the match: the visit only goes in if nothing has
+  const id = S.id, legs = S.legs.length, visits = leg.visits.length, ver = ROOM?.ver;
+  const commit = v => S.id === id && S.legs.length === legs && curLeg().visits.length === visits && S.matchWinner == null
+    ? commitVisit(v, ver) : toast(t('Already scored'));
   const canAimDouble = dbl && opened(leg, p) && rem <= (out === 'master' ? 60 : 50) && E.minDarts(rem, out) <= 3;
   if (score > rem || (dbl && rem - score === 1)) {
-    const finish = atDouble => commitVisit({ ...base, score: 0, dartsUsed: 3, dartsAtDouble: atDouble, bust: true, checkout: false });
+    const finish = atDouble => commit({ ...base, score: 0, dartsUsed: 3, dartsAtDouble: atDouble, bust: true, checkout: false });
     return canAimDouble ? ask(t('Bust'), t(mst ? 'How many darts went at a double or treble?' : 'How many darts went at a double?'), [{ key: 'd', label: atLabel, options: [0, 1, 2, 3], def: 1 }], a => finish(a.d)) : finish(0);
   }
   if (score === rem) {
     const md = E.minDarts(rem, out);
     if (md > 3) return err(t(!dbl ? "{n} can't be checked out in three darts." : mst ? "{n} can't be checked out on a double or treble in three darts." : "{n} can't be checked out on a double in three darts.", { n: rem }));
-    const finish = (used, at) => commitVisit({ ...base, score, dartsUsed: used, dartsAtDouble: dbl ? at : 0, bust: false, checkout: true });
+    const finish = (used, at) => commit({ ...base, score, dartsUsed: used, dartsAtDouble: dbl ? at : 0, bust: false, checkout: true });
     if (md === 3) return finish(3, 1);
     const qs = [{ key: 'used', label: t('Darts used'), options: range(md, 3), def: md }];
     if (dbl) qs.push({ key: 'at', label: atLabel, options: a => range(1, a.used - md + 1), def: 1 });
     return ask(t('Checkout {n}', { n: rem }), t('How did the finish go?'), qs, a => finish(a.used, a.at || 1));
   }
   if (canAimDouble) return ask(t('{n} scored', { n: score }), t(mst ? '{n} was on. How many darts went at a double or treble?' : '{n} was on. How many darts went at a double?', { n: rem }), [{ key: 'd', label: atLabel, options: [0, 1, 2, 3], def: 0 }],
-    a => commitVisit({ ...base, score, dartsUsed: 3, dartsAtDouble: a.d, bust: false, checkout: false }));
-  commitVisit({ ...base, score, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false });
+    a => commit({ ...base, score, dartsUsed: 3, dartsAtDouble: a.d, bust: false, checkout: false }));
+  commit({ ...base, score, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false });
 }
 const range = (a, b) => Array.from({ length: Math.max(0, b - a + 1) }, (_, i) => a + i);
 
