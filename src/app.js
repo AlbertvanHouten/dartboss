@@ -302,9 +302,9 @@ function render() {
     const dot = ROOM?.role === 'host' && p > 0 && pl.type !== 'bot' ? connDot(p) : '';
     return `<article class="player${p === turn ? ' active' : ''}" aria-current="${p === turn}">
       <div class="head"><span class="name">${dot}${esc(pl.name)}${tag}</span><span class="pips" title="${st.unit === 'sets' ? t('Sets {s}, legs this set {l}', { s: sd.sets[p], l: sd.legs[p] }) : t('Legs won: {n}', { n: sd.legs[p] })}">${pips}</span></div>
-      <div class="rem num">${rem}</div>
+      <div class="rem num">${esc(rem)}</div>
       <div class="route">${route ? routeChips(route) : !opened(leg, p) ? t(st.inRule === 'master' ? 'Open on a double or treble' : 'Open on a double') : status}</div>
-      <div class="sub"><span>${t('Avg')} <b>${fmt(stats[p].avg)}</b></span><span>${t('Last')} <b>${last ? (last.bust ? t('Bust') : last.score) : '–'}</b></span><span>${t('Darts')} <b>${legDarts}</b></span></div>
+      <div class="sub"><span>${t('Avg')} <b>${fmt(stats[p].avg)}</b></span><span>${t('Last')} <b>${last ? (last.bust ? t('Bust') : esc(last.score)) : '–'}</b></span><span>${t('Darts')} <b>${esc(legDarts)}</b></span></div>
     </article>`;
   }).join('');
 
@@ -353,7 +353,7 @@ function render() {
   $('boardLabel').textContent = route ? t('{name} checkout', { name: players()[turn].name }) : turn >= 0 ? `${players()[turn].name} · ${t('{n} left', { n: rem })}` : t('Final visit');
   $('boardRoute').innerHTML = route ? routeChips(route) : turn >= 0 ? t(!opened(leg, turn) ? (st.inRule === 'master' ? 'Open on a double or treble' : 'Open on a double') : rem > (st.out === 'double' ? 170 : 180) ? 'Scoring – aim T20' : 'No 3-dart finish') : '';
   $('legend').innerHTML = showDarts
-    ? `<span>${t(lastVisit.live ? '{name} is throwing:' : "{name}'s last visit:", { name: esc(players()[lastVisit.p].name) })}</span> ${lastVisit.darts.map((d, i) => `<span>${i + 1}. <b>${dartLabel(d)}</b></span>`).join('')} <span>= <b>${lastVisit.bust ? t('Bust') : lastVisit.score}</b></span>`
+    ? `<span>${t(lastVisit.live ? '{name} is throwing:' : "{name}'s last visit:", { name: esc(players()[lastVisit.p].name) })}</span> ${lastVisit.darts.map((d, i) => `<span>${i + 1}. <b>${esc(dartLabel(d))}</b></span>`).join('')} <span>= <b>${lastVisit.bust ? t('Bust') : esc(lastVisit.score)}</b></span>`
     : `<span>${t('Highlighted segments show the suggested finish.')}</span>`;
 
   renderSheet();
@@ -385,8 +385,8 @@ function sheetHTML(leg, pl, start) {
       if (!v) return `<td class="sc sep"></td><td class="lf"></td>`;
       left[p] -= v.score;
       const cls = v.bust ? ' bust' : v.checkout ? ' out' : '';
-      const title = v.darts ? ` title="${v.darts.map(dartLabel).join(', ')}"` : '';
-      return `<td class="sc sep${cls}"${title}>${v.bust ? t('Bust') : v.score}</td><td class="lf${cls}">${v.checkout ? '✓' : left[p]}</td>`;
+      const title = v.darts ? ` title="${esc(v.darts.map(dartLabel).join(', '))}"` : '';
+      return `<td class="sc sep${cls}"${title}>${v.bust ? t('Bust') : esc(v.score)}</td><td class="lf${cls}">${v.checkout ? '✓' : esc(left[p])}</td>`;
     }).join('');
     rows.push(`<tr><td class="rnd">${(r + 1) * 3}</td>${cells}</tr>`);
   }
@@ -609,6 +609,26 @@ function submit(score) {
   commit({ ...base, score, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false });
 }
 const range = (a, b) => Array.from({ length: Math.max(0, b - a + 1) }, (_, i) => a + i);
+// A guest's visit for seat p, built again on the host by the rules submit() follows: null if no phone could
+// have entered it. The host's own count goes in as `before`, and darts (never sent by submit) are dropped.
+function guestVisit(raw, p) {
+  if (!raw || typeof raw !== 'object' || raw.p !== p) return null;
+  const st = S.settings, leg = curLeg(), rem = remaining(leg, p), out = st.out, dbl = out !== 'single';
+  const { score, dartsUsed: used, dartsAtDouble: at, bust, checkout } = raw;
+  const int = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
+  const opens = s => opened(leg, p) || OPEN_SETS[st.inRule].has(s);
+  const canAimDouble = dbl && opened(leg, p) && rem <= (out === 'master' ? 60 : 50) && E.minDarts(rem, out) <= 3;
+  const busts = s => s > rem || (dbl && rem - s === 1);
+  let ok;
+  if (bust === true) ok = checkout === false && score === 0 && used === 3 && int(at, 0, canAimDouble ? 3 : 0)
+    && range(0, 180).some(s => E.validVisit(s) && opens(s) && busts(s));
+  else if (bust !== false) ok = false;
+  else if (checkout === true) {
+    const md = E.minDarts(rem, out);
+    ok = score === rem && E.validVisit(score) && opens(score) && md <= 3 && int(used, md, 3) && (dbl ? int(at, 1, used - md + 1) : at === 0);
+  } else ok = checkout === false && E.validVisit(score) && opens(score) && !busts(score) && score !== rem && used === 3 && int(at, 0, canAimDouble ? 3 : 0);
+  return ok ? { p, before: rem, score, dartsUsed: used, dartsAtDouble: at, bust, checkout } : null;
+}
 
 // ---------- dialogs ----------
 let dialogOpen = false;
@@ -694,6 +714,15 @@ function gameAct(a, v) {
   S.acts.push({ seat, turnAfter: currentTurn() });
   buffer = '';
   afterGameChange();
+}
+// Is this a move the game's pad offers right now (or, on a keypad, a score it takes)? The host checks a guest's act by it.
+function padOffers(a, v) {
+  const G = GAMES[S.settings.mode];
+  if (a === 'score' && G.keypad && /^\d{1,3}$/.test(String(v))) return !(G.validate ? G.validate(S.game, +v) : !E.validVisit(+v));
+  // A template's content is inert: nothing in it loads or runs
+  const pad = document.createElement('template');
+  pad.innerHTML = G.pad(S.game, S.settings);
+  return [...pad.content.querySelectorAll('[data-ga]:not([disabled])')].some(b => b.dataset.ga === a && b.dataset.v === String(v));
 }
 function afterGameChange() {
   const G = GAMES[S.settings.mode], g = S.game;

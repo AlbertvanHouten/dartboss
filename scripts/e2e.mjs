@@ -15,7 +15,7 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
 
 const server = createServer(async (req, res) => {
   const path = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
-  try { res.writeHead(200, { 'Content-Type': TYPES[extname(path)] || 'application/octet-stream' }).end(await readFile(new URL(path, DIST))); }
+  try { const body = await readFile(new URL(path, DIST)); res.writeHead(200, { 'Content-Type': TYPES[extname(path)] || 'application/octet-stream' }).end(body); }
   catch { res.writeHead(404).end(); }
 }).listen(0, '127.0.0.1');
 await new Promise(r => server.once('listening', r));
@@ -280,6 +280,35 @@ try {
   assert.deepEqual(await H('curLeg().visits.filter(v => v.p === 1).map(v => v.score)'), [100, 80], 'only the host\'s visit counts for this round');
   assert.equal(await H('remaining(curLeg(), 1)'), 321);
 
+  // A guest's visit is built again on the host from its own rules: anything a phone could not have entered is
+  // refused, and nothing a guest sends is shown as HTML. Messages go out raw, as a tampered phone would send them.
+  await G("window.rejects = []; guestMessage = (g => (m, p) => { if (m?.type === 'reject') rejects.push(m.reason); return g(m, p); })(guestMessage)");
+  const rawCode = m => `ROOM.transport.send({ ver: ROOM.ver, app: APP_VERSION, phone: ROOM.self, ...${m} }, ROOM.host)`, raw = m => G(rawCode(m));
+  const refused = async k => { await wait(guestP, k => rejects.length >= k, k); return G('rejects.length'); };
+  await H('submit(45); submit(60)');                      // Bob and You: Ann to throw, on 321
+  await sync();
+  const annVisit = v => raw(`{ type: 'visit', seat: 1, visit: { p: 1, before: 321, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false, ...${v} } }`);
+  const bad = [
+    `{ score: '<img src=x onerror="window.pwned = 1">' }`,  // HTML for a score
+    "{ score: 321, checkout: true, dartsUsed: 1 }",          // a checkout no three darts make
+    "{ score: 179 }",                                        // a score three darts can't make
+    "{ score: 100, dartsUsed: 9 }",                          // more darts than a visit has
+    "{ score: 0, bust: true }",                              // a bust from 321
+  ];
+  for (const [i, v] of bad.entries()) { await annVisit(v); assert.equal(await refused(i + 1), i + 1, `refused: ${v}`); }
+  await raw("{ type: 'act', seat: 1, a: 'dart', v: 20 }");    // a dart-by-dart act in X01
+  await refused(bad.length + 1);
+  await G('ROOM.transport.send(null, ROOM.host)');          // not a message at all
+  await raw("{ type: 'claim', seats: 'all' }");
+  await new Promise(r => setTimeout(r, 200));
+  assert.equal(await H('remaining(curLeg(), 1)'), 321, 'no refused visit counts');
+  assert.equal(await H('curLeg().visits.length'), 7);
+  assert.equal(await H("!!document.querySelector('#players img, #sheet img, #legend img, #sheet b') || !!window.pwned"), false, 'nothing a guest sent shows as HTML');
+  // A real visit still goes in, with the host's own count before it and no darts it can't check
+  await viaGuest(rawCode("{ type: 'visit', seat: 1, visit: { p: 1, before: 999, score: 21, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false, darts: [{ v: '<b>x</b>' }] } }"));
+  assert.deepEqual(await H("[remaining(curLeg(), 1), curLeg().visits.at(-1).before, 'darts' in curLeg().visits.at(-1)]"), [300, 321, false], 'the host keeps its own count');
+  assert.deepEqual(errors, [], 'no errors from the tampered messages');
+
   // A visit that waits on a question (darts at a double) is checked again when the question is answered:
   // on 40 every visit asks, and anything that lands meanwhile wins
   const ok = "document.querySelector('#overlay [data-act=\"ok\"]').click()";
@@ -324,6 +353,14 @@ try {
   assert.deepEqual(await G('ROOM.mine'), [1], 'a rematch keeps the guest\'s seat');
   for (let i = 0; i < 3; i++) await H("gameAct('dart', 0)");   // You: three misses
   await sync();
+  // An act must be one the game's own pad offers right now, and an X01 visit has no place here
+  const before0 = await G('rejects.length');
+  for (const m of ["{ type: 'act', seat: 1, a: 'dart', v: '<img src=x onerror=\"window.pwned = 1\">' }", "{ type: 'act', seat: 1, a: 'dart', v: 99 }",
+    "{ type: 'act', seat: 1, a: 'end', v: '' }", "{ type: 'act', seat: 1, a: 'toString', v: 0 }",
+    "{ type: 'visit', seat: 1, visit: { p: 1, before: 501, score: 60, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false } }"]) await raw(m);
+  await refused(before0 + 5);
+  assert.equal(await H('S.acts.length'), 3, 'no refused act counts');
+  assert.equal(await H("!!document.querySelector('#gameLeft img, #gameRight img') || !!window.pwned"), false);
   for (let i = 0; i < 3; i++) await viaGuest("gameAct('dart', 0)"); // Ann: three misses on her phone
   await H("gameAct('dart', 0)");                                 // Bob's first dart, on the host
   await sync();

@@ -167,14 +167,22 @@ function endRoom() {
   ROOM.transport.send({ type: 'end', app: APP_VERSION });
   leaveRoom();
 }
+// What a guest may send: a small object of a known type, with a phone id like the ones phoneId() makes
+// and whole-number seats. Anything else is dropped unanswered.
+const GUEST_TYPES = ['hello', 'leave', 'claim', 'visit', 'act', 'undo'];
+const guestMsgOk = msg => GUEST_TYPES.includes(msg.type) && typeof msg.phone === 'string' && /^[A-Za-z0-9]{1,32}$/.test(msg.phone)
+  && (msg.type !== 'claim' || (Array.isArray(msg.seats) && msg.seats.length <= 8 && msg.seats.every(Number.isInteger)))
+  && (!['visit', 'act', 'undo'].includes(msg.type) || Number.isInteger(msg.seat))
+  && JSON.stringify(msg).length <= 2000;
 function hostMessage(msg, peer) {
-  if (!S.room) return;
+  if (!S.room || !msg || typeof msg !== 'object' || Array.isArray(msg)) return;
   const reject = reason => ROOM.transport.send({ type: 'reject', app: APP_VERSION, reason }, peer);
   // A guest on another version is told so when it says hello, and not answered after that
   if (!versionOk(msg, APP_VERSION)) return msg.type === 'hello' && reject('version');
+  if (!guestMsgOk(msg)) return;
   // 'host' is the host's own name in the rules, so no guest may use it
   const from = msg.phone;
-  if (!from || from === 'host') return;
+  if (from === 'host') return;
   if (ROOM.peers[peer] !== from) {
     ROOM.peers[peer] = from; S.room.online[from] = true;
     if (msg.type !== 'hello' && msg.type !== 'claim') { sendState(); if (S.screen === 'play') render(); }
@@ -193,10 +201,14 @@ function hostMessage(msg, peer) {
     return;
   }
   if (msg.type === 'visit' || msg.type === 'act') {
-    if (msg.type === 'visit' && msg.visit?.p !== msg.seat) return reject('seat');
+    // X01 takes whole visits, the other games one act at a time
+    if ((msg.type === 'visit') === isGame()) return reject('bad');
     const why = canAct({ from, input: msg, room: S.room, turn: currentTurn(), ver: S.room.ver });
     if (why) return reject(why);
-    return msg.type === 'visit' ? commitVisit(msg.visit) : gameAct(msg.a, msg.v);
+    // The host builds the visit again by its own rules, and takes only acts the game's pad offers right now
+    if (msg.type === 'act') return padOffers(msg.a, msg.v) ? gameAct(msg.a, msg.v) : reject('bad');
+    const v = guestVisit(msg.visit, msg.seat);
+    return v ? commitVisit(v) : reject('bad');
   }
   if (msg.type === 'undo') {
     const why = canUndo({ from, seat: msg.seat, room: S.room, acts: S.acts, n: n() });
@@ -253,7 +265,7 @@ async function joinRoomAsGuest(code) {
   try { await joined; } finally { clearTimeout(room.connectTimer); room.joined = null; }
 }
 function guestMessage(msg, peer) {
-  if (!ROOM) return;
+  if (!ROOM || !msg || typeof msg !== 'object') return;
   if (msg.type === 'reject' && msg.reason === 'version') {
     if (ROOM.joined) return ROOM.joined.no(new Error('version'));
     leaveRoom(); goMenu(); return toast(t('Update Dartboss on this phone to join'));
@@ -272,7 +284,7 @@ function guestMessage(msg, peer) {
     if (rec !== ROOM.savedSeats) { ROOM.savedSeats = rec; writeJSON(ROOM_KEY, { code: ROOM.code, seats: ROOM.mine }); }
     guestRecord();
     render();
-    if (msg.note) toast(t('{name} took back their visit', { name: players()[msg.note.tookBack].name }));
+    if (msg.note && players()[msg.note.tookBack]) toast(t('{name} took back their visit', { name: players()[msg.note.tookBack].name }));
     if (ROOM.joined) {
       ROOM.joined.ok();
       // Back after a reload: ask again for any seat the host no longer has down for this phone
