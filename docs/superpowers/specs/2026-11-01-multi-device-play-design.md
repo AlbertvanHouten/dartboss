@@ -22,8 +22,9 @@ Players in the same room each score on their own phone, in one shared live match
 
 ### Rules (pure functions, unit tested)
 
-- `canAct(input, sender, state)`: the host itself may act for any seat at any time. A guest may act only for a seat it has claimed, only when that seat is the one to throw (or, for `undo`, only when the last visit or dart belongs to one of its seats), and only if `input.ver` equals the host's current `ver`.
-- A rejected input gets `{ type: 'reject', reason }` back to that guest: `stale` (shows "Already scored"), `turn` or `seat` (ignored silently; can only happen through a race or a bug).
+- `canAct(input, sender, state)`: the host itself may act for any seat at any time, including any undo. A guest may act only for a seat it has claimed, only when that seat is the one to throw, and only if `input.ver` equals the host's current `ver`.
+- `canUndo(sender, state)`: a guest may undo its own seat's last visit only while the next player's turn is not yet complete. Once the next player has finished their visit, only the host can undo. In X01 a visit is entered in one go, so this means: until the next player's visit is entered. In the dart-by-dart games, the next player may already have entered some darts of their unfinished visit; the guest's undo then takes those darts back first, then the guest's own visit, and the next player's phone shows "<name> took back their visit".
+- A rejected input gets `{ type: 'reject', reason }` back to that guest: `stale` (shows "Already scored"), `undo` (shows "Too late to undo here: ask the host"), `turn` or `seat` (ignored silently; can only happen through a race or a bug).
 - Seat claims: a guest sends `{ type: 'claim', seats: [...] }`. A seat can be claimed by one phone at a time, never a bot seat, and never the host's own seat (seat 0, the first player, as the setup screen already makes the first player the person holding the device). One phone may claim several seats. Claims are kept in the broadcast state as `room.seats: { [seat]: peerId }` with a `room.online: { [peerId]: true }` presence map.
 
 ### Transport
@@ -55,8 +56,9 @@ Players in the same room each score on their own phone, in one shared live match
 
 - Every phone shows the same live scoreboard.
 - On a seat's turn, the phone that claimed it shows the keypad or game pad; other guest phones show "Waiting for <name>…" in place of the keypad.
-- The host's keypad is always active, so the host can score for any player: players without a phone, a flat battery, a dropped connection.
-- Undo: a guest can undo the last visit or dart of its own seats; the host can undo anything.
+- Players without a phone are normal: any seat no phone has claimed is played on the host, exactly as today. The host doesn't need every seat claimed to start or to continue, and a match can mix phone players, host-scored players and bots.
+- The host's keypad is always active, so the host can score for any player: those without a phone, and those whose phone has a flat battery or a dropped connection.
+- Undo: a guest can undo its own last visit only while the next player's turn is not yet complete (see `canUndo`). After that, the guest's Undo button is disabled and only the host can undo. The host can always undo anything.
 - On the host's scoreboard, each claimed seat shows a connection dot: green when its phone is connected, grey when not.
 
 ### Dropouts and reconnecting
@@ -93,6 +95,6 @@ Players in the same room each score on their own phone, in one shared live match
 
 ## Testing
 
-- `scripts/test.mjs`: `canAct` for every case (host, own seat, other seat, wrong turn, stale version, undo of own and others' visits), seat claims (bot, taken, host seat, several seats), version check, and `ver` increasing on every change.
-- `scripts/e2e.mjs`: a host page and a guest page over the `local` transport. They play a full X01 match and a full Killer match, including a guest undo, the host scoring for a seat with no phone, a guest reload that rejoins mid-match, and a stale input that is rejected. Both pages must end on the same result.
+- `scripts/test.mjs`: `canAct` for every case (host, own seat, other seat, wrong turn, stale version), `canUndo` (own visit before the next turn is complete, in X01 and in a dart-by-dart game with darts of the next visit entered; refused once the next visit is complete; the host always allowed), seat claims (bot, taken, host seat, several seats), version check, and `ver` increasing on every change.
+- `scripts/e2e.mjs`: a host page and a guest page over the `local` transport. They play a full X01 match and a full Killer match with a mix of a phone player, a host-scored player and a bot, including a guest undo while the next turn is in progress, a guest undo refused after the next turn is complete, a guest reload that rejoins mid-match, and a stale input that is rejected. Both pages must end on the same result.
 - Manual: a two-browser smoke test of the `p2p` transport through the public relays, and the owner's two-phone test on separate networks before release.
