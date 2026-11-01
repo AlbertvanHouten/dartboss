@@ -93,6 +93,14 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 #x01Left { container-type: inline-size; }
 @container (min-width: 310px) { .players:has(> :nth-child(4)) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @container (min-width: 630px) { .players:has(> :nth-child(4)) { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* Five to eight players: smaller cards, four to a row, so the keypad stays in view on a phone */
+@container (min-width: 310px) { .players:has(> :nth-child(5)) { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.players:has(> :nth-child(5)) .player { padding: 8px 10px 6px; gap: 0; }
+.players:has(> :nth-child(5)) .player .name { font-size: 13px; }
+.players:has(> :nth-child(5)) .player .rem { font-size: clamp(28px, 7.5vw, 56px); }
+.players:has(> :nth-child(5)) .player .route { min-height: 0; font-size: 13px; }
+.players:has(> :nth-child(5)) .player .sub { gap: 0 6px; font-size: 11px; white-space: normal; }
+.players:has(> :nth-child(5)) .player .sub b { font-size: 12px; }
 .player {
   border-radius: 14px; padding: 14px 16px 12px; background: var(--surface); border: 1px solid var(--line);
   display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; transition: background .25s, color .25s, box-shadow .25s; box-shadow: var(--shadow);
@@ -293,6 +301,11 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .mp b { font-size: 40px; line-height: 1.05; font-weight: 700; color: inherit; }
 .mp .mps { font-size: 13px; color: var(--muted); }
 .mp.out { opacity: .45; }
+.mplayers:has(> :nth-child(5)) { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.mplayers:has(> :nth-child(5)) .mp { padding: 6px 8px; gap: 0; }
+.mplayers:has(> :nth-child(5)) .mp .mpn { font-size: 13px; }
+.mplayers:has(> :nth-child(5)) .mp b { font-size: clamp(16px, 5vw, 28px); white-space: nowrap; }
+.mplayers:has(> :nth-child(5)) .mp .mps { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gtarget.long { font-size: clamp(44px, 8vw, 72px); }
 .chip.wide { grid-column: span 2; }
 .sheet.tally td { font-family: var(--font-display); font-size: 18px; }
