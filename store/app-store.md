@@ -275,10 +275,14 @@ Caption 8: the app is in your language, the caller is English; reword it if that
 
 ## App Review notes
 
-> No login is needed. Everything works offline. To try the main flow: tap X01, then Start, and type a visit
+> No login is needed. Solo and single-phone play work offline. To try the main flow: tap X01, then Start, and type a visit
 > score on the keypad (for example 100, then Score). The bot opponent throws its visit automatically, and
 > each visit is called out loud (Settings › Caller turns this off). Saved games, match history, player stats
-> and personal bests are stored on the device only. All data is local, and Settings has "Reset all data".
+> and personal bests are stored on the device only. Saved data is local, and Settings has "Reset all data".
+>
+> Playing on several phones (the "Players on their own phones" option in game setup, or "Join a game" in the
+> main menu) is optional. It needs an internet connection and a second device, and it sends nothing to the
+> developer. The rest of the app can be reviewed without it.
 
 ## Export compliance
 
