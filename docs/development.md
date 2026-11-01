@@ -6,7 +6,7 @@ The game is plain HTML, CSS and JavaScript with no framework or bundler. The bui
 
 | Path | What it is |
 |---|---|
-| `src/` | The game: `head.html`, `style.css`, `body.html`, `i18n.js`, `engine.js`, `games.js`, `app.js` (the build joins them into one page) |
+| `src/` | The game: `head.html`, `style.css`, `body.html`, `i18n.js`, `engine.js`, `games.js`, `room.js`, `app.js` (the build joins them into one page) |
 | `web/` | Files for the standalone app: `native.js` (native bridge, offline cache), `sw.js`, `manifest.webmanifest`, `privacy.html`, `support.html`, icons, bundled fonts, `vendor/` (Trystero and the QR generator), `caller/` clips |
 | `scripts/build.mjs` | Builds `dist/` from `src/` and `web/`, plus `dist/oche.html` for the Claude artifact preview |
 | `scripts/test.mjs` | Checks without a browser: scripts parse, checkout routes, bot averages, every game finishes, every string translated |

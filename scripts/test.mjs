@@ -4,12 +4,12 @@
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 
-const blocks = await Promise.all(['i18n', 'engine', 'games', 'app'].map(f => readFile(new URL(`../src/${f}.js`, import.meta.url), 'utf8')));
+const blocks = await Promise.all(['i18n', 'engine', 'games', 'room', 'app'].map(f => readFile(new URL(`../src/${f}.js`, import.meta.url), 'utf8')));
 for (const b of blocks) new Function(b); // throws on a syntax error
 
 const store = new Map();
 const localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
-const { E, GAMES, MENU, STRINGS } = new Function('localStorage', `${blocks[0]}\n${blocks[1]}\nlet buffer = ''; const isBotTurn = () => false;\n${blocks[2]}\nreturn { E, GAMES, MENU, STRINGS };`)(localStorage);
+const { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, versionOk, canAct, canUndo, claimSeats } = new Function('localStorage', `${blocks[0]}\n${blocks[1]}\nlet buffer = ''; const isBotTurn = () => false;\n${blocks[2]}\n${blocks[3]}\nreturn { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, versionOk, canAct, canUndo, claimSeats };`)(localStorage);
 
 // Checkout routes
 const route = (r, out = 'double') => (E.bestRoute(r, 3, out) || []).map(E.label).join(' ');
@@ -219,5 +219,39 @@ const clip = name => existsSync(new URL(`../web/caller/${name}.mp3`, import.meta
 for (const name of ['noscore', 'bust', 'gameshot']) assert.ok(clip(name), `caller/${name}.mp3`);
 for (let s = 1; s <= 180; s++) if (E.validVisit(s)) assert.ok(clip(String(s)), `caller/${s}.mp3`);
 for (let r = 2; r <= 170; r++) if (E.minDarts(r, 'double') <= 3) assert.ok(clip(`req-${r}`), `caller/req-${r}.mp3`);
+
+// Multi-device rules
+assert.match(makeRoomCode(), /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/);
+assert.equal(formatRoomCode('K7QM2P'), 'K7Q-M2P');
+assert.equal(parseRoomCode(' k7q-m2p '), 'K7QM2P');
+assert.equal(parseRoomCode('K7QM20'), null);
+assert.equal(versionOk({ app: '1.2.0' }, '1.2.0'), true);
+assert.equal(versionOk({ app: '1.1.0' }, '1.2.0'), false);
+
+const room = { seats: { 1: 'peerA', 2: 'peerB' } };
+assert.equal(canAct({ from: 'host', input: { type: 'visit', seat: 3, ver: 5 }, room, turn: 3, ver: 5 }), null);
+assert.equal(canAct({ from: 'peerA', input: { type: 'visit', seat: 1, ver: 5 }, room, turn: 1, ver: 5 }), null);
+assert.equal(canAct({ from: 'peerA', input: { type: 'visit', seat: 2, ver: 5 }, room, turn: 2, ver: 5 }), 'seat');
+assert.equal(canAct({ from: 'peerA', input: { type: 'visit', seat: 1, ver: 5 }, room, turn: 2, ver: 5 }), 'turn');
+assert.equal(canAct({ from: 'peerA', input: { type: 'visit', seat: 1, ver: 4 }, room, turn: 1, ver: 5 }), 'stale');
+
+// X01: one act per visit. Seat 1 threw, turn passed to seat 2.
+const u = (from, seat, acts) => canUndo({ from, seat, room, acts, n: 4 });
+assert.equal(u('peerA', 1, [{ seat: 1, turnAfter: 2 }]), null, 'next visit not entered yet');
+assert.equal(u('peerA', 1, [{ seat: 1, turnAfter: 2 }, { seat: 2, turnAfter: 3 }]), 'undo', 'next visit complete');
+assert.equal(u('host', 1, [{ seat: 1, turnAfter: 2 }, { seat: 2, turnAfter: 3 }]), null, 'host may always undo');
+// Dart-by-dart: seat 2 has thrown two darts of an unfinished visit
+assert.equal(u('peerA', 1, [{ seat: 1, turnAfter: 2 }, { seat: 2, turnAfter: 2 }, { seat: 2, turnAfter: 2 }]), null);
+assert.equal(u('peerA', 1, [{ seat: 1, turnAfter: 2 }, { seat: 2, turnAfter: 2 }, { seat: 2, turnAfter: 3 }]), 'undo');
+// No undo after a bot visit: seat 2 is a bot and threw its visit
+assert.equal(u('peerA', 1, [{ seat: 1, turnAfter: 2 }, { seat: 2, turnAfter: 3 }]), 'undo');
+assert.equal(u('peerA', 2, [{ seat: 1, turnAfter: 2 }]), 'seat', 'seat 2 belongs to peerB');
+assert.equal(canUndo({ from: 'peerA', seat: 3, room: { seats: { 1: 'peerA', 3: 'peerA' } }, acts: [{ seat: 1, turnAfter: 2 }], n: 4 }), 'undo', 'nothing of its own to undo');
+assert.equal(u('peerB', 1, [{ seat: 1, turnAfter: 2 }]), 'seat');
+
+const players = [{ type: 'human' }, { type: 'human' }, { type: 'bot' }, { type: 'human' }];
+const r2 = { seats: { 1: 'peerA' } };
+assert.deepEqual(claimSeats({ room: r2, peer: 'peerB', seats: [0, 1, 2, 3, 9], players }), { ok: [3], refused: [0, 1, 2, 9] });
+assert.deepEqual(claimSeats({ room: r2, peer: 'peerA', seats: [1, 3], players }), { ok: [1], refused: [3] });
 
 console.log('All checks passed');
