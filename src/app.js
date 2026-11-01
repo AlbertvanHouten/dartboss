@@ -1,7 +1,11 @@
 // ===== App =====
 const $ = id => document.getElementById(id);
 // APP_STORE_ID is filled in once the app exists in App Store Connect (it turns on the rate button)
-const APP_VERSION = '__APP_VERSION__', APP_STORE_ID = '';
+// let: the browser test stands in an older version on one phone
+let APP_VERSION = '__APP_VERSION__';
+const APP_STORE_ID = '';
+// The website: join links from the iOS and Android apps point here, so a guest's camera opens them in the browser
+const SITE_URL = 'https://albertvanhouten.github.io/dartboss/';
 const STORE_KEY = 'oche-match-v1';
 const DEFAULT_SETTINGS = {
   mode: 'x01', start: 501, inRule: 'straight', out: 'double',
@@ -40,7 +44,7 @@ function freshMatch(settings) {
   s.mode = s.mode || 'x01';
   if (s.mode === 'x01') normX01(s);
   const first = s.first === 'random' ? Math.floor(Math.random() * s.players.length) : 0;
-  const m = { settings: s, legs: [{ starter: first, visits: [], winner: null }], id: Date.now(), matchWinner: null, hist: [], screen: 'play', bots: {}, firstThrower: first };
+  const m = { settings: s, legs: [{ starter: first, visits: [], winner: null }], id: Date.now(), matchWinner: null, hist: [], acts: [], screen: 'play', bots: {}, firstThrower: first };
   if (s.mode !== 'x01') { m.game = GAMES[s.mode].init(s); m.game.bk = bestKey(s); }
   return m;
 }
@@ -56,6 +60,8 @@ const players = () => S.settings.players;
 const n = () => players().length;
 const curLeg = () => S.legs[S.legs.length - 1];
 const turnOf = leg => (leg.starter + leg.visits.length) % n();
+// Whose turn it is now; -1 once the match or game is over
+const currentTurn = () => isGame() ? (GAMES[S.settings.mode].done(S.game) ? -1 : S.game.turn) : S.matchWinner != null ? -1 : turnOf(curLeg());
 const remaining = (leg, p) => S.settings.start - leg.visits.filter(v => v.p === p).reduce((a, v) => a + v.score, 0);
 const legsWon = p => S.legs.filter(l => l.winner === p).length;
 // Has this player opened the leg yet (always true with straight in)? A visit with points means they have.
@@ -118,8 +124,11 @@ const fmt = (x, d = 1) => x == null ? '–' : x.toFixed(d);
 
 // Saved in the browser; inside the iOS app also mirrored to native storage (see native.js)
 function save() {
+  // A guest shows the host's match and keeps its own saved game untouched; the host sends each change to the room
+  if (ROOM?.role === 'guest') return;
+  if (ROOM?.role === 'host' && S.room) broadcastState();
   // Undo snapshots stay in memory; saving all of them outgrows the browser's storage on long games
-  const json = JSON.stringify({ ...S, hist: (S.hist || []).slice(-10) });
+  const json = JSON.stringify({ ...S, hist: (S.hist || []).slice(-10), acts: isGame() ? (S.acts || []).slice(-10) : S.acts });
   try { localStorage.setItem(STORE_KEY, json); } catch (e) { toast(t('Could not save: device storage is full')); }
   window.ocheNative?.persist(STORE_KEY, json);
 }
@@ -250,6 +259,7 @@ const PAGES = {
   history: ['Match history', () => renderHistory()],
   stats: ['Player stats', () => renderStatsPage()],
   settings: ['Settings', () => renderSettings()],
+  join: ['Join a game', () => renderJoin()],
 };
 function render() {
   const scr = S.screen, menu = scr === 'menu', page = PAGES[scr];
@@ -258,13 +268,16 @@ function render() {
   $('play').hidden = scr !== 'play';
   $('tabs').hidden = scr === 'play';
   for (const b of $('tabs').querySelectorAll('[data-nav]')) b.setAttribute('aria-current', b.dataset.nav === scr ? 'page' : 'false');
-  $('menuBtn').hidden = $('rematchBtn').hidden = scr !== 'play';
+  $('menuBtn').hidden = scr !== 'play';
+  // A guest plays the host's match: only the host restarts it
+  $('rematchBtn').hidden = scr !== 'play' || isGuest();
   window.ocheNative?.keepAwake?.(scr === 'play' && SETTINGS.awake);
   if (menu) { $('meta').textContent = t('Pick a game'); return renderMenu(); }
   if (page) { $('meta').textContent = t(page[0]); return page[1](); }
   const game = isGame();
   $('x01Left').hidden = $('x01Right').hidden = game;
   $('gameLeft').hidden = $('gameRight').hidden = !game;
+  renderRoomBar();
   if (game) return renderGame();
   const st = S.settings, leg = curLeg(), turn = S.matchWinner == null ? turnOf(leg) : -1;
   const sd = standings();
@@ -286,11 +299,13 @@ function render() {
       (legNeed <= 9 ? Array.from({ length: legNeed }, (_, i) => `<span class="pip${i < sd.legs[p] ? ' on' : ''}"></span>`).join('') : `<span class="setnum" title="${t('Legs won')}">${sd.legs[p]}</span>`);
     const tag = pl.type === 'bot' ? ` <span class="label" title="${t('Favourite double {d}', { d: 'D' + botCtx(p).fav })}">${t('{avg} avg', { avg: botAvg(pl) })} · D${botCtx(p).fav}</span>` : '';
     const status = p === turn && pl.type === 'bot' ? `<span class="thinking">${t('Throwing')}</span>` : '';
+    // Only a seat a phone has claimed has a dot: the others are scored on the host
+    const dot = ROOM?.role === 'host' && roomOf().seats[p] ? connDot(p) : '';
     return `<article class="player${p === turn ? ' active' : ''}" aria-current="${p === turn}">
-      <div class="head"><span class="name">${esc(pl.name)}${tag}</span><span class="pips" title="${st.unit === 'sets' ? t('Sets {s}, legs this set {l}', { s: sd.sets[p], l: sd.legs[p] }) : t('Legs won: {n}', { n: sd.legs[p] })}">${pips}</span></div>
-      <div class="rem num">${rem}</div>
+      <div class="head"><span class="name">${dot}${esc(pl.name)}${tag}</span><span class="pips" title="${st.unit === 'sets' ? t('Sets {s}, legs this set {l}', { s: sd.sets[p], l: sd.legs[p] }) : t('Legs won: {n}', { n: sd.legs[p] })}">${pips}</span></div>
+      <div class="rem num">${esc(rem)}</div>
       <div class="route">${route ? routeChips(route) : !opened(leg, p) ? t(st.inRule === 'master' ? 'Open on a double or treble' : 'Open on a double') : status}</div>
-      <div class="sub"><span>${t('Avg')} <b>${fmt(stats[p].avg)}</b></span><span>${t('Last')} <b>${last ? (last.bust ? t('Bust') : last.score) : '–'}</b></span><span>${t('Darts')} <b>${legDarts}</b></span></div>
+      <div class="sub"><span>${t('Avg')} <b>${fmt(stats[p].avg)}</b></span><span>${t('Last')} <b>${last ? (last.bust ? t('Bust') : esc(last.score)) : '–'}</b></span><span>${t('Darts')} <b>${esc(legDarts)}</b></span></div>
     </article>`;
   }).join('');
 
@@ -302,28 +317,30 @@ function render() {
     wp.className = 'panel winner';
     wp.innerHTML = `<h2>${esc(matchHeadline())}</h2>
       <p style="margin:0 0 12px;color:var(--muted)">${t('Match average {avg}, highest finish {hf}.', { avg: fmt(w.avg), hf: w.highFinish || '–' })}</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-act="rematch">${t('Play again')}</button><button class="btn" type="button" data-pg="share">${t('Share')}</button><button class="btn" type="button" data-act="new">${t('Main menu')}</button></div>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${endButtons()}</div>`;
   } else wp.hidden = true;
 
   // entry
-  const human = turn >= 0 && players()[turn].type === 'human';
+  // A guest phone enters only its own players' visits; the others show who it is waiting for
+  const human = turn >= 0 && players()[turn].type === 'human', waiting = human && !myTurn(), can = human && !waiting;
   const rem = turn >= 0 ? remaining(leg, turn) : 0;
   const ro = $('readout');
   const live = botReveal && botReveal.p === turn ? botReveal : null;
   const liveScore = live ? live.darts.reduce((a, d) => a + d.v, 0) : 0;
-  ro.textContent = buffer || (live && live.darts.length ? String(liveScore) : t(human ? 'Enter score' : S.matchWinner != null ? 'Match over' : 'Bot throwing…'));
+  ro.textContent = buffer || (live && live.darts.length ? String(liveScore) : (waiting ? t('Waiting for {name}…', { name: players()[turn].name }) : t(human ? 'Enter score' : S.matchWinner != null ? 'Match over' : 'Bot throwing…')));
+  ro.closest('.entry').classList.toggle('waiting', waiting);
   ro.classList.toggle('empty', !buffer && !(live && live.darts.length));
-  const canCO = human && E.minDarts(rem, st.out) <= 3 && (opened(leg, turn) || OPEN_SETS[st.inRule]?.has(rem));
+  const canCO = can && E.minDarts(rem, st.out) <= 3 && (opened(leg, turn) || OPEN_SETS[st.inRule]?.has(rem));
   // With a finish on, the readout offers a one-tap checkout instead of showing who is throwing
   $('who').innerHTML = canCO && !buffer ? `<button class="chip co rco" type="button" data-score="${rem}">${t('Checkout {n}', { n: rem })}</button>`
     : turn >= 0 ? `<span class="label">${t('To throw')}</span><br><b>${esc(players()[turn].name)}</b> · ${t('{n} left', { n: rem })}` : '';
   const quick = [26, 41, 45, 60, 81, 85, 100, 140, 180];
   $('quick').innerHTML =
-    `<button class="chip zero" type="button" data-score="0" ${human ? '' : 'disabled'}>${t('No score')}</button>` +
-    quick.map(q => `<button class="chip" type="button" data-score="${q}" ${human ? '' : 'disabled'}>${q}</button>`).join('');
+    `<button class="chip zero" type="button" data-score="0" ${can ? '' : 'disabled'}>${t('No score')}</button>` +
+    quick.map(q => `<button class="chip" type="button" data-score="${q}" ${can ? '' : 'disabled'}>${q}</button>`).join('');
   $('keys').innerHTML = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'].map(k =>
-    `<button class="key ${k === 'ok' ? 'ok' : k === 'del' ? 'fn' : ''}" type="button" data-key="${k}" ${human ? '' : 'disabled'} aria-label="${k === 'del' ? t('Delete digit') : k === 'ok' ? t('Submit score') : k}">${k === 'del' ? '⌫' : k === 'ok' ? t('Score') : k}</button>`).join('');
-  $('undoBtn').disabled = !hasHumanVisit() || botBusy;
+    `<button class="key ${k === 'ok' ? 'ok' : k === 'del' ? 'fn' : ''}" type="button" data-key="${k}" ${can ? '' : 'disabled'} aria-label="${k === 'del' ? t('Delete digit') : k === 'ok' ? t('Submit score') : k}">${k === 'del' ? '⌫' : k === 'ok' ? t('Score') : k}</button>`).join('');
+  $('undoBtn').disabled = isGuest() ? !guestCanUndo() : !hasHumanVisit() || botBusy;
 
   // board: current thrower's route, plus the last bot visit's darts
   const botTurn = turn >= 0 && players()[turn].type === 'bot';
@@ -337,7 +354,7 @@ function render() {
   $('boardLabel').textContent = route ? t('{name} checkout', { name: players()[turn].name }) : turn >= 0 ? `${players()[turn].name} · ${t('{n} left', { n: rem })}` : t('Final visit');
   $('boardRoute').innerHTML = route ? routeChips(route) : turn >= 0 ? t(!opened(leg, turn) ? (st.inRule === 'master' ? 'Open on a double or treble' : 'Open on a double') : rem > (st.out === 'double' ? 170 : 180) ? 'Scoring – aim T20' : 'No 3-dart finish') : '';
   $('legend').innerHTML = showDarts
-    ? `<span>${t(lastVisit.live ? '{name} is throwing:' : "{name}'s last visit:", { name: esc(players()[lastVisit.p].name) })}</span> ${lastVisit.darts.map((d, i) => `<span>${i + 1}. <b>${dartLabel(d)}</b></span>`).join('')} <span>= <b>${lastVisit.bust ? t('Bust') : lastVisit.score}</b></span>`
+    ? `<span>${t(lastVisit.live ? '{name} is throwing:' : "{name}'s last visit:", { name: esc(players()[lastVisit.p].name) })}</span> ${lastVisit.darts.map((d, i) => `<span>${i + 1}. <b>${esc(dartLabel(d))}</b></span>`).join('')} <span>= <b>${lastVisit.bust ? t('Bust') : esc(lastVisit.score)}</b></span>`
     : `<span>${t('Highlighted segments show the suggested finish.')}</span>`;
 
   renderSheet();
@@ -369,8 +386,8 @@ function sheetHTML(leg, pl, start) {
       if (!v) return `<td class="sc sep"></td><td class="lf"></td>`;
       left[p] -= v.score;
       const cls = v.bust ? ' bust' : v.checkout ? ' out' : '';
-      const title = v.darts ? ` title="${v.darts.map(dartLabel).join(', ')}"` : '';
-      return `<td class="sc sep${cls}"${title}>${v.bust ? t('Bust') : v.score}</td><td class="lf${cls}">${v.checkout ? '✓' : left[p]}</td>`;
+      const title = v.darts ? ` title="${esc(v.darts.map(dartLabel).join(', '))}"` : '';
+      return `<td class="sc sep${cls}"${title}>${v.bust ? t('Bust') : esc(v.score)}</td><td class="lf${cls}">${v.checkout ? '✓' : esc(left[p])}</td>`;
     }).join('');
     rows.push(`<tr><td class="rnd">${(r + 1) * 3}</td>${cells}</tr>`);
   }
@@ -459,11 +476,13 @@ function callVisit(v) {
 ['click', 'keydown'].forEach(t => document.addEventListener(t, () => caller.unlock(), true));
 
 // ---------- game flow ----------
-function commitVisit(v) {
+// ver: the room version the visit was started on (a guest sends it with the visit); remote: a guest's visit, on the host
+function commitVisit(v, ver, remote = false) {
+  if (ROOM?.role === 'guest') { buffer = ''; return guestInput({ type: 'visit', seat: v.p, visit: v }, ver); }
   const leg = curLeg();
   leg.visits.push(v);
-  buffer = '';
-  $('msg').textContent = '';
+  if (remote) remoteDone(v.p);
+  else { buffer = ''; $('msg').textContent = ''; }
   if (v.checkout || v.score === 180) window.ocheNative?.celebrate();
   if (v.checkout) {
     leg.winner = v.p;
@@ -483,12 +502,16 @@ function commitVisit(v) {
   } else if (v.score === 180) {
     toast(t('One hundred and eighty!'));
   }
+  S.acts.push({ seat: v.p, turnAfter: currentTurn() });
   callVisit(v);
   save(); render(); maybeBot();
 }
 function maybeBot() {
   cancelBot();
-  if (S.screen !== 'play') { botBusy = false; return; }
+  // Bots play on the host
+  if (ROOM?.role === 'guest') { botBusy = false; return; }
+  // While a room is open bots throw on any screen of the host, so the guests aren't kept waiting
+  if (S.screen !== 'play' && ROOM?.role !== 'host') { botBusy = false; return; }
   if (isGame()) return gameBot();
   if (!isBotTurn()) { botBusy = false; return; }
   botBusy = true;
@@ -511,11 +534,11 @@ function maybeBot() {
   }
   // Throw the darts one at a time, at a real player's pace, with a longer settle before a double
   botReveal = { p, darts: [] };
-  render();
+  if (S.screen === 'play') render();
   let t = 700 + Math.random() * 300, left = rem;
   r.darts.forEach(d => {
     if (out !== 'single' && E.BY[d.aim] && E.isFinisher(E.BY[d.aim], out) && E.BY[d.aim].v === left) t += 400 + Math.random() * 400;
-    setTimeout(() => { if (token !== botToken) return; botReveal.darts.push(d); render(); }, t);
+    setTimeout(() => { if (token !== botToken) return; botReveal.darts.push(d); if (S.screen === 'play') render(); }, t);
     left -= d.v;
     t += 750 + Math.random() * 450;
   });
@@ -526,18 +549,28 @@ function maybeBot() {
     commitVisit({ p, score: r.score, dartsUsed: r.dartsUsed, dartsAtDouble: r.dartsAtDouble, bust: r.bust, checkout: r.checkout, before: rem, darts: r.darts });
   }, t - 300);
 }
+// A guest's input leaves what the host is typing alone, unless the turn it was typed for has passed. Then it goes,
+// the host is told why, and an empty Score pressed straight after does nothing, so it can't land on the next player.
+let lostAt = 0;
+function remoteDone(seat) {
+  if (currentTurn() === seat) return;
+  if (buffer) { toast(t('{name} scored on their phone', { name: players()[seat].name })); lostAt = Date.now(); }
+  buffer = ''; $('msg').textContent = '';
+}
 function hasHumanVisit() { return S.legs.some(l => l.visits.some(v => players()[v.p].type === 'human')); }
 function popOne() {
   let leg = curLeg();
   if (!leg.visits.length) { if (S.legs.length === 1) return null; S.legs.pop(); leg = curLeg(); }
   const v = leg.visits.pop();
   if (v) {
+    S.acts.pop();
     if (S.matchWinner != null) forgetHistory(S.id);
     leg.winner = null; S.matchWinner = null;
   }
   return v;
 }
 function undo() {
+  if (ROOM?.role === 'guest') return guestUndo();
   if (isGame()) return gameUndo();
   if (!hasHumanVisit() || botBusy) return;
   cancelBot();
@@ -556,32 +589,56 @@ function undo() {
 }
 
 function submit(score) {
-  if (isBotTurn() || S.matchWinner != null) return;
+  if (isBotTurn() || S.matchWinner != null || !myTurn()) return;
   const st = S.settings, leg = curLeg(), p = turnOf(leg), rem = remaining(leg, p), out = st.out, dbl = out !== 'single';
   const mst = out === 'master', atLabel = t(mst ? 'Darts at a double or treble' : 'Darts at double');
   if (!Number.isInteger(score)) return err(t('Type a score first.'));
   if (!E.validVisit(score)) return err(score > 180 ? t('The most three darts can score is 180.') : t("{n} can't be scored with three darts.", { n: score }));
   if (!opened(leg, p) && !OPEN_SETS[st.inRule].has(score)) return err(t(st.inRule === 'master' ? "{n} isn't possible when the visit has to open on a double or treble." : "{n} isn't possible when the visit has to open on a double.", { n: score }));
   const base = { p, before: rem };
+  // A question can stay open while another phone changes the match: the visit only goes in if nothing has
+  const id = S.id, legs = S.legs.length, visits = leg.visits.length, ver = ROOM?.ver;
+  const commit = v => S.id === id && S.legs.length === legs && curLeg().visits.length === visits && S.matchWinner == null
+    ? commitVisit(v, ver) : toast(t('Already scored'));
   const canAimDouble = dbl && opened(leg, p) && rem <= (out === 'master' ? 60 : 50) && E.minDarts(rem, out) <= 3;
   if (score > rem || (dbl && rem - score === 1)) {
-    const finish = atDouble => commitVisit({ ...base, score: 0, dartsUsed: 3, dartsAtDouble: atDouble, bust: true, checkout: false });
+    const finish = atDouble => commit({ ...base, score: 0, dartsUsed: 3, dartsAtDouble: atDouble, bust: true, checkout: false });
     return canAimDouble ? ask(t('Bust'), t(mst ? 'How many darts went at a double or treble?' : 'How many darts went at a double?'), [{ key: 'd', label: atLabel, options: [0, 1, 2, 3], def: 1 }], a => finish(a.d)) : finish(0);
   }
   if (score === rem) {
     const md = E.minDarts(rem, out);
     if (md > 3) return err(t(!dbl ? "{n} can't be checked out in three darts." : mst ? "{n} can't be checked out on a double or treble in three darts." : "{n} can't be checked out on a double in three darts.", { n: rem }));
-    const finish = (used, at) => commitVisit({ ...base, score, dartsUsed: used, dartsAtDouble: dbl ? at : 0, bust: false, checkout: true });
+    const finish = (used, at) => commit({ ...base, score, dartsUsed: used, dartsAtDouble: dbl ? at : 0, bust: false, checkout: true });
     if (md === 3) return finish(3, 1);
     const qs = [{ key: 'used', label: t('Darts used'), options: range(md, 3), def: md }];
     if (dbl) qs.push({ key: 'at', label: atLabel, options: a => range(1, a.used - md + 1), def: 1 });
     return ask(t('Checkout {n}', { n: rem }), t('How did the finish go?'), qs, a => finish(a.used, a.at || 1));
   }
   if (canAimDouble) return ask(t('{n} scored', { n: score }), t(mst ? '{n} was on. How many darts went at a double or treble?' : '{n} was on. How many darts went at a double?', { n: rem }), [{ key: 'd', label: atLabel, options: [0, 1, 2, 3], def: 0 }],
-    a => commitVisit({ ...base, score, dartsUsed: 3, dartsAtDouble: a.d, bust: false, checkout: false }));
-  commitVisit({ ...base, score, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false });
+    a => commit({ ...base, score, dartsUsed: 3, dartsAtDouble: a.d, bust: false, checkout: false }));
+  commit({ ...base, score, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false });
 }
 const range = (a, b) => Array.from({ length: Math.max(0, b - a + 1) }, (_, i) => a + i);
+// A guest's visit for seat p, built again on the host by the rules submit() follows: null if no phone could
+// have entered it. The host's own count goes in as `before`, and darts (never sent by submit) are dropped.
+function guestVisit(raw, p) {
+  if (!raw || typeof raw !== 'object' || raw.p !== p) return null;
+  const st = S.settings, leg = curLeg(), rem = remaining(leg, p), out = st.out, dbl = out !== 'single';
+  const { score, dartsUsed: used, dartsAtDouble: at, bust, checkout } = raw;
+  const int = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
+  const opens = s => opened(leg, p) || OPEN_SETS[st.inRule].has(s);
+  const canAimDouble = dbl && opened(leg, p) && rem <= (out === 'master' ? 60 : 50) && E.minDarts(rem, out) <= 3;
+  const busts = s => s > rem || (dbl && rem - s === 1);
+  let ok;
+  if (bust === true) ok = checkout === false && score === 0 && used === 3 && int(at, 0, canAimDouble ? 3 : 0)
+    && range(0, 180).some(s => E.validVisit(s) && opens(s) && busts(s));
+  else if (bust !== false) ok = false;
+  else if (checkout === true) {
+    const md = E.minDarts(rem, out);
+    ok = score === rem && E.validVisit(score) && opens(score) && md <= 3 && int(used, md, 3) && (dbl ? int(at, 1, used - md + 1) : at === 0);
+  } else ok = checkout === false && E.validVisit(score) && opens(score) && !busts(score) && score !== rem && used === 3 && int(at, 0, canAimDouble ? 3 : 0);
+  return ok ? { p, before: rem, score, dartsUsed: used, dartsAtDouble: at, bust, checkout } : null;
+}
 
 // ---------- dialogs ----------
 let dialogOpen = false;
@@ -627,12 +684,16 @@ function renderGame() {
   if (done) {
     const r = G.result(g, st);
     res = `<section class="panel winner"><h2>${esc(r.headline)}</h2><p style="margin:0 0 12px;color:var(--muted)">${esc(r.detail)}</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-act="rematch">${t('Play again')}</button><button class="btn" type="button" data-pg="share">${t('Share')}</button><button class="btn" type="button" data-act="new">${t('Main menu')}</button></div></section>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${endButtons()}</div></section>`;
   }
-  const canUndo = S.hist.length > 0 && !botBusy;
+  // A guest has no undo snapshots: its Undo lights when the host would take it
+  const undoOk = isGuest() ? guestCanUndo() : S.hist.length > 0 && !botBusy;
+  const turn = currentTurn(), waiting = !done && turn >= 0 && players()[turn].type === 'human' && !myTurn();
+  const wait = waiting ? `<div class="waitnote" role="status">${t('Waiting for {name}…', { name: esc(players()[turn].name) })}</div>` : '';
   $('gameLeft').innerHTML = G.hud(g, st) + res +
-    `<section class="panel gpadwrap">${done ? '' : G.pad(g, st)}<div class="msg" id="gMsg" role="status" aria-live="polite"></div>
-      <div class="row-actions"><button class="btn" type="button" data-act="undo"${canUndo ? '' : ' disabled'}>${t('Undo')}</button><span class="hint">${t(G.hint)} <span class="kb">${t(G.keys)}</span></span></div></section>`;
+    `<section class="panel gpadwrap${waiting ? ' waiting' : ''}">${done ? '' : wait + G.pad(g, st)}<div class="msg" id="gMsg" role="status" aria-live="polite"></div>
+      <div class="row-actions"><button class="btn" type="button" data-act="undo"${undoOk ? '' : ' disabled'}>${t('Undo')}</button><span class="hint">${t(G.hint)} <span class="kb">${t(G.keys)}</span></span></div></section>`;
+  if (waiting) $('gameLeft').querySelectorAll('.gpadwrap button:not([data-act])').forEach(b => { b.disabled = true; });
   $('gameRight').innerHTML = G.log(g, st) + `<section class="panel"><h2>${t('How to play')}</h2><p class="rules">${t(G.rules)}</p></section>`;
   const b = G.board(g, st);
   highlight(b.keys.map(k => ({ k })));
@@ -646,20 +707,32 @@ function gameErr(text) {
   m.textContent = text;
   clearTimeout(msgTimer); msgTimer = setTimeout(() => { m.textContent = ''; }, 4000);
 }
-function gameAct(a, v) {
+function gameAct(a, v, remote = false) {
   const G = GAMES[S.settings.mode];
-  if (G.done(S.game) || isBotTurn()) return;
+  if (G.done(S.game) || isBotTurn() || !myTurn()) return;
   if (a === 'score') {
     if (v === '' || v == null) return gameErr(t('Type a score first.'));
     const s = +v;
     const problem = G.validate ? G.validate(S.game, s) : (!E.validVisit(s) ? (s > 180 ? t('The most three darts can score is 180.') : t("{n} can't be scored with three darts.", { n: s })) : null);
     if (problem) { buffer = ''; render(); return gameErr(problem); }
   }
+  if (ROOM?.role === 'guest') { buffer = ''; render(); return guestInput({ type: 'act', seat: S.game.turn, a, v }); }
   S.hist.push(JSON.stringify(S.game));
-  if (S.hist.length > 400) S.hist.shift();
+  if (S.hist.length > 400) { S.hist.shift(); S.acts.shift(); }
+  const seat = S.game.turn;
   G.act(S.game, a, v, S.settings);
-  buffer = '';
+  S.acts.push({ seat, turnAfter: currentTurn() });
+  if (remote) remoteDone(seat); else buffer = '';
   afterGameChange();
+}
+// Is this a move the game's pad offers right now (or, on a keypad, a score it takes)? The host checks a guest's act by it.
+function padOffers(a, v) {
+  const G = GAMES[S.settings.mode];
+  if (a === 'score' && G.keypad && /^\d{1,3}$/.test(String(v))) return !(G.validate ? G.validate(S.game, +v) : !E.validVisit(+v));
+  // A template's content is inert: nothing in it loads or runs
+  const pad = document.createElement('template');
+  pad.innerHTML = G.pad(S.game, S.settings);
+  return [...pad.content.querySelectorAll('[data-ga]:not([disabled])')].some(b => b.dataset.ga === a && b.dataset.v === String(v));
 }
 function afterGameChange() {
   const G = GAMES[S.settings.mode], g = S.game;
@@ -676,10 +749,11 @@ function afterGameChange() {
   save(); render(); maybeBot();
 }
 function gameUndo() {
+  if (ROOM?.role === 'guest') return guestUndo();
   if (!S.hist.length || botBusy) return;
   cancelBot();
   const before = S.game;
-  do { S.game = JSON.parse(S.hist.pop()); } while (S.hist.length && isBotTurn());
+  do { S.game = JSON.parse(S.hist.pop()); S.acts.pop(); } while (S.hist.length && isBotTurn());
   if (before.recorded && !S.game.recorded) {
     forgetHistory(S.id);
     // Take back the personal best this result set
@@ -694,7 +768,7 @@ function gameUndo() {
 function gameBot() {
   if (!isBotTurn()) { botBusy = false; return; }
   botBusy = true;
-  render();
+  if (S.screen === 'play') render();
   botTimer = setTimeout(() => {
     botBusy = false;
     if (!isBotTurn()) return;
@@ -710,6 +784,7 @@ function gameBot() {
       ctx.pressure = G.pressure && G.pressure(g, p) ? E.pressureFor(ctx.avg) : 1;
       G.botVisit(g, S.settings, botCtx);
     }
+    S.acts.push({ seat: p, turnAfter: currentTurn() });
     afterGameChange();
   }, 1000);
 }
@@ -749,11 +824,21 @@ function confirmRestart() {
 }
 // Discard from the menu: the settings are kept for next time, the scores go
 function confirmDiscard() {
+  if (isGuest()) return confirmLeave();
   confirmDialog({
     title: t(isMatch() ? 'Discard this match?' : 'Discard this game?'),
     text: t('The game in progress and its scores will be deleted. Personal bests already set are kept.'),
     keep: t('Keep it'), go: t('Discard'), focusBack: () => $('menu').querySelector('[data-act="continue"]'),
-    onGo: () => { cancelBot(); botBusy = false; buffer = ''; S = freshMatch(S.settings); S.screen = 'menu'; save(); render(); },
+    // Discarding the match ends its room
+    onGo: () => { endRoom(); cancelBot(); botBusy = false; buffer = ''; S = freshMatch(S.settings); S.screen = 'menu'; save(); render(); },
+  });
+}
+// A guest's menu works on its own game: starting one, joining another room or Leave first leaves the room
+function confirmLeave(then) {
+  confirmDialog({
+    title: t('Leave the room?'), text: t('This phone stops playing in the shared game. The host keeps the match.'),
+    keep: t('Stay'), go: t('Leave'), focusBack: () => $('menu').querySelector('[data-act="continue"]'),
+    onGo: () => { leaveRoom(); goMenu(); then?.(); },
   });
 }
 function modeTitle(mode) { return mode === 'x01' ? `${S.settings.start || 501}` : t(GAMES[mode].title); }
@@ -771,6 +856,7 @@ const TILES = {
   doubles: ['green', 'D'],
   singles: ['cream', 'S'],
   score: ['black', '180'],
+  join: ['felt', '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2" width="11" height="20" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18.2" r="1.3" fill="currentColor"/></svg>'],
 };
 function gameTile(mode, text) {
   const [bg, glyph] = TILES[mode] || ['black', '?'];
@@ -794,19 +880,22 @@ function logoBoard() {
 }
 const routeChips = route => route.map(s => `<span class="rchip r-${s.ring}">${E.label(s)}</span>`).join('');
 function renderMenu() {
-  const resume = inProgress()
-    ? `<section class="panel resume"><div><span class="label">${t('Game in progress')}</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><div class="resume-btns"><button class="btn ghost" type="button" data-act="discard">${t('Discard')}</button><button class="btn primary" type="button" data-act="continue">${t('Continue')}</button></div></section>`
+  // A guest's menu always leads back to the shared game, and offers Leave where the host has Discard
+  const resume = isGuest() || inProgress()
+    ? `<section class="panel resume"><div><span class="label">${t('Game in progress')}</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><div class="resume-btns"><button class="btn ghost" type="button" data-act="discard">${t(isGuest() ? 'Leave' : 'Discard')}</button><button class="btn primary" type="button" data-act="continue">${t('Continue')}</button></div></section>`
     : '';
   const hero = `<section class="menu-hero"><h2 class="num">${t('Step up to the oche')}<span>.</span></h2><p>${t('Play friends on this device, or bots set to any average from 20 to 120.')}</p></section>`;
-  $('menu').innerHTML = hero + resume + MENU.map(([group, items]) => `<section class="menu-sec"><h2>${t(group)}</h2><div class="cards">${items.map(([mode, title, desc]) => {
+  // Joining another phone's game sits with the matches
+  const join = `<button class="gcard" type="button" data-menu="join">${gameTile('join')}<span class="gname">${t('Join a game')}</span><span class="gdesc">${t('Score on your own phone in a game another phone is hosting.')}</span><span class="gmeta"><span>${t('Room code or QR code')}</span></span></button>`;
+  $('menu').innerHTML = hero + resume + MENU.map(([group, items], gi) => `<section class="menu-sec"><h2>${t(group)}</h2><div class="cards">${items.map(([mode, title, desc]) => {
     const [lo, hi] = limitsFor(mode), best = getBest(mode);
     const who = hi === 1 ? t('Solo') : t('{n} players', { n: lo === hi ? lo : `${lo}–${hi}` });
     const bots = PLAYER_LIMITS[mode] ? ' · ' + t('bots') : '';
     return `<button class="gcard" type="button" data-menu="${mode}">${gameTile(mode)}<span class="gname">${t(title)}</span><span class="gdesc">${t(desc)}</span><span class="gmeta"><span>${who}${bots}</span>${best != null ? `<span class="pb">${t('Best {n}', { n: best })}</span>` : ''}</span></button>`;
-  }).join('')}</div></section>`).join('');
+  }).join('')}${gi === 0 ? join : ''}</div></section>`).join('');
 }
 function goScreen(name) {
-  cancelBot(); botBusy = false;
+  if (ROOM?.role !== 'host') { cancelBot(); botBusy = false; }
   S.screen = name; buffer = ''; histOpen = null;
   save(); render();
   window.scrollTo(0, 0);
@@ -843,7 +932,8 @@ function pageAct(act, v) {
       title: t('Reset all data?'), text: t("This deletes your match history, player stats, personal bests, settings and any game in progress. It can't be undone."),
       keep: t('Cancel'), go: t('Reset'), focusBack: () => document.querySelector('[data-pg="reset"]'),
       onGo: () => {
-        for (const k of [STORE_KEY, HISTORY_KEY, SETTINGS_KEY, 'oche-bests']) { try { localStorage.removeItem(k); } catch (e) {} window.ocheNative?.remove(k); }
+        if (isGuest()) leaveRoom(); else endRoom();
+        for (const k of [STORE_KEY, HISTORY_KEY, SETTINGS_KEY, 'oche-bests', ROOM_KEY]) { try { localStorage.removeItem(k); } catch (e) {} window.ocheNative?.remove(k); }
         SETTINGS = { ...SETTINGS_DEFAULT }; applySettings();
         S = freshMatch(DEFAULT_SETTINGS); S.screen = 'menu'; save(); render(); toast(t('All data reset'));
       },
@@ -1028,6 +1118,10 @@ function openSetup(mode) {
       ${p.type === 'bot' ? `<div class="avgrow"><label class="unit" for="pa${i}">${t('Avg')}</label><input type="range" id="pa${i}" data-i="${i}" min="${E.AVG_MIN}" max="${E.AVG_MAX}" step="1" value="${p.avg}"><b class="num avgval">${p.avg}</b><span class="hint co">${coText(p.avg)}</span></div>` : ''}
     </div>`;
 
+  // Players on their own phones: for any game set up with 2 or more players
+  const canShare = () => hi > 1 && list.length >= 2;
+  const roomSwitch = () => canShare() ? `<div class="srows share">${row(t('Players on their own phones'), control(t('Players on their own phones'), 'shared', [[false, t('Off')], [true, t('On')]], !!st.shared, 'room'))}</div>
+          <p class="hint">${t('Each player scores on their own phone. Others join with a room code or QR code.')}</p>` : '';
   const draw = () => {
     const x01 = mode === 'x01';
     const rules = x01 ? x01HTML() : gameHTML();
@@ -1038,6 +1132,7 @@ function openSetup(mode) {
         ${rules || howto ? `<section class="setup-col"><h4 class="label">${t('Rules')}</h4><div class="srows">${rules}</div>${howto}</section>` : ''}
         <section class="setup-col"><h4 class="label">${hi === 1 ? t('Player') : t('Players · {n}', { n: lo === hi ? lo : `${lo}–${hi}` })}</h4>
           <div class="plist">${list.map(playerHTML).join('')}</div>
+          ${roomSwitch()}
           ${list.length < hi ? `<div class="addrow"><button type="button" class="addb" data-set="padd" data-v="bot">+ Bot</button><button type="button" class="addb" data-set="padd" data-v="human">+ ${t('Player')}</button></div>` : ''}
         </section>
       </div>
@@ -1102,6 +1197,7 @@ function openSetup(mode) {
   ov.onsubmit = e => {
     e.preventDefault(); sync();
     st.players = list.map(p => p.type === 'bot' ? { name: p.name, type: 'bot', avg: p.avg } : { name: p.name, type: 'human' });
+    st.shared = canShare() && !!st.shared;
     close();
     if (!inProgress()) return startMatch(st);
     confirmDialog({ title: t(isMatch() ? 'Replace the match in progress?' : 'Replace the game in progress?'), text: t('The scores so far will be lost.'), keep: t('Keep it'), go: t('Start new'), onGo: () => startMatch(st) });
@@ -1109,14 +1205,136 @@ function openSetup(mode) {
   dialogKey = e => { if (e.key === 'Escape') { close(); return true; } return false; };
   ov.querySelector('[type=submit]').focus();
 }
+// A new match with players on their own phones (a rematch, Restart, or a new setup) stays in the room, and guests
+// keep the seats that still fit; one without them ends the room
 function startMatch(settings) {
   cancelBot(); botBusy = false;
+  const room = S?.room, keep = ROOM?.role === 'host' && room && settings.shared;
+  if (ROOM?.role === 'host' && !keep) endRoom();
   S = freshMatch(settings); buffer = '';
+  if (keep) S.room = recheckSeats(room, players());
   save(); render(); maybeBot();
+  if (settings.shared && !keep && !isGuest()) openRoom();
+}
+// The result's buttons: only the host starts a rematch, a guest can leave
+const endButtons = () => (isGuest() ? `<button class="btn primary" type="button" data-act="leave">${t('Leave')}</button>`
+  : `<button class="btn primary" type="button" data-act="rematch">${t('Play again')}</button>`)
+  + `<button class="btn" type="button" data-pg="share">${t('Share')}</button>${isGuest() ? '' : `<button class="btn" type="button" data-act="new">${t('Main menu')}</button>`}`;
+
+// ---------- rooms: lobby, seats, join ----------
+const isGuest = () => ROOM?.role === 'guest';
+// The host scores for anyone; a guest only for the seats it claimed
+const myTurn = () => !isGuest() || ROOM.mine.includes(currentTurn());
+function openRoom(code, reopen) {
+  roomOpen = null;
+  hostRoom(code, reopen).then(() => { save(); render(); }, () => toast(t("Couldn't open the room")));
+}
+// The lobby is open until the first visit (on a guest also while it has no seat). A tap on its bar overrides
+// that until play starts or a new match begins.
+let roomOpen = null, qrLoad = null;
+const roomStage = () => `${S.id}:${S.acts.length > 0}`;
+// The QR code generator loads the first time a lobby opens, so single-phone play loads nothing extra
+const loadQR = () => qrLoad ||= new Promise((ok, no) => {
+  const el = document.createElement('script');
+  el.src = 'vendor/qrcode.js'; el.onload = ok; el.onerror = () => { qrLoad = null; no(); };
+  document.head.appendChild(el);
+});
+function qrHTML(link) {
+  if (typeof qrcode !== 'function') { loadQR().then(renderRoomBar, () => {}); return ''; }
+  const q = qrcode(0, 'M'); q.addData(link); q.make();
+  return q.createSvgTag({ cellSize: 4, margin: 2 });
+}
+// The join link: this page's own address, so a test or development transport carries over. The apps' own
+// addresses (capacitor://, or https://localhost on Android) mean nothing on another phone, so they use the website.
+function joinLink(code) {
+  const app = window.ocheNative?.isNative || !/^https?:$/.test(location.protocol);
+  const u = new URL(app ? SITE_URL : location.href), local = u.searchParams.get('transport') === 'local';
+  u.search = ''; u.hash = '';
+  u.searchParams.set('join', code);
+  if (local) u.searchParams.set('transport', 'local');
+  return u.href;
+}
+const roomOf = () => S.room || { seats: {}, online: {} };
+const connDot = p => { const r = roomOf(), on = !!(r.seats[p] && r.online[r.seats[p]]); return `<span class="dot${on ? ' on' : ''}" title="${t(on ? 'Connected' : 'Not connected')}"></span>`; };
+function renderRoomBar() {
+  const bar = $('roomBar');
+  bar.hidden = !ROOM;
+  if (!ROOM) { bar.innerHTML = ''; return; }
+  const host = ROOM.role === 'host', pl = players(), r = roomOf(), self = ROOM.self;
+  const open = roomOpen?.stage === roomStage() ? roomOpen.open : !S.acts.length || (!host && !ROOM.mine.length);
+  bar.dataset.open = open;
+  const phones = Object.keys(r.online).length;
+  const sum = host ? t(phones === 1 ? '1 phone' : '{n} phones', { n: phones })
+    : ROOM.mine.length ? t('Playing as {names}', { names: ROOM.mine.map(s => pl[s]?.name).join(', ') }) : t('Tap your name');
+  // The match lives on the host, so nothing is lost while it is away; the guest may still leave
+  const lost = ROOM.lost ? `<div class="room-lost" role="status"><b>${t('Host disconnected')}</b><button class="btn" type="button" data-act="leave">${t('Leave')}</button></div>` : '';
+  const head = lost + `<button type="button" class="room-head" data-act="room" aria-expanded="${open}"><span><b>${t('Room {code}', { code: formatRoomCode(ROOM.code) })}</b> · ${esc(sum)}</span><span class="chev" aria-hidden="true"></span></button>`;
+  if (!open) { bar.innerHTML = head; return; }
+  let body;
+  if (host) {
+    const link = joinLink(ROOM.code);
+    const seats = pl.map((p, i) => {
+      const id = r.seats[i], bot = p.type === 'bot';
+      const stat = i === 0 ? t('This phone') : bot ? 'Bot' : !id ? t('Scored here') : r.online[id] ? t('Connected') : t('Not connected');
+      return `<li class="seat">${id ? connDot(i) : '<span class="dot none"></span>'}<span class="sname">${esc(p.name)}</span><span class="sstat">${stat}</span></li>`;
+    }).join('');
+    body = `<div class="room-join"><div class="qr">${qrHTML(link)}</div><div class="room-info">
+        <span class="label">${t('Room code')}</span><div class="room-code num">${formatRoomCode(ROOM.code)}</div>
+        <p class="hint">${t('Players scan the code or open the link on their phone, then tap their name.')}</p>
+        <a class="room-link" href="${esc(link)}">${esc(link.replace(/^https?:\/\//, ''))}</a>
+        <button class="btn" type="button" data-act="shareLink">${t('Share link')}</button></div></div>
+      <ul class="seats">${seats}</ul>`;
+  } else {
+    // Seat 0 is the host's, bots play on the host, and a seat another phone has is taken
+    const seats = pl.map((p, i) => {
+      const mine = r.seats[i] === self, taken = r.seats[i] && !mine, bot = p.type === 'bot';
+      const stat = i === 0 ? t('Host') : bot ? 'Bot' : mine ? t('This phone') : taken ? t('Taken') : '';
+      return `<li><button type="button" class="seat" data-act="claim" data-v="${i}" aria-pressed="${mine}"${i === 0 || bot || taken ? ' disabled' : ''}><span class="sname">${esc(p.name)}</span><span class="sstat">${stat}</span></button></li>`;
+    }).join('');
+    body = `<p class="hint">${t('Tap the name or names you are playing as.')}</p><ul class="seats">${seats}</ul>
+      <div class="row-actions"><button class="btn" type="button" data-act="leave">${t('Leave')}</button></div>`;
+  }
+  bar.innerHTML = head + `<div class="room-body">${body}</div>`;
+}
+// The join screen: a code field and Join. A join link fills the code and joins at once.
+let joinCode = '', joinMsg = '', joinBusy = false, joinFailed = false;
+function openJoin(code = '', nav = true) {
+  joinCode = code; joinMsg = ''; joinBusy = false; joinFailed = false;
+  if (nav) return goScreen('join');
+  S.screen = 'join'; render();
+}
+function renderJoin() {
+  $('page').innerHTML = `<section class="panel join"><h2>${t('Join a game')}</h2>
+    <p class="hint">${t("Type the room code from the host's phone, or scan its QR code with the camera.")}</p>
+    <form class="joinrow" id="joinForm" novalidate><input type="text" id="joinCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="9" placeholder="K7Q-M2P" aria-label="${t('Room code')}" value="${esc(joinCode)}">
+      <button class="btn primary" type="submit" data-act="join"${joinBusy ? ' disabled' : ''}>${t(joinBusy ? 'Connecting…' : joinFailed ? 'Retry' : 'Join')}</button></form>
+    <div class="msg" role="status" aria-live="polite">${esc(joinMsg)}</div></section>`;
+}
+async function doJoin(text = $('joinCode')?.value) {
+  joinCode = text || '';
+  const code = parseRoomCode(joinCode);
+  joinMsg = code ? '' : t('A room code is 6 letters and digits, like K7Q-M2P');
+  joinBusy = !!code; joinFailed = false; roomOpen = null;
+  render();
+  if (!code) return;
+  try { await joinRoomAsGuest(code); joinBusy = false; }
+  catch (e) {
+    joinBusy = false;
+    if (e?.message === 'left') return; // this phone left while it was still connecting
+    joinFailed = !['version', 'hostVersion'].includes(e?.message);
+    joinMsg = joinFailed ? t("Couldn't reach the room. Check the code, and that both phones are online.") : updateText(e.message);
+    // The join can fail after the room was set up (no host, another protocol): this phone is in no room then
+    leaveRoom();
+    if (S.screen === 'join') render();
+  }
 }
 
 // ---------- input ----------
 function press(k) {
+  if (!myTurn()) return;
+  // An empty Score just after a guest's visit cleared what was typed
+  if (k === 'ok' && buffer === '' && Date.now() - lostAt < 3000) { lostAt = 0; return; }
+  lostAt = 0;
   if (isGame()) {
     const G = GAMES[S.settings.mode];
     if (!G.keypad || G.done(S.game) || isBotTurn()) return;
@@ -1140,9 +1358,14 @@ document.addEventListener('click', e => {
   else if (b.dataset.act === 'new') goMenu();
   else if (b.dataset.pg) pageAct(b.dataset.pg, b.dataset.v);
   else if (b.dataset.nav) goScreen(b.dataset.nav);
-  else if (b.dataset.menu) openSetup(b.dataset.menu);
+  else if (b.dataset.menu === 'join') isGuest() ? confirmLeave(() => openJoin()) : openJoin();
+  else if (b.dataset.menu) isGuest() ? confirmLeave(() => openSetup(b.dataset.menu)) : openSetup(b.dataset.menu);
+  else if (b.dataset.act === 'room') { roomOpen = { open: $('roomBar').dataset.open !== 'true', stage: roomStage() }; renderRoomBar(); }
+  else if (b.dataset.act === 'claim') claim([+b.dataset.v]);
+  else if (b.dataset.act === 'leave') { leaveRoom(); goMenu(); }
+  else if (b.dataset.act === 'shareLink') shareIt(joinLink(ROOM.code));
   else if (b.dataset.act === 'discard') confirmDiscard();
-  else if (b.dataset.act === 'continue') { S.screen = 'play'; save(); render(); maybeBot(); }
+  else if (b.dataset.act === 'continue') { S.screen = 'play'; save(); render(); if (!botBusy) maybeBot(); }
 });
 document.addEventListener('keydown', e => {
   if (dialogOpen) { if (dialogKey && dialogKey(e)) e.preventDefault(); return; }
@@ -1167,6 +1390,7 @@ window.ocheBack = () => {
   goMenu();
   return true;
 };
+document.addEventListener('submit', e => { if (e.target.id === 'joinForm') { e.preventDefault(); doJoin(); } });
 document.addEventListener('change', e => { if (e.target.matches('#page select[data-pg]')) pageAct(e.target.dataset.pg, e.target.value); });
 $('undoBtn').addEventListener('click', undo);
 $('menuBtn').addEventListener('click', goMenu);
@@ -1185,6 +1409,7 @@ function start(data) {
     S.settings.mode = S.settings.mode || 'x01';
     if (S.settings.mode === 'x01') normX01(S.settings);
     S.hist = S.hist || [];
+    S.acts = S.acts || [];
     S.id = S.id || Date.now();
     if (isGame() && (!GAMES[S.settings.mode] || !S.game)) S = freshMatch(DEFAULT_SETTINGS);
     // First visit opens on the menu; a saved game picks up where it was
@@ -1196,6 +1421,18 @@ function start(data) {
     S = freshMatch(DEFAULT_SETTINGS); S.screen = 'menu';
     render();
   }
+  // A join link (from the host's QR code): open the join screen and join at once, then drop the code from the address
+  const params = new URLSearchParams(location.search), code = params.get('join');
+  if (code != null) {
+    params.delete('join');
+    history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params : '') + location.hash);
+    openJoin(code, false);
+    return doJoin(code);
+  }
+  // Back after a reload: a host reopens its match's room, a guest rejoins the room it was in
+  const rejoin = readJSON(ROOM_KEY, null);
+  if (S.room?.code) openRoom(S.room.code, true);
+  else if (rejoin?.code) { openJoin(rejoin.code, false); return doJoin(rejoin.code); }
   maybeBot();
 }
 window.claude?.hot?.snapshot?.(() => ({ S }));

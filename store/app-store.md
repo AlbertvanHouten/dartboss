@@ -34,7 +34,7 @@ The caller's voice is English in every language (it calls the way a stage refere
 Score every leg and hear it called out loud, check out with the right route, and practise with bots that throw like real players. In English, Dutch and German.
 ```
 
-**Description (4000)** — 1664 characters, also the Google Play full description
+**Description (4000)** — 1905 characters, also the Google Play full description
 
 ```
 Dartboss is a darts scorer and trainer for your board at home or at the club.
@@ -43,6 +43,9 @@ MATCHES
 • X01: 301, 501, 701 or any start score. Straight, double or master in and out. Legs or sets, first to or best of, two clear legs. Up to 8 players.
 • Killer, Shanghai and Halve It for up to 8 players, and Cricket head to head.
 • A checkout route for every finishable score, coloured by the ring you aim at.
+
+PLAY ON SEVERAL PHONES
+Start a game with two or more players and let everyone use their own phone. Join with a code, a QR code or a link. The host can score for players without a phone.
 
 THE CALLER
 In X01, scores, finishes and game shot are called out loud, the way a referee calls them on stage: every visit, "You require" when a player is on a finish, and "Game shot" on the checkout. Bot visits are called too. The caller speaks English, works offline and can be turned off in Settings.
@@ -67,7 +70,7 @@ MADE FOR THE OCHE
 • Keeps the screen awake during a match (you can turn this off)
 • Light and dark mode, for phones and tablets
 • In English, Dutch and German
-• Works completely offline. No account, no ads, no tracking.
+• Works offline for solo and single-phone play. No account, no ads, no tracking.
 ```
 
 **Keywords (100, App Store only)** — 100 characters
@@ -102,7 +105,7 @@ Darts scorer and trainer: X01 with a caller, Cricket, Killer and smart bots
 Scoor elke leg en hoor hem omgeroepen, gooi uit met de juiste route en oefen tegen bots die gooien als echte spelers. In het Nederlands, Engels en Duits.
 ```
 
-**Beschrijving (4000)** — 1849 characters, also the Google Play full description
+**Beschrijving (4000)** — 2124 characters, also the Google Play full description
 
 ```
 Dartboss is een dartsscorer en trainer voor je bord thuis of in de club.
@@ -111,6 +114,9 @@ WEDSTRIJDEN
 • X01: 301, 501, 701 of elke andere startscore. Straight, double of master in en out. Legs of sets, first to of best of, twee legs verschil. Tot 8 spelers.
 • Killer, Shanghai en Halve It voor maximaal 8 spelers, en Cricket één tegen één.
 • Een checkout-route voor elke uit te gooien score, gekleurd naar de ring waarop je mikt.
+
+SPELEN OP MEERDERE TELEFOONS
+Start een spel met twee of meer spelers en laat iedereen zijn eigen telefoon gebruiken. Doe mee met een code, een QR-code of een link. De host kan scoren voor spelers zonder telefoon.
 
 DE CALLER
 In X01 worden scores, finishes en game shot hardop omgeroepen, zoals een scheidsrechter dat op het podium doet: elke beurt, "You require" als een speler op een finish staat, en "Game shot" bij het uitgooien. Ook de beurten van bots worden omgeroepen. De caller spreekt Engels, werkt offline en staat uit te zetten in Instellingen.
@@ -135,7 +141,7 @@ GEMAAKT VOOR DE OCHE
 • Houdt het scherm aan tijdens een wedstrijd (uit te zetten)
 • Licht en donker, voor telefoon en tablet
 • In het Nederlands, Engels en Duits
-• Werkt volledig offline. Geen account, geen advertenties, geen tracking.
+• Werkt offline voor solo en spelen op één telefoon. Geen account, geen advertenties, geen tracking.
 ```
 
 **Trefwoorden (100, App Store only)** — 99 characters
@@ -170,7 +176,7 @@ Dartsscorer en trainer: X01 met caller, Cricket, Killer en slimme bots
 Zähle jedes Leg, hör es laut ausgerufen, check mit dem richtigen Weg aus und trainiere gegen Bots, die wie echte Spieler werfen. Auf Deutsch, Englisch, Niederländisch.
 ```
 
-**Beschreibung (4000)** — 1896 characters, also the Google Play full description
+**Beschreibung (4000)** — 2154 characters, also the Google Play full description
 
 ```
 Dartboss ist ein Darts-Zähler und Trainer für dein Board zu Hause oder im Verein.
@@ -179,6 +185,9 @@ MATCHES
 • X01: 301, 501, 701 oder jeder andere Startwert. Straight, Double oder Master In und Out. Legs oder Sets, First to oder Best of, zwei Legs Vorsprung. Bis zu 8 Spieler.
 • Killer, Shanghai und Halve It für bis zu 8 Spieler, und Cricket eins gegen eins.
 • Ein Checkout-Weg für jeden checkbaren Rest, eingefärbt nach dem Ring, auf den du zielst.
+
+SPIELEN AUF MEHREREN HANDYS
+Starte ein Spiel mit zwei oder mehr Spielern und lass alle ihr eigenes Handy benutzen. Mach mit per Code, QR-Code oder Link. Der Host kann für Spieler ohne Handy zählen.
 
 DER CALLER
 Bei X01 werden Scores, Finishes und Game Shot laut ausgerufen, so wie ein Schiedsrichter auf der Bühne: jede Aufnahme, "You require", wenn ein Spieler auf einem Finish steht, und "Game Shot" beim Checkout. Auch die Aufnahmen der Bots werden ausgerufen. Der Caller spricht Englisch, funktioniert offline und lässt sich in den Einstellungen ausschalten.
@@ -203,7 +212,7 @@ GEMACHT FÜR DAS OCHE
 • Hält den Bildschirm während eines Matches an (abschaltbar)
 • Hell und dunkel, für Smartphone und Tablet
 • Auf Deutsch, Englisch und Niederländisch
-• Funktioniert komplett offline. Kein Konto, keine Werbung, kein Tracking.
+• Funktioniert offline bei Solo- und Ein-Handy-Spiel. Kein Konto, keine Werbung, kein Tracking.
 ```
 
 **Suchbegriffe (100, App Store only)** — 96 characters (97 bytes; the ä counts twice if App Store Connect counts bytes)
@@ -254,8 +263,8 @@ Caption 8: the app is in your language, the caller is English; reword it if that
 
 ## Privacy
 
-- App Store, App Privacy: choose **"Data Not Collected"**. The app has no accounts, analytics, ads or network
-  calls; saved games stay on the device (declared in `ios/App/App/PrivacyInfo.xcprivacy`).
+- App Store, App Privacy: choose **"Data Not Collected"**. The app has no accounts, analytics or ads. It connects to the network only for shared games, directly between the
+  users' own phones, only when they start or join a shared game, and nothing goes to the developer. Saved games stay on the device (declared in `ios/App/App/PrivacyInfo.xcprivacy`).
 - Google Play, Data safety: no data collected, no data shared. Ads: no.
 
 **Support URL** **(you)**: `https://<your-site>/support.html` (the page ships with the web build; replace `SUPPORT_EMAIL` on it first)
@@ -266,10 +275,14 @@ Caption 8: the app is in your language, the caller is English; reword it if that
 
 ## App Review notes
 
-> No login is needed. Everything works offline. To try the main flow: tap X01, then Start, and type a visit
+> No login is needed. Solo and single-phone play work offline. To try the main flow: tap X01, then Start, and type a visit
 > score on the keypad (for example 100, then Score). The bot opponent throws its visit automatically, and
 > each visit is called out loud (Settings › Caller turns this off). Saved games, match history, player stats
-> and personal bests are stored on the device only. All data is local, and Settings has "Reset all data".
+> and personal bests are stored on the device only. Saved data is local, and Settings has "Reset all data".
+>
+> Playing on several phones (the "Players on their own phones" option in game setup, or "Join a game" in the
+> main menu) is optional. It needs an internet connection and a second device, and it sends nothing to the
+> developer. The rest of the app can be reviewed without it.
 
 ## Export compliance
 

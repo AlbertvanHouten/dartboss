@@ -6,7 +6,7 @@ const CACHE = `oche-${VERSION}`;
 const SHELL = [
   './', 'index.html', 'native.js', 'manifest.webmanifest', 'privacy.html', 'support.html',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
-  'fonts/fonts.css',
+  'fonts/fonts.css', 'vendor/trystero-nostr.mjs', 'vendor/qrcode.js', 'vendor/LICENSES.txt',
 ];
 // The caller's clips (web/caller/), listed by the build
 const CALLER = /*__CALLER__*/[];

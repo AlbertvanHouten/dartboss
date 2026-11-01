@@ -9,7 +9,7 @@
   // Calls a native plugin method through Capacitor's bridge (no bundler needed); resolves to null on the web
   const canCall = isNative && typeof cap.nativePromise === 'function';
   const call = (plugin, method, options = {}) => canCall ? cap.nativePromise(plugin, method, options).catch(() => null) : Promise.resolve(null);
-  const KEYS = ['oche-match-v1', 'oche-bests', 'oche-history-v1', 'oche-settings-v1'];
+  const KEYS = ['oche-match-v1', 'oche-bests', 'oche-history-v1', 'oche-settings-v1', 'oche-phone', 'oche-room'];
 
   // Web wake lock: the sentinel is dropped by the browser when the tab is hidden, so it is re-requested on return
   let awake = false, lock = null;

@@ -23,10 +23,10 @@ a { color: var(--red); }
 <main>
   <p class="back"><a href="./">← Back to Dartboss</a></p>
   <h1>Dartboss<span>.</span> Privacy</h1>
-  <p class="muted">Last updated 18 October 2026</p>
+  <p class="muted">Last updated 1 November 2026</p>
 
   <h2>The short version</h2>
-  <p>Dartboss does not collect, send or share any personal data. There are no accounts, no ads, no analytics and no tracking.</p>
+  <p>Dartboss collects nothing: no personal data reaches the developer or anyone else. There are no accounts, no ads, no analytics and no tracking. Only in a shared game that you start or join do player names and scores go, directly, to the other phones in that game.</p>
 
   <h2>What stays on your device</h2>
   <ul>
@@ -36,10 +36,15 @@ a { color: var(--red); }
     <li>Your app settings.</li>
     <li>The player names you type in.</li>
   </ul>
-  <p>This is stored only on your own device. It never leaves it, and deleting the app (or clearing the website's data in your browser) removes it.</p>
+  <p>This is stored only on your own device. It never leaves it, except in a shared game (see below). Deleting the app (or clearing the website's data in your browser) removes it.</p>
 
   <h2>Network access</h2>
-  <p>The app works fully offline. The website version downloads the game files from its host when you first open it, like any website; the app itself makes no other requests. Fonts are included with the app rather than loaded from other services.</p>
+  <p>The app works fully offline. The website version downloads the game files from its host when you first open it, like any website; the app itself makes no other requests, except when someone starts or joins a shared game (see below). Fonts are included with the app rather than loaded from other services.</p>
+
+  <h2>Playing on several phones</h2>
+  <p>In a shared game, each player uses their own phone. Player names and scores go only to the phones in the room, over an encrypted direct link (WebRTC). Nothing goes to the developer.</p>
+  <p>To connect, the phones exchange connection details, including IP addresses, through public Nostr relays (encrypted with the room code) and Google's public STUN servers. Neither the developer nor any server of the developer's receives or stores anything.</p>
+  <p>The app connects only when someone starts or joins a shared game. Solo and single-phone play stay fully offline.</p>
 
   <h2>Children</h2>
   <p>The app collects no data from anyone, including children.</p>
