@@ -7,7 +7,7 @@ The game is plain HTML, CSS and JavaScript with no framework or bundler. The bui
 | Path | What it is |
 |---|---|
 | `src/` | The game: `head.html`, `style.css`, `body.html`, `i18n.js`, `engine.js`, `games.js`, `app.js` (the build joins them into one page) |
-| `web/` | Files for the standalone app: `native.js` (native bridge, offline cache), `sw.js`, `manifest.webmanifest`, `privacy.html`, `support.html`, icons, bundled fonts, `caller/` clips |
+| `web/` | Files for the standalone app: `native.js` (native bridge, offline cache), `sw.js`, `manifest.webmanifest`, `privacy.html`, `support.html`, icons, bundled fonts, `vendor/` (Trystero and the QR generator), `caller/` clips |
 | `scripts/build.mjs` | Builds `dist/` from `src/` and `web/`, plus `dist/oche.html` for the Claude artifact preview |
 | `scripts/test.mjs` | Checks without a browser: scripts parse, checkout routes, bot averages, every game finishes, every string translated |
 | `scripts/screenshots.mjs` | App Store screenshots of `dist/` in Chrome at Apple's sizes |
@@ -15,6 +15,7 @@ The game is plain HTML, CSS and JavaScript with no framework or bundler. The bui
 | `scripts/android-icons.sh` | Writes the Android launcher icons (legacy and adaptive) from the same artwork |
 | `scripts/caller/` | Generates the caller clips (see [the caller](caller.md)) |
 | `scripts/fetch-fonts.mjs` | Downloads the Google Fonts into `web/fonts` (Open Font License) |
+| `scripts/vendor.mjs` | Bundles Trystero (Nostr) and copies qrcode-generator into `web/vendor` (MIT) |
 | `capacitor.config.json` | App ID, name and web directory for the iOS and Android apps |
 | `ios/` | The Xcode project (Capacitor 8, Swift Package Manager) |
 | `android/` | The Android Studio / Gradle project (Capacitor 8) |
@@ -35,6 +36,7 @@ npm run android:sync   # build and copy into the Android project
 npm run android:open   # open the project in Android Studio
 npm run android:build  # sync, then a debug APK in android/app/build/outputs/apk/debug/
 npm run screenshots    # regenerate App Store screenshots
+npm run vendor         # rebuild web/vendor (Trystero, QR generator) after changing their versions
 npm run icons          # redraw icons and launch image
 npm run icons:android  # redraw the Android launcher icons (after npm run icons)
 ```
