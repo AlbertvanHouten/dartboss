@@ -40,8 +40,8 @@ Score every leg and hear it called out loud, check out with the right route, and
 Dartboss is a darts scorer and trainer for your board at home or at the club.
 
 MATCHES
-• X01: 301, 501, 701 or any start score. Straight, double or master in and out. Legs or sets, first to or best of, two clear legs.
-• Cricket, Killer, Shanghai and Halve It, for 2 to 6 players.
+• X01: 301, 501, 701 or any start score. Straight, double or master in and out. Legs or sets, first to or best of, two clear legs. Up to 8 players.
+• Killer, Shanghai and Halve It for up to 8 players, and Cricket head to head.
 • A checkout route for every finishable score, coloured by the ring you aim at.
 
 THE CALLER
@@ -108,8 +108,8 @@ Scoor elke leg en hoor hem omgeroepen, gooi uit met de juiste route en oefen teg
 Dartboss is een dartsscorer en trainer voor je bord thuis of in de club.
 
 WEDSTRIJDEN
-• X01: 301, 501, 701 of elke andere startscore. Straight, double of master in en out. Legs of sets, first to of best of, twee legs verschil.
-• Cricket, Killer, Shanghai en Halve It, voor 2 tot 6 spelers.
+• X01: 301, 501, 701 of elke andere startscore. Straight, double of master in en out. Legs of sets, first to of best of, twee legs verschil. Tot 8 spelers.
+• Killer, Shanghai en Halve It voor maximaal 8 spelers, en Cricket één tegen één.
 • Een checkout-route voor elke uit te gooien score, gekleurd naar de ring waarop je mikt.
 
 DE CALLER
@@ -176,8 +176,8 @@ Zähle jedes Leg, hör es laut ausgerufen, check mit dem richtigen Weg aus und t
 Dartboss ist ein Darts-Zähler und Trainer für dein Board zu Hause oder im Verein.
 
 MATCHES
-• X01: 301, 501, 701 oder jeder andere Startwert. Straight, Double oder Master In und Out. Legs oder Sets, First to oder Best of, zwei Legs Vorsprung.
-• Cricket, Killer, Shanghai und Halve It, für 2 bis 6 Spieler.
+• X01: 301, 501, 701 oder jeder andere Startwert. Straight, Double oder Master In und Out. Legs oder Sets, First to oder Best of, zwei Legs Vorsprung. Bis zu 8 Spieler.
+• Killer, Shanghai und Halve It für bis zu 8 Spieler, und Cricket eins gegen eins.
 • Ein Checkout-Weg für jeden checkbaren Rest, eingefärbt nach dem Ring, auf den du zielst.
 
 DER CALLER
@@ -247,7 +247,7 @@ Order and captions:
 | 4 | `stats` | Track your average, checkout rate and form over time | Volg je gemiddelde, checkout-% en vorm | Average, Checkout-Quote und Form im Blick |
 | 5 | `cricket` | Play Cricket against a bot set to any average | Speel Cricket tegen een bot op elk gemiddelde | Cricket gegen einen Bot mit jedem Average |
 | 6 | `match-settings` | Set legs, sets, in and out rules your way | Legs, sets en in- en uitregels zoals jij wilt | Legs, Sets, In und Out ganz nach deinen Regeln |
-| 7 | `killer` | Party games for up to six players on one device | Partyspellen voor tot zes spelers op één apparaat | Partyspiele für bis zu sechs Spieler auf einem Gerät |
+| 7 | `killer` | Party games for up to eight players on one device | Partyspellen voor tot acht spelers op één apparaat | Partyspiele für bis zu acht Spieler auf einem Gerät |
 | 8 | `settings` | Scores and finishes called out loud, in your language | Scores en finishes hardop omgeroepen, in jouw taal | Scores und Finishes laut ausgerufen, in deiner Sprache |
 
 Caption 8: the app is in your language, the caller is English; reword it if that reads as a promise of a Dutch or German voice.

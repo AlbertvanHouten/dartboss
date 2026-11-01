@@ -267,7 +267,7 @@ function kiBotVisit(g, st, ctxFor) {
 
 Object.assign(GAMES, {
   killer: {
-    title: 'Killer', players: [2, 6],
+    title: 'Killer', players: [2, 8],
     rules: `Every player gets a random number. Hit the double of your own number to become a killer. Killers take a life from an opponent each time they hit that opponent's double, but a killer who hits their own double loses a life. Everyone starts with ${KI_LIVES} lives, and the last player standing wins.`,
     hint: 'Tap the double each dart hit. Any other segment counts as a miss.', keys: 'Keys: M miss · Ctrl+Z undo',
     init(st) {
@@ -527,7 +527,7 @@ const C121_SAFE = [['start', 'Back to start'], ['3', 'After a 3-dart checkout'],
 
 Object.assign(GAMES, {
   shanghai: {
-    title: 'Shanghai', players: [1, 6],
+    title: 'Shanghai', players: [1, 8],
     options: [
       { key: 'rounds', label: 'Numbers', choices: [[7, '1 to 7'], [20, '1 to 20']], def: 7 },
       { key: 'variant', label: 'Variant', choices: [['none', 'Standard'], ['number', 'Require number'], ['treble', 'Require treble']], def: 'none' },
@@ -566,7 +566,7 @@ Object.assign(GAMES, {
   },
 
   halveit: {
-    title: 'Halve It', players: [1, 6], keypad: true,
+    title: 'Halve It', players: [1, 8], keypad: true,
     options: [
       { key: 'targets', label: 'Targets', choices: [['standard', 'Standard (12 rounds)'], ['classic', 'Classic (9 rounds)'], ['random', 'Random order']], def: 'standard' },
     ],
@@ -683,7 +683,7 @@ Object.assign(GAMES, {
   },
 
   atc: {
-    title: 'Around the Clock', players: [1, 4],
+    title: 'Around the Clock', players: [1, 8],
     options: [
       { key: 'segments', label: 'What counts', choices: [['any', 'Any segment'], ['singles', 'Singles only'], ['doubles', 'Doubles only'], ['trebles', 'Trebles only']], def: 'any' },
       { key: 'hits', label: 'Hits per target', choices: [[1, '1'], [2, '2'], [3, '3']], def: 1 },
@@ -737,7 +737,7 @@ Object.assign(GAMES, {
   },
 
   bobs27: {
-    title: "Bob's 27", players: [1, 4],
+    title: "Bob's 27", players: [1, 8],
     options: [{ key: 'mode', label: 'Below zero', choices: [['hard', 'Game over (hard)'], ['easy', 'Keep playing (easy)']], def: 'hard' }],
     rules: "Start on 27 points. Three darts at each double from D1 to D20, then the bull. Every hit adds the double's value; if all three miss, you lose the double's value instead. In hard mode, dropping below zero ends your game; in easy mode you play on. The maximum is 1437. With other players, the highest score wins.",
     hint: '', keys: 'Keys: 0 to 3 for the doubles hit · Ctrl+Z undo',
@@ -913,7 +913,7 @@ GAMES.bobs27.replayVisit = (g, st, darts) => {
 };
 
 // Player counts per game: [min, max]
-const PLAYER_LIMITS = { x01: [1, 4], cricket: [2, 2], killer: [2, 6], shanghai: [1, 6], halveit: [1, 6], atc: [1, 4], bobs27: [1, 4] };
+const PLAYER_LIMITS = { x01: [1, 8], cricket: [2, 2], killer: [2, 8], shanghai: [1, 8], halveit: [1, 8], atc: [1, 8], bobs27: [1, 8] };
 const limitsFor = mode => PLAYER_LIMITS[mode] || [1, 1];
 const MENU = [
   ['Matches', [
