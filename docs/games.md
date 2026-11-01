@@ -1,6 +1,6 @@
 # Games and options
 
-Every game can be played against friends on the same device, and most against bots too.
+Every game can be played against friends on the same device, and most against bots too. Any game with two or more players can also be played across phones: each player uses their own phone, and the host can score for players without one. See [Players on their own phones](#players-on-their-own-phones).
 
 **Matches**, against bots or friends on the same device:
 
@@ -34,3 +34,10 @@ Every game can be played against friends on the same device, and most against bo
   - With or without the bull, in any order.
 - **Singles Training:** any order.
 - **Score Training:** 10, 20 or 33 visits, or unlimited.
+
+**Players on their own phones**, in any game with two or more players:
+
+- The host switches on "Players on their own phones" in the game setup. After Start, a room panel shows a 6-character code, a QR code and a join link.
+- Guests tap "Join a game" in the main menu and type the code, or scan the QR code or open the link. The link opens in the browser, so the app needn't be installed. Then they tap their names to claim seats.
+- On your turn your phone shows the keypad; otherwise it shows who is up. The host can score for anyone. A guest can undo their own last visit until the next player's turn is complete; after that, only the host can.
+- Phones connect directly. Some guest Wi-Fi and mobile networks block that: use the host's hotspot, or let the host score for that player.

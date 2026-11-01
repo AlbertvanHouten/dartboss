@@ -15,9 +15,10 @@ A darts scorer and trainer for your phone, tablet or browser. Score X01, Cricket
 - **Ten more games:** Cricket, Killer, Shanghai and Halve It to play, plus practice with 121 Checkout, Around the Clock, Bob's 27, and Doubles, Singles and Score Training.
 - **Bots that feel human:** set any average from 20 to 120. They miss up and down more than sideways, find the doubles harder at lower levels and feel the pressure on a match dart.
 - **History and stats:** every match is kept with its score sheet. Lifetime averages, checkout %, 180s and a trend for each player.
+- **Across phones:** in any game with two or more players, everyone can use their own phone. Join with a code, a QR code or a link; the host can score for anyone without one.
 - **A caller:** scores, finishes and "game shot" called out loud in X01, with the shout saved for the big ones.
 - **Made for the oche:** quick scores, a one-tap checkout, undo, and a screen that stays awake between visits.
-- **Private:** no accounts, no ads and no tracking. It works fully offline.
+- **Private:** no accounts, no ads and no tracking. It works fully offline; only a shared game on several phones uses the network, directly between the phones.
 
 ## Run it
 
