@@ -1,6 +1,6 @@
 # Dartboss
 
-A darts scorer and trainer for your phone, tablet or browser. Score X01, Cricket, Killer and more against friends, or against bots that throw like real players, and keep your stats over time. It works offline, and everything stays on your device.
+A darts scorer and trainer for your phone, tablet or browser. Score X01, Cricket, Killer and more against friends, or against bots that throw like real players, and keep your stats over time. It works offline, and everything stays on your device, except in a shared game, where names and scores go directly to the other phones in it.
 
 <p align="center">
   <img src="store/screenshots/en/iphone-6.9/1-x01-match.png" width="200" alt="An X01 match against a bot, with the checkout route shown">
