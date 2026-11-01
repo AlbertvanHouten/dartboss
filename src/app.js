@@ -1,7 +1,11 @@
 // ===== App =====
 const $ = id => document.getElementById(id);
 // APP_STORE_ID is filled in once the app exists in App Store Connect (it turns on the rate button)
-const APP_VERSION = '__APP_VERSION__', APP_STORE_ID = '';
+// let: the browser test stands in an older version on one phone
+let APP_VERSION = '__APP_VERSION__';
+const APP_STORE_ID = '';
+// The website: join links from the iOS and Android apps point here, so a guest's camera opens them in the browser
+const SITE_URL = 'https://albertvanhouten.github.io/dartboss/';
 const STORE_KEY = 'oche-match-v1';
 const DEFAULT_SETTINGS = {
   mode: 'x01', start: 501, inRule: 'straight', out: 'double',
@@ -312,7 +316,7 @@ function render() {
     wp.className = 'panel winner';
     wp.innerHTML = `<h2>${esc(matchHeadline())}</h2>
       <p style="margin:0 0 12px;color:var(--muted)">${t('Match average {avg}, highest finish {hf}.', { avg: fmt(w.avg), hf: w.highFinish || '–' })}</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-act="rematch">${t('Play again')}</button><button class="btn" type="button" data-pg="share">${t('Share')}</button><button class="btn" type="button" data-act="new">${t('Main menu')}</button></div>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${endButtons()}</div>`;
   } else wp.hidden = true;
 
   // entry
@@ -650,7 +654,7 @@ function renderGame() {
   if (done) {
     const r = G.result(g, st);
     res = `<section class="panel winner"><h2>${esc(r.headline)}</h2><p style="margin:0 0 12px;color:var(--muted)">${esc(r.detail)}</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-act="rematch">${t('Play again')}</button><button class="btn" type="button" data-pg="share">${t('Share')}</button><button class="btn" type="button" data-act="new">${t('Main menu')}</button></div></section>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${endButtons()}</div></section>`;
   }
   // A guest has no undo snapshots: its Undo lights when the host would take it
   const undoOk = isGuest() ? guestCanUndo() : S.hist.length > 0 && !botBusy;
@@ -785,7 +789,8 @@ function confirmDiscard() {
     title: t(isMatch() ? 'Discard this match?' : 'Discard this game?'),
     text: t('The game in progress and its scores will be deleted. Personal bests already set are kept.'),
     keep: t('Keep it'), go: t('Discard'), focusBack: () => $('menu').querySelector('[data-act="continue"]'),
-    onGo: () => { cancelBot(); botBusy = false; buffer = ''; S = freshMatch(S.settings); S.screen = 'menu'; save(); render(); },
+    // Discarding the match ends its room
+    onGo: () => { endRoom(); cancelBot(); botBusy = false; buffer = ''; S = freshMatch(S.settings); S.screen = 'menu'; save(); render(); },
   });
 }
 function modeTitle(mode) { return mode === 'x01' ? `${S.settings.start || 501}` : t(GAMES[mode].title); }
@@ -878,7 +883,8 @@ function pageAct(act, v) {
       title: t('Reset all data?'), text: t("This deletes your match history, player stats, personal bests, settings and any game in progress. It can't be undone."),
       keep: t('Cancel'), go: t('Reset'), focusBack: () => document.querySelector('[data-pg="reset"]'),
       onGo: () => {
-        for (const k of [STORE_KEY, HISTORY_KEY, SETTINGS_KEY, 'oche-bests']) { try { localStorage.removeItem(k); } catch (e) {} window.ocheNative?.remove(k); }
+        if (isGuest()) leaveRoom(); else endRoom();
+        for (const k of [STORE_KEY, HISTORY_KEY, SETTINGS_KEY, 'oche-bests', ROOM_KEY]) { try { localStorage.removeItem(k); } catch (e) {} window.ocheNative?.remove(k); }
         SETTINGS = { ...SETTINGS_DEFAULT }; applySettings();
         S = freshMatch(DEFAULT_SETTINGS); S.screen = 'menu'; save(); render(); toast(t('All data reset'));
       },
@@ -1150,24 +1156,29 @@ function openSetup(mode) {
   dialogKey = e => { if (e.key === 'Escape') { close(); return true; } return false; };
   ov.querySelector('[type=submit]').focus();
 }
+// A new match with players on their own phones (a rematch, Restart, or a new setup) stays in the room, and guests
+// keep the seats that still fit; one without them ends the room
 function startMatch(settings) {
   cancelBot(); botBusy = false;
-  // A rematch on the host stays in the same room
-  const room = S?.room;
+  const room = S?.room, keep = ROOM?.role === 'host' && room && settings.shared;
+  if (ROOM?.role === 'host' && !keep) endRoom();
   S = freshMatch(settings); buffer = '';
-  const keep = ROOM?.role === 'host' && room;
-  if (keep) S.room = room;
+  if (keep) S.room = recheckSeats(room, players());
   save(); render(); maybeBot();
   if (settings.shared && !keep && !isGuest()) openRoom();
 }
+// The result's buttons: only the host starts a rematch, a guest can leave
+const endButtons = () => (isGuest() ? `<button class="btn primary" type="button" data-act="leave">${t('Leave')}</button>`
+  : `<button class="btn primary" type="button" data-act="rematch">${t('Play again')}</button>`)
+  + `<button class="btn" type="button" data-pg="share">${t('Share')}</button>${isGuest() ? '' : `<button class="btn" type="button" data-act="new">${t('Main menu')}</button>`}`;
 
 // ---------- rooms: lobby, seats, join ----------
 const isGuest = () => ROOM?.role === 'guest';
 // The host scores for anyone; a guest only for the seats it claimed
 const myTurn = () => !isGuest() || ROOM.mine.includes(currentTurn());
-function openRoom() {
+function openRoom(code, reopen) {
   roomOpen = null;
-  hostRoom().then(() => { save(); render(); }, () => toast(t("Couldn't open the room")));
+  hostRoom(code, reopen).then(() => { save(); render(); }, () => toast(t("Couldn't open the room")));
 }
 // The lobby is open until the first visit (on a guest: until it has a seat); a tap on its bar overrides that
 let roomOpen = null, qrLoad = null;
@@ -1182,9 +1193,11 @@ function qrHTML(link) {
   const q = qrcode(0, 'M'); q.addData(link); q.make();
   return q.createSvgTag({ cellSize: 4, margin: 2 });
 }
-// The join link: this page's own address, so a test or development transport carries over
+// The join link: this page's own address, so a test or development transport carries over. The apps' own
+// addresses (capacitor://, or https://localhost on Android) mean nothing on another phone, so they use the website.
 function joinLink(code) {
-  const u = new URL(location.href), local = u.searchParams.get('transport') === 'local';
+  const app = window.ocheNative?.isNative || !/^https?:$/.test(location.protocol);
+  const u = new URL(app ? SITE_URL : location.href), local = u.searchParams.get('transport') === 'local';
   u.search = ''; u.hash = '';
   u.searchParams.set('join', code);
   if (local) u.searchParams.set('transport', 'local');
@@ -1196,13 +1209,15 @@ function renderRoomBar() {
   const bar = $('roomBar');
   bar.hidden = !ROOM;
   if (!ROOM) { bar.innerHTML = ''; return; }
-  const host = ROOM.role === 'host', pl = players(), r = roomOf(), self = ROOM.transport.selfId;
+  const host = ROOM.role === 'host', pl = players(), r = roomOf(), self = ROOM.self;
   const open = roomOpen ?? (host ? !S.acts.length : !ROOM.mine.length);
   bar.dataset.open = open;
   const phones = Object.keys(r.online).length;
   const sum = host ? t(phones === 1 ? '1 phone' : '{n} phones', { n: phones })
     : ROOM.mine.length ? t('Playing as {names}', { names: ROOM.mine.map(s => pl[s]?.name).join(', ') }) : t('Tap your name');
-  const head = `<button type="button" class="room-head" data-act="room" aria-expanded="${open}"><span><b>${t('Room {code}', { code: formatRoomCode(ROOM.code) })}</b> · ${esc(sum)}</span><span class="chev" aria-hidden="true"></span></button>`;
+  // The match lives on the host, so nothing is lost while it is away; the guest may still leave
+  const lost = ROOM.lost ? `<div class="room-lost" role="status"><b>${t('Host disconnected')}</b><button class="btn" type="button" data-act="leave">${t('Leave')}</button></div>` : '';
+  const head = lost + `<button type="button" class="room-head" data-act="room" aria-expanded="${open}"><span><b>${t('Room {code}', { code: formatRoomCode(ROOM.code) })}</b> · ${esc(sum)}</span><span class="chev" aria-hidden="true"></span></button>`;
   if (!open) { bar.innerHTML = head; return; }
   let body;
   if (host) {
@@ -1231,9 +1246,9 @@ function renderRoomBar() {
   bar.innerHTML = head + `<div class="room-body">${body}</div>`;
 }
 // The join screen: a code field and Join. A join link fills the code and joins at once.
-let joinCode = '', joinMsg = '', joinBusy = false;
+let joinCode = '', joinMsg = '', joinBusy = false, joinFailed = false;
 function openJoin(code = '', nav = true) {
-  joinCode = code; joinMsg = ''; joinBusy = false;
+  joinCode = code; joinMsg = ''; joinBusy = false; joinFailed = false;
   if (nav) return goScreen('join');
   S.screen = 'join'; render();
 }
@@ -1241,19 +1256,24 @@ function renderJoin() {
   $('page').innerHTML = `<section class="panel join"><h2>${t('Join a game')}</h2>
     <p class="hint">${t("Type the room code from the host's phone, or scan its QR code with the camera.")}</p>
     <form class="joinrow" id="joinForm" novalidate><input type="text" id="joinCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="9" placeholder="K7Q-M2P" aria-label="${t('Room code')}" value="${esc(joinCode)}">
-      <button class="btn primary" type="submit" data-act="join"${joinBusy ? ' disabled' : ''}>${t(joinBusy ? 'Connecting…' : 'Join')}</button></form>
+      <button class="btn primary" type="submit" data-act="join"${joinBusy ? ' disabled' : ''}>${t(joinBusy ? 'Connecting…' : joinFailed ? 'Retry' : 'Join')}</button></form>
     <div class="msg" role="status" aria-live="polite">${esc(joinMsg)}</div></section>`;
 }
 async function doJoin(text = $('joinCode')?.value) {
   joinCode = text || '';
   const code = parseRoomCode(joinCode);
   joinMsg = code ? '' : t('A room code is 6 letters and digits, like K7Q-M2P');
-  joinBusy = !!code; roomOpen = null;
+  joinBusy = !!code; joinFailed = false; roomOpen = null;
   render();
   if (!code) return;
-  try { await joinRoomAsGuest(code); }
+  try { await joinRoomAsGuest(code); joinBusy = false; }
   catch (e) {
-    joinBusy = false; joinMsg = t("Couldn't reach the room. Check the code, and that both phones are online");
+    joinBusy = false;
+    if (e?.message === 'left') return; // this phone left while it was still connecting
+    joinFailed = e?.message !== 'version';
+    joinMsg = t(joinFailed ? "Couldn't reach the room. Check the code, and that both phones are online" : 'Update Dartboss on this phone to join');
+    // The join can fail after the room was set up (no host, another version): this phone is in no room then
+    leaveRoom();
     if (S.screen === 'join') render();
   }
 }
@@ -1355,6 +1375,10 @@ function start(data) {
     openJoin(code, false);
     return doJoin(code);
   }
+  // Back after a reload: a host reopens its match's room, a guest rejoins the room it was in
+  const rejoin = readJSON(ROOM_KEY, null);
+  if (S.room?.code) openRoom(S.room.code, true);
+  else if (rejoin?.code) { openJoin(rejoin.code, false); return doJoin(rejoin.code); }
   maybeBot();
 }
 window.claude?.hot?.snapshot?.(() => ({ S }));

@@ -9,7 +9,7 @@ for (const b of blocks) new Function(b); // throws on a syntax error
 
 const store = new Map();
 const localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
-const { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, versionOk, canAct, canUndo, claimSeats } = new Function('localStorage', `${blocks[0]}\n${blocks[1]}\nlet buffer = ''; const isBotTurn = () => false;\n${blocks[2]}\n${blocks[3]}\nreturn { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, versionOk, canAct, canUndo, claimSeats };`)(localStorage);
+const { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, versionOk, canAct, canUndo, claimSeats, recheckSeats } = new Function('localStorage', `${blocks[0]}\n${blocks[1]}\nlet buffer = ''; const isBotTurn = () => false;\n${blocks[2]}\n${blocks[3]}\nreturn { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, versionOk, canAct, canUndo, claimSeats, recheckSeats };`)(localStorage);
 
 // Checkout routes
 const route = (r, out = 'double') => (E.bestRoute(r, 3, out) || []).map(E.label).join(' ');
@@ -253,5 +253,9 @@ const players = [{ type: 'human' }, { type: 'human' }, { type: 'bot' }, { type: 
 const r2 = { seats: { 1: 'peerA' } };
 assert.deepEqual(claimSeats({ room: r2, peer: 'peerB', seats: [0, 1, 2, 3, 9], players }), { ok: [3], refused: [0, 1, 2, 9] });
 assert.deepEqual(claimSeats({ room: r2, peer: 'peerA', seats: [1, 3], players }), { ok: [1], refused: [3] });
+// A rematch or new match in the room: seats that are now the host's, a bot's or gone are dropped, the rest kept
+const r3 = { seats: { 0: 'peerA', 1: 'peerA', 2: 'peerB', 3: 'peerB', 5: 'peerC' } };
+assert.equal(recheckSeats(r3, players), r3, 'the room is changed in place');
+assert.deepEqual(r3.seats, { 1: 'peerA', 3: 'peerB' });
 
 console.log('All checks passed');

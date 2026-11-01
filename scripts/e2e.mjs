@@ -11,7 +11,7 @@ import puppeteer from 'puppeteer-core';
 
 const CHROME = process.env.CHROME || ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome'].find(existsSync);
 const DIST = new URL('../dist/', import.meta.url);
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
 
 const server = createServer(async (req, res) => {
   const path = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
@@ -220,11 +220,16 @@ try {
   assert.deepEqual(errors, [], 'no errors on the page');
 
   // Two phones in one room over the local transport (BroadcastChannel): a host page and a guest page.
-  // Both pages share this browser's storage, so it is cleared once and both load clean.
+  // Each page keeps its own storage (its tab's sessionStorage stands in for localStorage), like two phones,
+  // and keeps it over a reload.
   const local = url + '?transport=local';
   const hostP = await browser.newPage(), guestP = await browser.newPage();
-  for (const p of [hostP, guestP]) { p.on('pageerror', e => errors.push(e.message)); await p.goto(local, { waitUntil: 'networkidle0' }); }
-  await hostP.evaluate(() => localStorage.clear());
+  for (const p of [hostP, guestP]) {
+    p.on('pageerror', e => errors.push(e.message));
+    await p.evaluateOnNewDocument(() => Object.defineProperty(window, 'localStorage', { value: sessionStorage, configurable: true }));
+    await p.goto(local, { waitUntil: 'networkidle0' });
+  }
+  for (const p of [hostP, guestP]) await p.evaluate(() => localStorage.clear());
   for (const p of [hostP, guestP]) await p.reload({ waitUntil: 'networkidle0' });
   const H = fn => hostP.evaluate(fn), G = fn => guestP.evaluate(fn);
   const wait = (p, fn, arg) => p.waitForFunction(fn, { timeout: 5000 }, arg);
@@ -249,7 +254,7 @@ try {
   await wait(guestP, () => ROOM.mine.length > 0);
   assert.equal(await G('S.settings.players.length'), 3, 'the guest has the host\'s players');
   assert.deepEqual(await G('ROOM.mine'), [1], 'the guest plays seat 1');
-  assert.equal(await H('S.room.seats[1]'), await G('ROOM.transport.selfId'), 'the host gives seat 1 to the guest');
+  assert.equal(await H('S.room.seats[1]'), await G('ROOM.self'), 'the host gives seat 1 to the guest');
 
   // guest scores its own visit
   await H('submit(60)');                                  // You (seat 0, on the host)
@@ -279,7 +284,7 @@ try {
   // on 40 every visit asks, and anything that lands meanwhile wins
   const ok = "document.querySelector('#overlay [data-act=\"ok\"]').click()";
   const noToast = p => p.evaluate(() => { document.getElementById('toast').hidden = true; });
-  await H(`startMatch({ ...DEFAULT_SETTINGS, start: 40, players: ${ann} })`);
+  await H(`startMatch({ ...DEFAULT_SETTINGS, start: 40, shared: true, players: ${ann} })`);
   await H(`submit(0); ${ok}`);                            // You
   await sync();
   // Host asks about Ann's visit while Ann's phone scores it: Ann's visit counts, the host's is refused
@@ -314,7 +319,7 @@ try {
   assert.deepEqual(await H('curLeg().visits.filter(v => v.p === 1).map(v => v.score)'), [10, 5]);
 
   // guest undo while the next turn is in progress (Killer, a dart at a time)
-  await H(`startMatch({ ...DEFAULT_SETTINGS, mode: 'killer', players: ${ann} })`);
+  await H(`startMatch({ ...DEFAULT_SETTINGS, mode: 'killer', shared: true, players: ${ann} })`);
   await sync();
   assert.deepEqual(await G('ROOM.mine'), [1], 'a rematch keeps the guest\'s seat');
   for (let i = 0; i < 3; i++) await H("gameAct('dart', 0)");   // You: three misses
@@ -353,8 +358,13 @@ try {
   await H('leaveRoom()');
   const q = (p, sel) => p.evaluate(s => !!document.querySelector(s), sel);
   const disabled = (p, sel) => p.evaluate(s => [...document.querySelectorAll(s)].map(b => b.disabled), sel);
-  // Single-phone play loads nothing new; without the local transport the room can't open yet and says so
+  // Single-phone play loads nothing new. Where the WebRTC module can't load (the single-file oche.html has
+  // no vendor folder), opening or joining a room says so.
   assert.equal(await run('!!document.querySelector(\'script[src*="qrcode"]\')'), false, 'single-phone play loads no QR code script');
+  // The offline cache would serve the module, so it is bypassed here
+  await page.setBypassServiceWorker(true);
+  await page.setRequestInterception(true);
+  page.on('request', r => /trystero/.test(r.url()) ? r.abort() : r.continue());
   await run(`startMatch({ ...DEFAULT_SETTINGS, shared: true, players: ${humans} })`);
   await wait(page, () => document.getElementById('toast').textContent.includes("Couldn't open the room"));
   assert.equal(await run('ROOM'), null, 'no room without a transport');
@@ -367,6 +377,8 @@ try {
   await run("document.getElementById('joinCode').value = 'nope'; document.querySelector('[data-act=\"join\"]').click()");
   assert.match(await text('#page'), /6 letters and digits/, 'a bad code says what a code looks like');
   await run('goMenu()');
+  await page.setRequestInterception(false);
+  await page.setBypassServiceWorker(false);
 
   // The switch shows for games with 2 or more players, not for solo games
   const four = "[{ name: 'You', type: 'human' }, { name: 'Ann', type: 'human' }, { name: 'Bob', type: 'human' }, { name: 'Bot', type: 'bot', avg: 50 }]";
@@ -454,6 +466,110 @@ try {
   assert.equal(await wide(hostP), false, 'the lobby fits 320 px');
   assert.equal(await wide(guestP), false, 'the guest fits 320 px');
   assert.deepEqual(errors, [], 'no errors on the two phones');
+  for (const p of [hostP, guestP]) await p.setViewport({ width: 800, height: 900 });
+
+  // ---- reconnecting and endings ----
+  await G('leaveRoom()');
+  const two = "[{ name: 'You', type: 'human' }, { name: 'Ann', type: 'human' }]";
+  const short = `{ ...DEFAULT_SETTINGS, start: 101, count: 1, shared: true, players: ${two} }`;
+  const host2 = async () => {
+    await H(`startMatch(${short})`);
+    await wait(hostP, () => ROOM?.role === 'host' && !!S.room);
+    return H('ROOM.code');
+  };
+  const join2 = async code => {
+    await G(`joinRoomAsGuest('${code}')`);
+    await G('claim([1])');
+    await wait(guestP, () => ROOM.mine.includes(1));
+  };
+  const scores = p => p.evaluate(() => [currentTurn(), ...players().map((_, q) => remaining(curLeg(), q))]);
+  const ready = p => p.waitForFunction(() => typeof ROOM !== 'undefined' && ROOM?.mine?.includes(1) && S.screen === 'play', { timeout: 3000 });
+  let code2 = await host2();
+  await join2(code2);
+  await H('submit(20)');                                  // You: 81
+  await sync();
+  await viaGuest('submit(2)');                            // Ann: 99
+  // guest reload rejoins mid-match: it keeps its seat and has the host's scoreboard
+  await guestP.reload({ waitUntil: 'domcontentloaded' });
+  await ready(guestP);
+  assert.deepEqual(await G('ROOM.mine'), [1], 'the guest gets its seat back after a reload');
+  assert.deepEqual(await scores(guestP), await scores(hostP), 'the guest has the host\'s scoreboard after a reload');
+  // host unreachable: the guest says so, and carries on once the host is back
+  await G('ROOM_TIMES.hostLost = 300; S.marker = 1');
+  await H('ROOM.transport.leave()');
+  await wait(guestP, () => /Host disconnected/.test(document.getElementById('roomBar').innerText));
+  assert.equal(await q(guestP, '#roomBar [data-act="leave"]'), true, 'the guest can leave while the host is away');
+  // host reload reopens the room: same code, seats kept, and the guest gets a fresh state
+  await hostP.reload({ waitUntil: 'networkidle0' });
+  await wait(hostP, () => ROOM?.role === 'host');
+  assert.equal(await H('ROOM.code'), code2, 'the host reopens the same room');
+  await wait(guestP, () => !S.marker);
+  await wait(guestP, () => !/Host disconnected/.test(document.getElementById('roomBar').innerText));
+  assert.equal(await H('S.room.seats[1]'), await G('ROOM.self'), 'the host keeps the guest\'s seat over a reload');
+  await H('submit(20)');                                  // You: 61
+  await sync();
+  await viaGuest('submit(99)');                           // Ann checks out 99 on her phone
+  assert.equal(await H('S.matchWinner'), 1, 'the guest can score after the host reloads');
+  // guest records the finished match, and the rematch keeps its seat
+  assert.equal(await G('historyAll()[0]?.id'), await H('S.id'), 'the guest records the match in its own history');
+  assert.equal(await G("!!document.querySelector('#winnerPanel [data-act=\"rematch\"]')"), false, 'only the host offers Play again');
+  assert.equal(await q(guestP, '#winnerPanel [data-act="leave"]'), true, 'a guest can leave from the result');
+  await H("document.querySelector('#winnerPanel [data-act=\"rematch\"]').click()");
+  await sync();
+  assert.equal(await G('S.id'), await H('S.id'), 'the guest follows the rematch');
+  assert.deepEqual(await G('ROOM.mine'), [1], 'Play again keeps the guest\'s seat');
+  // Restart keeps the room too (a rematch); Continue later keeps it; Discard ends it
+  await H('submit(20)');
+  await H("confirmRestart(); document.querySelector('#overlay [data-act=\"go\"]').click()");
+  await sync();
+  assert.deepEqual(await G('ROOM.mine'), [1], 'Restart keeps the room and the seat');
+  await H('submit(20)');
+  await H('goMenu()');
+  await sync();
+  assert.equal(await H('ROOM?.role'), 'host', 'going to the menu keeps the room');
+  await H("document.querySelector('#menu [data-act=\"discard\"]').click(); document.querySelector('#overlay [data-act=\"go\"]').click()");
+  await toastOn(guestP, 'The host ended the game');
+  assert.equal(await G('ROOM'), null, 'the guest is out of the room');
+  assert.equal(await G('S.screen'), 'menu', 'the guest goes to its menu');
+  assert.equal(await H('ROOM'), null, 'the host is out of the room');
+  assert.equal(await H('S.room'), undefined, 'the host\'s saved match has no room');
+  // Reset all data ends the room too
+  code2 = await host2();
+  await join2(code2);
+  await H("pageAct('reset'); document.querySelector('#overlay [data-act=\"go\"]').click()");
+  await toastOn(guestP, 'The host ended the game');
+  assert.equal(await G('ROOM'), null, 'reset releases the guest');
+  // A new match with phones off ends the room
+  code2 = await host2();
+  await join2(code2);
+  await H(`startMatch({ ...${short}, shared: false })`);
+  await toastOn(guestP, 'The host ended the game');
+  assert.equal(await H('ROOM'), null, 'a match without phones closes the room');
+  // version mismatch refuses to join
+  code2 = await host2();
+  await G("window.realVersion = APP_VERSION; APP_VERSION = '0.0.1-old'");
+  await G(`openJoin('${code2}', false); doJoin('${code2}')`);
+  await wait(guestP, () => /Update Dartboss on this phone to join/.test(document.getElementById('page').innerText));
+  assert.equal(await G('ROOM'), null, 'a guest on another version is not in the room');
+  await G('APP_VERSION = realVersion');
+  // no host: the join gives up after a while and offers Retry
+  await G("ROOM_TIMES.connect = 300; doJoin('ZZZZZZ')");
+  await wait(guestP, () => /Couldn't reach the room/.test(document.getElementById('page').innerText));
+  assert.equal(await G("document.querySelector('#joinForm [type=submit]').textContent"), 'Retry');
+  assert.equal(await G('ROOM'), null, 'a join that timed out leaves no room');
+  await H('leaveRoom()');
+  assert.deepEqual(errors, [], 'no errors while reconnecting');
+
+  // no network without a room: single-phone play only talks to the page's own origin
+  const net = await browser.newPage(), seen = [];
+  net.on('request', r => seen.push(r.url()));
+  await net.goto(url, { waitUntil: 'networkidle0' });
+  await net.evaluate(`startMatch({ ...DEFAULT_SETTINGS, players: ${two} }); submit(60)`);
+  await new Promise(r => setTimeout(r, 300));
+  const origin = new URL(url).origin;
+  assert.deepEqual(seen.filter(u => !/^(data|blob):/.test(u) && new URL(u).origin !== origin), [], 'single-phone play makes no outside requests');
+  assert.equal(seen.some(u => /trystero/.test(u)), false, 'single-phone play does not load the WebRTC module');
+  await net.close();
 
   console.log('Browser checks passed');
 } finally {

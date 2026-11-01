@@ -479,6 +479,7 @@ h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter
 .room-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 16px; border: 0; background: none; color: inherit; font: inherit; text-align: left; min-height: 44px; }
 .room-head > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .room-head b { color: var(--ink); font-weight: 600; }
+.room-lost { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
 .room-head .chev { flex-shrink: 0; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-2px) rotate(45deg); transition: transform .2s; }
 .room[data-open="true"] .room-head .chev { transform: translateY(2px) rotate(-135deg); }
 .room-body { display: grid; gap: 12px; padding: 0 16px 16px; }

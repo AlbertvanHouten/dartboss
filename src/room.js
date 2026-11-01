@@ -42,18 +42,28 @@ const claimSeats = ({ room, peer, seats, players }) => {
   }
   return { ok, refused };
 };
+// A new match in the same room: each phone keeps the seats it can still have with the new players
+const recheckSeats = (room, players) => {
+  const old = { ...room.seats };
+  for (const s in room.seats) delete room.seats[s];
+  for (const s in old) claimSeats({ room, peer: old[s], seats: [+s], players });
+  return room;
+};
 
 // ---------- transports ----------
-// A transport: join(code, { onMessage(msg, from), onPeer(peerId, online) }) → Promise, send(msg, to?), leave(), selfId.
+// A transport: join(code, { onMessage(msg, from), onPeer(peerId, online) }) → Promise, send(msg, to?), leave().
+// Peer ids last one page load; a phone's lasting id (phoneId) travels inside the messages.
 // Local: other tabs of this browser, over a BroadcastChannel. Used by the browser test and with ?transport=local.
 function localTransport() {
   const selfId = Math.random().toString(36).slice(2, 10);
   let ch = null;
   const post = m => ch?.postMessage({ from: selfId, ...m });
+  // A closing tab says goodbye, as a dropped WebRTC link would
+  const bye = () => post({ bye: true });
   return {
-    selfId,
     join(code, { onMessage, onPeer }) {
       ch = new BroadcastChannel('dartboss-' + code);
+      addEventListener('pagehide', bye);
       ch.onmessage = ({ data: d }) => {
         if (d.to && d.to !== selfId) return;
         // Say hello back to a newcomer, so both sides know the other is here
@@ -65,17 +75,47 @@ function localTransport() {
       return Promise.resolve();
     },
     send(msg, to) { post({ msg, to }); },
-    leave() { post({ bye: true }); ch?.close(); ch = null; },
+    leave() { removeEventListener('pagehide', bye); bye(); ch?.close(); ch = null; },
   };
 }
-// Phones on different networks: built later
-function p2pTransport() { throw new Error('p2p transport not built yet'); }
+// Phones on different networks: a WebRTC data channel, found through public Nostr relays with the signalling
+// encrypted by the room code. The module loads only when a room opens, so single-phone play stays offline.
+function p2pTransport() {
+  let room = null, action = null, sent = Promise.resolve();
+  return {
+    async join(code, { onMessage, onPeer }) {
+      const { joinRoom } = await import('./vendor/trystero-nostr.mjs');
+      room = joinRoom({ appId: 'dartboss', password: code }, code);
+      action = room.makeAction('msg', { onMessage: (msg, { peerId }) => onMessage(msg, peerId) });
+      room.onPeerJoin = id => onPeer(id, true);
+      room.onPeerLeave = id => onPeer(id, false);
+    },
+    send(msg, to) {
+      if (action) sent = action.send(msg, to ? { target: to } : undefined).catch(() => {});
+    },
+    leave() {
+      const r = room;
+      room = action = null;
+      // Let the last message (end, leave) go out first, but don't wait long for it
+      if (r) Promise.race([sent, new Promise(ok => setTimeout(ok, 1000))]).then(() => r.leave()).catch(() => {});
+    },
+  };
+}
 const pickTransport = () => new URLSearchParams(location.search).get('transport') === 'local' ? localTransport() : p2pTransport();
 
 // ---------- sessions ----------
 // The host holds the real match and sends it to every guest after each change; guests send inputs.
 // ROOM is null when this phone is in no room. A guest's own game waits in localS until it leaves.
 let ROOM = null, localS = null;
+// connect: how long a guest waits for the host's first state; hostLost: how long the host may be gone before the guest says so
+const ROOM_TIMES = { connect: 15000, hostLost: 10000 };
+// Each phone keeps one random id, so its seats are still its own after a reload
+const PHONE_KEY = 'oche-phone', ROOM_KEY = 'oche-room';
+function phoneId() {
+  let id = readJSON(PHONE_KEY, null);
+  if (!id) { id = makeRoomCode() + makeRoomCode(); writeJSON(PHONE_KEY, id); }
+  return id;
+}
 let roomQuiet = false, roomNote = null; // quiet: hold broadcasts while one guest undo takes several steps
 let lastSent = null; // the match as last broadcast, so a save that changed nothing (a screen change) sends nothing
 
@@ -98,24 +138,53 @@ function broadcastState() {
 // Presence and seat claims are not changes to the match: same version, no save
 const sendState = to => ROOM.transport.send(stateMsg(), to);
 
-async function hostRoom(code = makeRoomCode()) {
+// reopen: the saved match's room after a reload, with its seats and version; guests find it again on their own
+async function hostRoom(code = makeRoomCode(), reopen = false) {
   if (ROOM) leaveRoom();
-  const transport = pickTransport();
+  const transport = pickTransport(), old = reopen && S.room?.code === code ? S.room : null;
   lastSent = null;
-  S.room = { code, ver: 0, seats: {}, online: {} };
-  ROOM = { role: 'host', code, transport, seats: S.room.seats, online: S.room.online, mine: [0] };
-  await transport.join(code, {
-    onMessage: hostMessage,
-    onPeer(peer, online) {
-      if (online) S.room.online[peer] = true; else delete S.room.online[peer];
-      sendState(); if (S.screen === 'play') render();
-    },
-  });
+  S.room = { code, ver: old?.ver || 0, seats: old?.seats || {}, online: {} };
+  // peers: transport peer id → phone id, for presence
+  ROOM = { role: 'host', code, transport, self: 'host', seats: S.room.seats, online: S.room.online, mine: [0], peers: {} };
+  // A transport that is closing can still deliver a message or two: only the current room's count
+  const live = () => ROOM?.transport === transport;
+  try {
+    await transport.join(code, {
+      onMessage: (msg, peer) => live() && hostMessage(msg, peer),
+      onPeer(peer, online) {
+        if (online || !live()) return; // the guest says hello with its phone id
+        const phone = ROOM.peers[peer];
+        delete ROOM.peers[peer];
+        if (phone && !Object.values(ROOM.peers).includes(phone)) delete S.room.online[phone];
+        sendState(); if (S.screen === 'play') render();
+      },
+    });
+  } catch (e) { leaveRoom(); throw e; }
 }
-function hostMessage(msg, from) {
-  // A guest on another version is not answered; its phone tells the player to update
-  if (!versionOk(msg, APP_VERSION) || !S.room) return;
-  const reject = reason => ROOM.transport.send({ type: 'reject', app: APP_VERSION, reason }, from);
+// The host ends the room for everyone: guests are told, and go back to their own game
+function endRoom() {
+  if (ROOM?.role !== 'host') return;
+  ROOM.transport.send({ type: 'end', app: APP_VERSION });
+  leaveRoom();
+}
+function hostMessage(msg, peer) {
+  if (!S.room) return;
+  const reject = reason => ROOM.transport.send({ type: 'reject', app: APP_VERSION, reason }, peer);
+  // A guest on another version is told so when it says hello, and not answered after that
+  if (!versionOk(msg, APP_VERSION)) return msg.type === 'hello' && reject('version');
+  const from = msg.phone;
+  if (!from) return;
+  if (ROOM.peers[peer] !== from) {
+    ROOM.peers[peer] = from; S.room.online[from] = true;
+    if (msg.type !== 'hello' && msg.type !== 'claim') { sendState(); if (S.screen === 'play') render(); }
+  }
+  if (msg.type === 'hello') { sendState(); if (S.screen === 'play') render(); return; }
+  if (msg.type === 'leave') {
+    for (const s in S.room.seats) if (S.room.seats[s] === from) delete S.room.seats[s];
+    delete S.room.online[from];
+    sendState(); if (S.screen === 'play') render();
+    return;
+  }
   if (msg.type === 'claim') {
     claimSeats({ room: S.room, peer: from, seats: msg.seats || [], players: players() });
     // The lobby and the scoreboard's dots show who has which seat
@@ -151,30 +220,74 @@ function undoFor(seat) {
   save();
 }
 
+// Resolves once the host has sent its match; rejects after ROOM_TIMES.connect without one, or with 'version'
 async function joinRoomAsGuest(code) {
-  if (ROOM) leaveRoom();
+  if (ROOM?.role === 'host') endRoom(); else if (ROOM) leaveRoom();
   const transport = pickTransport();
   cancelBot(); botBusy = false; buffer = '';
   localS = S;
-  ROOM = { role: 'guest', code, transport, seats: {}, online: {}, mine: [], ver: null };
-  await transport.join(code, { onMessage: guestMessage, onPeer() {} });
+  // host: the host's peer id, once it has sent something; want: seats this phone had here before a reload
+  const saved = readJSON(ROOM_KEY, null);
+  ROOM = { role: 'guest', code, transport, self: phoneId(), seats: {}, online: {}, mine: [], ver: null, host: null, lost: false,
+    want: saved?.code === code ? saved.seats || [] : [] };
+  const room = ROOM, hello = to => transport.send({ type: 'hello', app: APP_VERSION, phone: room.self }, to);
+  const joined = new Promise((ok, no) => {
+    room.joined = { ok, no };
+    room.connectTimer = setTimeout(() => no(new Error('timeout')), ROOM_TIMES.connect);
+  });
+  joined.catch(() => {}); // a transport that fails to join throws before anyone waits on this
+  await transport.join(code, {
+    onMessage: (msg, peer) => ROOM === room && guestMessage(msg, peer),
+    onPeer(peer, online) {
+      if (ROOM !== room) return;
+      if (online) return hello(peer);
+      // The host has gone: say so if it stays away
+      if (peer === room.host && !room.lostTimer) room.lostTimer = setTimeout(() => { room.lost = true; renderRoomBar(); }, ROOM_TIMES.hostLost);
+    },
+  });
+  hello();
+  try { await joined; } finally { clearTimeout(room.connectTimer); room.joined = null; }
 }
-function guestMessage(msg) {
+function guestMessage(msg, peer) {
+  if (!ROOM) return;
+  if (msg.type === 'reject' && msg.reason === 'version') {
+    if (ROOM.joined) return ROOM.joined.no(new Error('version'));
+    leaveRoom(); goMenu(); return toast(t('Update Dartboss on this phone to join'));
+  }
   if (!versionOk(msg, APP_VERSION)) return;
+  if (msg.type === 'end') { leaveRoom(); goMenu(); return toast(t('The host ended the game')); }
   if (msg.type === 'state') {
+    ROOM.host = peer;
+    clearTimeout(ROOM.lostTimer); ROOM.lostTimer = null; ROOM.lost = false;
     S = { ...msg.state, hist: [], screen: 'play' };
     ROOM.ver = msg.ver;
     ROOM.seats = S.room.seats; ROOM.online = S.room.online;
-    ROOM.mine = Object.keys(S.room.seats).filter(s => S.room.seats[s] === ROOM.transport.selfId).map(Number);
+    ROOM.mine = Object.keys(S.room.seats).filter(s => S.room.seats[s] === ROOM.self).map(Number);
+    // Kept for a reload: this room and this phone's seats in it
+    const rec = JSON.stringify(ROOM.mine);
+    if (rec !== ROOM.savedSeats) { ROOM.savedSeats = rec; writeJSON(ROOM_KEY, { code: ROOM.code, seats: ROOM.mine }); }
+    guestRecord();
     render();
     if (msg.note) toast(t('{name} took back their visit', { name: players()[msg.note.tookBack].name }));
+    if (ROOM.joined) {
+      ROOM.joined.ok();
+      // Back after a reload: ask again for any seat the host no longer has down for this phone
+      const want = ROOM.want.filter(s => !ROOM.mine.includes(s));
+      if (want.length) claim(want);
+    }
   } else if (msg.type === 'reject') {
     // turn and seat only happen through a race or a bug: the next state puts the phone right
     if (msg.reason === 'stale') toast(t('Already scored'));
     if (msg.reason === 'undo') toast(t('Too late to undo here: ask the host'));
   }
 }
-const guestSend = (input, ver = ROOM.ver) => ROOM.transport.send({ ...input, ver, app: APP_VERSION });
+// A guest keeps the finished match in its own history, so its stats count it (and drops it if the host takes the finish back)
+function guestRecord() {
+  const done = isGame() ? GAMES[S.settings.mode].done(S.game) : S.matchWinner != null;
+  if (done && ROOM.recorded !== S.id) { recordHistory(); ROOM.recorded = S.id; }
+  else if (!done && ROOM.recorded === S.id) { forgetHistory(S.id); ROOM.recorded = null; }
+}
+const guestSend = (input, ver = ROOM.ver) => ROOM.transport.send({ ...input, ver, app: APP_VERSION, phone: ROOM.self }, ROOM.host);
 const claim = seats => guestSend({ type: 'claim', seats });
 // Undo the latest act of any seat this phone plays
 const guestUndoSeat = () => S.acts?.findLast(a => ROOM.mine.includes(a.seat))?.seat;
@@ -185,12 +298,20 @@ function guestUndo() {
 // Would the host take this phone's undo? Lights the Undo button on a guest
 function guestCanUndo() {
   const seat = guestUndoSeat();
-  return seat != null && !canUndo({ from: ROOM.transport.selfId, seat, room: S.room, acts: S.acts });
+  return seat != null && !canUndo({ from: ROOM.self, seat, room: S.room, acts: S.acts });
 }
+// This phone's part in the room ends. A guest gives up its seats and gets its own game back.
 function leaveRoom() {
   if (!ROOM) return;
-  const role = ROOM.role;
-  ROOM.transport.leave();
+  const { role, transport } = ROOM;
+  clearTimeout(ROOM.lostTimer); clearTimeout(ROOM.connectTimer);
+  ROOM.joined?.no(new Error('left'));
+  if (role === 'guest') {
+    if (ROOM.host) guestSend({ type: 'leave' });
+    try { localStorage.removeItem(ROOM_KEY); } catch (e) {}
+    window.ocheNative?.remove(ROOM_KEY);
+  }
+  transport.leave();
   ROOM = null;
   if (role === 'guest') { if (localS) S = localS; localS = null; buffer = ''; render(); maybeBot(); }
   else { delete S.room; save(); }
