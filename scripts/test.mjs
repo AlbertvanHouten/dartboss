@@ -9,7 +9,8 @@ for (const b of blocks) new Function(b); // throws on a syntax error
 
 const store = new Map();
 const localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
-const { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, ROOM_PROTOCOL, protocolOk, whoUpdates, canAct, canUndo, claimSeats, recheckSeats } = new Function('localStorage', `${blocks[0]}\n${blocks[1]}\nlet buffer = ''; const isBotTurn = () => false;\n${blocks[2]}\n${blocks[3]}\nreturn { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, ROOM_PROTOCOL, protocolOk, whoUpdates, canAct, canUndo, claimSeats, recheckSeats };`)(localStorage);
+const { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, ROOM_PROTOCOL, protocolOk, whoUpdates, canAct, canUndo, claimSeats, recheckSeats, room: roomOn } = new Function('localStorage', `${blocks[0]}\n${blocks[1]}\nlet buffer = '', S; const isBotTurn = () => false, APP_VERSION = 'test';\n${blocks[2]}\n${blocks[3]}\nreturn { E, GAMES, MENU, STRINGS, makeRoomCode, formatRoomCode, parseRoomCode, ROOM_PROTOCOL, protocolOk, whoUpdates, canAct, canUndo, claimSeats, recheckSeats,
+  room: (match, send) => { S = match; ROOM = { transport: { send } }; return broadcastState; } };`)(localStorage);
 
 // Checkout routes
 const route = (r, out = 'double') => (E.bestRoute(r, 3, out) || []).map(E.label).join(' ');
@@ -264,5 +265,17 @@ assert.deepEqual(claimSeats({ room: r2, peer: 'peerA', seats: [1, 3], players })
 const r3 = { seats: { 0: 'peerA', 1: 'peerA', 2: 'peerB', 3: 'peerB', 5: 'peerC' } };
 assert.equal(recheckSeats(r3, players), r3, 'the room is changed in place');
 assert.deepEqual(r3.seats, { 1: 'peerA', 3: 'peerB' });
+
+// The room version goes up with every change to the match the host sends, and only then
+const sent = [], match = { settings: { mode: 'x01' }, legs: [{ visits: [] }], acts: [], room: { ver: 0, seats: {}, online: {} }, hist: [], screen: 'play' };
+const broadcast = roomOn(match, m => sent.push(m.ver));
+broadcast();                                                  // the match as it starts
+match.legs[0].visits.push({ p: 0, score: 60 }); broadcast();  // a visit
+match.screen = 'history'; match.hist.push('{}'); broadcast(); // a screen or an undo snapshot: not a change
+match.room.seats[1] = 'peerA'; broadcast();                   // a seat claim: not a change to the match
+match.legs[0].visits.push({ p: 1, score: 41 }); broadcast();  // another visit
+match.legs[0].visits.pop(); broadcast();                      // and its undo
+assert.deepEqual(sent, [1, 2, 3, 4], 'one new version per change');
+assert.equal(match.room.ver, 4);
 
 console.log('All checks passed');

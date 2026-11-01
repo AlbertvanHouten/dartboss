@@ -299,7 +299,8 @@ function render() {
       (legNeed <= 9 ? Array.from({ length: legNeed }, (_, i) => `<span class="pip${i < sd.legs[p] ? ' on' : ''}"></span>`).join('') : `<span class="setnum" title="${t('Legs won')}">${sd.legs[p]}</span>`);
     const tag = pl.type === 'bot' ? ` <span class="label" title="${t('Favourite double {d}', { d: 'D' + botCtx(p).fav })}">${t('{avg} avg', { avg: botAvg(pl) })} · D${botCtx(p).fav}</span>` : '';
     const status = p === turn && pl.type === 'bot' ? `<span class="thinking">${t('Throwing')}</span>` : '';
-    const dot = ROOM?.role === 'host' && p > 0 && pl.type !== 'bot' ? connDot(p) : '';
+    // Only a seat a phone has claimed has a dot: the others are scored on the host
+    const dot = ROOM?.role === 'host' && roomOf().seats[p] ? connDot(p) : '';
     return `<article class="player${p === turn ? ' active' : ''}" aria-current="${p === turn}">
       <div class="head"><span class="name">${dot}${esc(pl.name)}${tag}</span><span class="pips" title="${st.unit === 'sets' ? t('Sets {s}, legs this set {l}', { s: sd.sets[p], l: sd.legs[p] }) : t('Legs won: {n}', { n: sd.legs[p] })}">${pips}</span></div>
       <div class="rem num">${esc(rem)}</div>
@@ -509,7 +510,8 @@ function maybeBot() {
   cancelBot();
   // Bots play on the host
   if (ROOM?.role === 'guest') { botBusy = false; return; }
-  if (S.screen !== 'play') { botBusy = false; return; }
+  // While a room is open bots throw on any screen of the host, so the guests aren't kept waiting
+  if (S.screen !== 'play' && ROOM?.role !== 'host') { botBusy = false; return; }
   if (isGame()) return gameBot();
   if (!isBotTurn()) { botBusy = false; return; }
   botBusy = true;
@@ -532,11 +534,11 @@ function maybeBot() {
   }
   // Throw the darts one at a time, at a real player's pace, with a longer settle before a double
   botReveal = { p, darts: [] };
-  render();
+  if (S.screen === 'play') render();
   let t = 700 + Math.random() * 300, left = rem;
   r.darts.forEach(d => {
     if (out !== 'single' && E.BY[d.aim] && E.isFinisher(E.BY[d.aim], out) && E.BY[d.aim].v === left) t += 400 + Math.random() * 400;
-    setTimeout(() => { if (token !== botToken) return; botReveal.darts.push(d); render(); }, t);
+    setTimeout(() => { if (token !== botToken) return; botReveal.darts.push(d); if (S.screen === 'play') render(); }, t);
     left -= d.v;
     t += 750 + Math.random() * 450;
   });
@@ -766,7 +768,7 @@ function gameUndo() {
 function gameBot() {
   if (!isBotTurn()) { botBusy = false; return; }
   botBusy = true;
-  render();
+  if (S.screen === 'play') render();
   botTimer = setTimeout(() => {
     botBusy = false;
     if (!isBotTurn()) return;
@@ -893,7 +895,7 @@ function renderMenu() {
   }).join('')}${gi === 0 ? join : ''}</div></section>`).join('');
 }
 function goScreen(name) {
-  cancelBot(); botBusy = false;
+  if (ROOM?.role !== 'host') { cancelBot(); botBusy = false; }
   S.screen = name; buffer = ''; histOpen = null;
   save(); render();
   window.scrollTo(0, 0);
@@ -1227,8 +1229,10 @@ function openRoom(code, reopen) {
   roomOpen = null;
   hostRoom(code, reopen).then(() => { save(); render(); }, () => toast(t("Couldn't open the room")));
 }
-// The lobby is open until the first visit (on a guest: until it has a seat); a tap on its bar overrides that
+// The lobby is open until the first visit (on a guest also while it has no seat). A tap on its bar overrides
+// that until play starts or a new match begins.
 let roomOpen = null, qrLoad = null;
+const roomStage = () => `${S.id}:${S.acts.length > 0}`;
 // The QR code generator loads the first time a lobby opens, so single-phone play loads nothing extra
 const loadQR = () => qrLoad ||= new Promise((ok, no) => {
   const el = document.createElement('script');
@@ -1257,7 +1261,7 @@ function renderRoomBar() {
   bar.hidden = !ROOM;
   if (!ROOM) { bar.innerHTML = ''; return; }
   const host = ROOM.role === 'host', pl = players(), r = roomOf(), self = ROOM.self;
-  const open = roomOpen ?? (host ? !S.acts.length : !ROOM.mine.length);
+  const open = roomOpen?.stage === roomStage() ? roomOpen.open : !S.acts.length || (!host && !ROOM.mine.length);
   bar.dataset.open = open;
   const phones = Object.keys(r.online).length;
   const sum = host ? t(phones === 1 ? '1 phone' : '{n} phones', { n: phones })
@@ -1272,7 +1276,7 @@ function renderRoomBar() {
     const seats = pl.map((p, i) => {
       const id = r.seats[i], bot = p.type === 'bot';
       const stat = i === 0 ? t('This phone') : bot ? 'Bot' : !id ? t('Scored here') : r.online[id] ? t('Connected') : t('Not connected');
-      return `<li class="seat">${i > 0 && !bot ? connDot(i) : '<span class="dot none"></span>'}<span class="sname">${esc(p.name)}</span><span class="sstat">${stat}</span></li>`;
+      return `<li class="seat">${id ? connDot(i) : '<span class="dot none"></span>'}<span class="sname">${esc(p.name)}</span><span class="sstat">${stat}</span></li>`;
     }).join('');
     body = `<div class="room-join"><div class="qr">${qrHTML(link)}</div><div class="room-info">
         <span class="label">${t('Room code')}</span><div class="room-code num">${formatRoomCode(ROOM.code)}</div>
@@ -1318,7 +1322,7 @@ async function doJoin(text = $('joinCode')?.value) {
     joinBusy = false;
     if (e?.message === 'left') return; // this phone left while it was still connecting
     joinFailed = !['version', 'hostVersion'].includes(e?.message);
-    joinMsg = joinFailed ? t("Couldn't reach the room. Check the code, and that both phones are online") : updateText(e.message);
+    joinMsg = joinFailed ? t("Couldn't reach the room. Check the code, and that both phones are online.") : updateText(e.message);
     // The join can fail after the room was set up (no host, another protocol): this phone is in no room then
     leaveRoom();
     if (S.screen === 'join') render();
@@ -1356,12 +1360,12 @@ document.addEventListener('click', e => {
   else if (b.dataset.nav) goScreen(b.dataset.nav);
   else if (b.dataset.menu === 'join') isGuest() ? confirmLeave(() => openJoin()) : openJoin();
   else if (b.dataset.menu) isGuest() ? confirmLeave(() => openSetup(b.dataset.menu)) : openSetup(b.dataset.menu);
-  else if (b.dataset.act === 'room') { roomOpen = $('roomBar').dataset.open !== 'true'; renderRoomBar(); }
+  else if (b.dataset.act === 'room') { roomOpen = { open: $('roomBar').dataset.open !== 'true', stage: roomStage() }; renderRoomBar(); }
   else if (b.dataset.act === 'claim') claim([+b.dataset.v]);
   else if (b.dataset.act === 'leave') { leaveRoom(); goMenu(); }
   else if (b.dataset.act === 'shareLink') shareIt(joinLink(ROOM.code));
   else if (b.dataset.act === 'discard') confirmDiscard();
-  else if (b.dataset.act === 'continue') { S.screen = 'play'; save(); render(); maybeBot(); }
+  else if (b.dataset.act === 'continue') { S.screen = 'play'; save(); render(); if (!botBusy) maybeBot(); }
 });
 document.addEventListener('keydown', e => {
   if (dialogOpen) { if (dialogKey && dialogKey(e)) e.preventDefault(); return; }

@@ -193,16 +193,19 @@ function hostMessage(msg, peer) {
     if (msg.type !== 'hello' && msg.type !== 'claim') { sendState(); if (S.screen === 'play') render(); }
   }
   if (msg.type === 'hello') { sendState(); if (S.screen === 'play') render(); return; }
+  // Seat changes are saved with the match, so the host still has them after a reload
   if (msg.type === 'leave') {
     for (const s in S.room.seats) if (S.room.seats[s] === from) delete S.room.seats[s];
     delete S.room.online[from];
-    sendState(); if (S.screen === 'play') render();
+    save(); sendState(); if (S.screen === 'play') render();
     return;
   }
   if (msg.type === 'claim') {
-    claimSeats({ room: S.room, peer: from, seats: msg.seats || [], players: players() });
+    const { refused } = claimSeats({ room: S.room, peer: from, seats: msg.seats, players: players() });
     // The lobby and the scoreboard's dots show who has which seat
-    sendState(); if (S.screen === 'play') render();
+    save(); sendState(); if (S.screen === 'play') render();
+    // A seat another phone took a moment before: the phone is told
+    if (refused.some(s => S.room.seats[s] && S.room.seats[s] !== from)) reject('taken');
     return;
   }
   if (msg.type === 'visit' || msg.type === 'act') {
@@ -289,6 +292,8 @@ function guestMessage(msg, peer) {
     const turn = ROOM.joined ? null : currentTurn(), id = S.id, screen = ROOM.joined ? 'play' : S.screen;
     S = { ...msg.state, hist: [], screen };
     if (S.id !== id || currentTurn() !== turn) buffer = '';
+    // The host's own default name means nothing on another phone
+    if (defaultWords('You').includes(S.settings.players[0]?.name)) S.settings.players[0].name = t('Host');
     ROOM.ver = msg.ver;
     ROOM.seats = S.room.seats; ROOM.online = S.room.online;
     ROOM.mine = Object.keys(S.room.seats).filter(s => S.room.seats[s] === ROOM.self).map(Number);
@@ -298,6 +303,12 @@ function guestMessage(msg, peer) {
     guestRecord();
     if (screen === 'play') render();
     if (msg.note && players()[msg.note.tookBack]) toast(t('{name} took back their visit', { name: players()[msg.note.tookBack].name }));
+    // This phone's undo has its answer: say what went, as on one phone
+    if (ROOM.undone && msg.ver !== ROOM.undone.ver) {
+      const v = ROOM.undone.v;
+      if (v && S.acts.length < ROOM.undone.acts) toast(t('Undone: {what}', { what: v.bust ? t('bust') : v.score }));
+      ROOM.undone = null;
+    }
     if (ROOM.waiting != null && msg.ver !== ROOM.waiting) nextInput();
     if (ROOM.joined) {
       ROOM.joined.ok();
@@ -306,7 +317,9 @@ function guestMessage(msg, peer) {
       if (want.length) claim(want);
     }
   } else if (msg.type === 'reject') {
+    if (msg.reason === 'taken') return toast(t('That seat was just taken'));
     if (ROOM.waiting != null) nextInput();
+    if (msg.reason === 'undo') ROOM.undone = null;
     // turn and seat only happen through a race or a bug: the next state puts the phone right
     if (msg.reason === 'stale') toast(t('Already scored'));
     if (msg.reason === 'undo') toast(t('Too late to undo here: ask the host'));
@@ -340,7 +353,10 @@ const claim = seats => guestSend({ type: 'claim', seats });
 const guestUndoSeat = () => S.acts?.findLast(a => ROOM.mine.includes(a.seat))?.seat;
 function guestUndo() {
   const seat = guestUndoSeat();
-  if (seat != null) guestInput({ type: 'undo', seat });
+  if (seat == null) return;
+  // In X01 the toast says which visit went, once the host's answer comes
+  if (!isGame()) ROOM.undone = { ver: ROOM.ver, acts: S.acts.length, v: S.legs.flatMap(l => l.visits).findLast(v => v.p === seat) };
+  guestInput({ type: 'undo', seat });
 }
 // Would the host take this phone's undo? Lights the Undo button on a guest
 function guestCanUndo() {

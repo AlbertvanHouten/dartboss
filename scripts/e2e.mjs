@@ -332,6 +332,24 @@ try {
   await sync();
   assert.equal(await G('buffer'), '', 'the guest\'s typed score goes once its turn has passed');
   assert.match(await G("document.getElementById('readout').textContent"), /Waiting for Bob/);
+  // The guest hears about its own undo, as on one phone
+  await H('submit(45); submit(60)');                      // Bob and You: Ann to throw
+  await sync();
+  await viaGuest('submit(100)');
+  await noToast(guestP);
+  await viaGuest('undo()');
+  await toastOn(guestP, 'Undone: 100');
+  // and about a seat another phone took a moment before it
+  await raw("{ type: 'claim', seats: [2], phone: 'OTHERPHONE1' }");
+  await wait(hostP, () => S.room.seats[2] === 'OTHERPHONE1');
+  await raw("{ type: 'claim', seats: [2] }");
+  await toastOn(guestP, 'That seat was just taken');
+  assert.deepEqual(await G('ROOM.mine'), [1]);
+  // A claim is saved on the host, so its seats outlast a reload
+  assert.equal(await H('JSON.parse(localStorage.getItem(STORE_KEY)).room.seats[2]'), 'OTHERPHONE1', 'the host saves a claim');
+  await raw("{ type: 'leave', phone: 'OTHERPHONE1' }");
+  await wait(hostP, () => !S.room.seats[2]);
+  assert.equal(await H('JSON.parse(localStorage.getItem(STORE_KEY)).room.seats[2]'), undefined, 'and a phone leaving');
 
   // A visit that waits on a question (darts at a double) is checked again when the question is answered:
   // on 40 every visit asks, and anything that lands meanwhile wins
@@ -507,9 +525,11 @@ try {
   await G("document.querySelector('#roomBar [data-act=\"claim\"][data-v=\"1\"]').click()");
   await wait(guestP, () => ROOM.mine.includes(1));
   await wait(hostP, () => !!document.querySelector('#players .player:nth-child(2) .dot.on'));
-  assert.equal(await q(hostP, '#players .player:nth-child(3) .dot:not(.on)'), true, 'an unclaimed seat has a grey dot');
+  assert.equal(await q(hostP, '#players .player:nth-child(3) .dot'), false, 'an unclaimed seat has no dot');
   assert.equal(await q(hostP, '#players .player:nth-child(4) .dot'), false, 'a bot has no dot');
-  assert.equal(await G("document.getElementById('roomBar').dataset.open"), 'false', 'the seat list folds once a seat is claimed');
+  assert.equal(await G("document.getElementById('roomBar').dataset.open"), 'true', 'the seat list stays open for a second name');
+  // The host's default name reads as Host on the guest
+  assert.match(await G("document.getElementById('readout').textContent"), /Waiting for Host…/);
 
   // Waiting: not the guest's turn, so its keypad is off
   assert.ok((await disabled(guestP, '#keys button')).every(Boolean), 'keys are off while You throw');
@@ -519,6 +539,7 @@ try {
   await H("document.querySelector('#roomBar [data-act=\"room\"]').click()");
   assert.equal(await H("document.getElementById('roomBar').dataset.open"), 'true', 'tapping the bar opens the lobby again');
   await sync();
+  assert.equal(await G("document.getElementById('roomBar').dataset.open"), 'false', 'the guest\'s seat list folds once play starts');
   assert.ok((await disabled(guestP, '#keys button')).every(b => !b), 'keys are on for Ann\'s turn');
   assert.equal(await G("document.getElementById('undoBtn').disabled"), true, 'nothing to undo yet');
   // The host browses while Ann's visit is on its way: the visit still counts
@@ -534,11 +555,22 @@ try {
   await sync();
   assert.equal(await G("document.getElementById('undoBtn').disabled"), true, 'too late to undo once Bob has scored');
   assert.equal(await G("document.getElementById('undoBtn').hidden"), false, 'the disabled undo still shows');
+  // The bot throws while the host looks at History, so the guests aren't kept waiting
+  await H("goScreen('history')");
+  await hostP.waitForFunction(() => curLeg().visits.length === 4, { timeout: 8000, polling: 100 });
+  // and starts its next visit there too
+  await H('submit(60)');                                  // You
+  await sync();
+  await viaGuest('submit(60)');                           // Ann
+  await H('submit(60)');                                  // Bob: the bot's turn, with the host still on History
+  await hostP.waitForFunction(() => curLeg().visits.length === 8, { timeout: 8000, polling: 100 });
+  assert.equal(await H('S.screen'), 'history', 'the host stays where it was');
+  await H("goScreen('play')");
   // Dart-by-dart games: the pad waits, and undo follows the same rule
   await H(`startMatch({ ...DEFAULT_SETTINGS, mode: 'killer', shared: true, players: ${four} })`);
   await sync();
   assert.ok((await disabled(guestP, '#gameLeft .gpadwrap [data-ga]')).every(Boolean), 'the game pad is off while You throw');
-  assert.match(await G("document.getElementById('gameLeft').innerText"), /Waiting for You…/);
+  assert.match(await G("document.getElementById('gameLeft').innerText"), /Waiting for Host…/);
   for (let i = 0; i < 3; i++) await H("gameAct('dart', 0)");
   await sync();
   assert.ok((await disabled(guestP, '#gameLeft .gpadwrap [data-ga]')).some(b => !b), 'the game pad is on for Ann');
@@ -554,10 +586,24 @@ try {
     await H(`startMatch({ ...DEFAULT_SETTINGS, shared: true, players: ${four} })`);
     await sync();
     await wait(hostP, () => !!document.querySelector('#roomBar .qr svg'));
+    await hostP.bringToFront();                           // a tab in the background can't be captured
     await hostP.screenshot({ path: new URL('host-lobby.png', shots).pathname, fullPage: true });
-    await guestP.screenshot({ path: new URL('guest-waiting.png', shots).pathname, fullPage: true });
-    await G("document.querySelector('#roomBar [data-act=\"room\"]').click()");
+    // The guest's seat list is open until play starts; once Ann has thrown it folds while the others throw
+    await guestP.bringToFront();
     await guestP.screenshot({ path: new URL('guest-seats.png', shots).pathname, fullPage: true });
+    await H('submit(60)');
+    await sync();
+    await viaGuest('submit(100)');
+    await guestP.screenshot({ path: new URL('guest-waiting.png', shots).pathname, fullPage: true });
+    // Eight players in a room: small cards, dots in the corner of the claimed seats
+    const eight = "[{ name: 'You', type: 'human' }, { name: 'Ann', type: 'human' }, { name: 'Bob', type: 'human' }, { name: 'Bot', type: 'bot', avg: 50 }, { name: 'Cas', type: 'human' }, { name: 'Dee', type: 'human' }, { name: 'Eve', type: 'human' }, { name: 'Fay', type: 'human' }]";
+    await H(`startMatch({ ...DEFAULT_SETTINGS, shared: true, players: ${eight} })`);
+    await sync();
+    await H('submit(60)');
+    await sync();
+    await viaGuest('submit(100)');
+    await hostP.bringToFront();
+    await hostP.screenshot({ path: new URL('host-8-players.png', shots).pathname, fullPage: true });
   }
   const wide = p => p.evaluate(() => document.documentElement.scrollWidth > innerWidth);
   for (const p of [hostP, guestP]) await p.setViewport({ width: 320, height: 700 });

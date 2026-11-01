@@ -504,6 +504,9 @@ button.seat:disabled { opacity: .5; }
 .player .dot { margin-right: 6px; vertical-align: middle; }
 .player .dot.on, .seat .dot.on { background: var(--green); opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 30%, transparent); }
 .player.active .dot:not(.on) { background: var(--on-felt); }
+/* Small cards: the dot sits in the corner, so it doesn't stack over the leg circles that wrap under the name */
+.players:has(> :nth-child(5)) .player { position: relative; }
+.players:has(> :nth-child(5)) .player .dot { position: absolute; top: 7px; right: 7px; margin: 0; }
 .seat .dot.none { visibility: hidden; }
 .entry.waiting .quick, .entry.waiting .keys, .gpadwrap.waiting > :not(.waitnote, .msg, .row-actions) { opacity: .45; }
 .waitnote { border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px; color: var(--muted); font-weight: 500; text-align: center; margin-bottom: 10px; }
