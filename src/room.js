@@ -279,8 +279,9 @@ function guestMessage(msg, peer) {
     ROOM.host = peer;
     clearTimeout(ROOM.lostTimer); ROOM.lostTimer = null; ROOM.lost = false;
     // What this phone typed goes once the turn it was typed for has passed (or the match changed)
-    const turn = ROOM.joined ? null : currentTurn(), id = S.id;
-    S = { ...msg.state, hist: [], screen: 'play' };
+    // The guest stays on whatever screen it is on; joining opens the shared game
+    const turn = ROOM.joined ? null : currentTurn(), id = S.id, screen = ROOM.joined ? 'play' : S.screen;
+    S = { ...msg.state, hist: [], screen };
     if (S.id !== id || currentTurn() !== turn) buffer = '';
     ROOM.ver = msg.ver;
     ROOM.seats = S.room.seats; ROOM.online = S.room.online;
@@ -289,7 +290,7 @@ function guestMessage(msg, peer) {
     const rec = JSON.stringify(ROOM.mine);
     if (rec !== ROOM.savedSeats) { ROOM.savedSeats = rec; writeJSON(ROOM_KEY, { code: ROOM.code, seats: ROOM.mine }); }
     guestRecord();
-    render();
+    if (screen === 'play') render();
     if (msg.note && players()[msg.note.tookBack]) toast(t('{name} took back their visit', { name: players()[msg.note.tookBack].name }));
     if (ROOM.waiting != null && msg.ver !== ROOM.waiting) nextInput();
     if (ROOM.joined) {

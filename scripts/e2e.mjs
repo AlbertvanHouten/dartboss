@@ -243,6 +243,7 @@ try {
     await wait(hostP, v => S.room.ver > v, v);
     await sync();
   };
+  const q = (p, sel) => p.evaluate(s => !!document.querySelector(s), sel);
   const noToast = p => p.evaluate(() => { document.getElementById('toast').hidden = true; });
   const toastOn = (p, text) => wait(p, s => !document.getElementById('toast').hidden && document.getElementById('toast').textContent.includes(s), text);
 
@@ -412,14 +413,48 @@ try {
   await sync();
   assert.equal(await G('S.settings.mode'), 'killer', 'in the room the guest shows the host\'s game');
   await G("goScreen('history'); goScreen('play')");     // screens save as they change, but not on a guest
+  // The guest's screens are its own: a host change leaves it where it is, and its menu leads back to the shared game
+  await G('goMenu()');
+  await H("gameAct('dart', 0)");
+  await sync();
+  assert.equal(await G('S.screen'), 'menu', 'a host change leaves the guest on its menu');
+  assert.equal(await q(guestP, '#menu [data-act="continue"]'), true, 'the guest\'s menu offers the shared game');
+  await G("document.querySelector('#menu [data-act=\"continue\"]').click()");
+  assert.equal(await G('S.screen'), 'play', 'Continue goes back to the shared game');
+  // A game of its own asks to leave the room first; staying changes nothing
+  await G("goMenu(); document.querySelector('[data-menu=\"doubles\"]').click()");
+  assert.match(await G("document.getElementById('overlay').textContent"), /Leave the room\?/, 'starting a game asks to leave the room');
+  await G("document.querySelector('#overlay [data-act=\"keep\"]').click()");
+  assert.deepEqual(await G('[ROOM?.role, S.settings.mode, S.screen]'), ['guest', 'killer', 'menu'], 'staying keeps the room and the shared game');
+  await G("document.querySelector('[data-act=\"continue\"]').click()");
   await G('leaveRoom()');
   assert.equal(await G('writes'), 0, 'a guest never saves while in a room');
   assert.equal(await G('S.settings.mode'), 'bobs27', 'leaving brings back the guest\'s own game');
   assert.equal(await G("JSON.parse(localStorage.getItem(STORE_KEY)).settings.mode"), 'bobs27', 'the guest\'s saved game is still stored');
+  // Leaving to start a game: the setup opens on the guest's own game
+  await G("joinRoomAsGuest('K7QM2P')");
+  await sync();
+  await G("goMenu(); document.querySelector('[data-menu=\"doubles\"]').click(); document.querySelector('#overlay [data-act=\"go\"]').click()");
+  assert.equal(await G('ROOM'), null, 'saying yes leaves the room');
+  assert.equal(await q(guestP, '#setupForm'), true, 'and opens the setup');
+  assert.equal(await G('S.settings.mode'), 'bobs27', 'with the guest\'s own game behind it');
+  await G("document.querySelector('#overlay [data-act=\"cancel\"]').click()");
+  // Leave on the guest's menu (where the host has Discard) asks first, then gives the guest its own game back
+  await G("joinRoomAsGuest('K7QM2P')");
+  await sync();
+  await G("goMenu(); document.querySelector('#menu [data-act=\"discard\"]').click()");
+  assert.equal(await G('ROOM?.role'), 'guest', 'Leave asks first');
+  await G("document.querySelector('#overlay [data-act=\"go\"]').click()");
+  assert.deepEqual(await G('[ROOM, S.settings.mode, S.screen]'), [null, 'bobs27', 'menu'], 'the guest is back on its own menu');
+  await G("joinRoomAsGuest('K7QM2P')");                   // and the join tile asks too
+  await sync();
+  await G("goMenu(); document.querySelector('[data-menu=\"join\"]').click()");
+  assert.equal(await G('[ROOM?.role, !document.getElementById(\'overlay\').hidden].join()'), 'guest,true', 'joining another room asks first');
+  await G("document.querySelector('#overlay [data-act=\"go\"]').click()");
+  assert.deepEqual(await G('[ROOM, S.screen]'), [null, 'join'], 'then opens the join screen');
 
   // ---- the screens: setup switch, lobby, join link, seat list, waiting ----
   await H('leaveRoom()');
-  const q = (p, sel) => p.evaluate(s => !!document.querySelector(s), sel);
   const disabled = (p, sel) => p.evaluate(s => [...document.querySelectorAll(s)].map(b => b.disabled), sel);
   // Single-phone play loads nothing new. Where the WebRTC module can't load (the single-file oche.html has
   // no vendor folder), opening or joining a room says so.

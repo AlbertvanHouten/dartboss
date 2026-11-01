@@ -822,12 +822,21 @@ function confirmRestart() {
 }
 // Discard from the menu: the settings are kept for next time, the scores go
 function confirmDiscard() {
+  if (isGuest()) return confirmLeave();
   confirmDialog({
     title: t(isMatch() ? 'Discard this match?' : 'Discard this game?'),
     text: t('The game in progress and its scores will be deleted. Personal bests already set are kept.'),
     keep: t('Keep it'), go: t('Discard'), focusBack: () => $('menu').querySelector('[data-act="continue"]'),
     // Discarding the match ends its room
     onGo: () => { endRoom(); cancelBot(); botBusy = false; buffer = ''; S = freshMatch(S.settings); S.screen = 'menu'; save(); render(); },
+  });
+}
+// A guest's menu works on its own game: starting one, joining another room or Leave first leaves the room
+function confirmLeave(then) {
+  confirmDialog({
+    title: t('Leave the room?'), text: t('This phone stops playing in the shared game. The host keeps the match.'),
+    keep: t('Stay'), go: t('Leave'), focusBack: () => $('menu').querySelector('[data-act="continue"]'),
+    onGo: () => { leaveRoom(); goMenu(); then?.(); },
   });
 }
 function modeTitle(mode) { return mode === 'x01' ? `${S.settings.start || 501}` : t(GAMES[mode].title); }
@@ -869,8 +878,9 @@ function logoBoard() {
 }
 const routeChips = route => route.map(s => `<span class="rchip r-${s.ring}">${E.label(s)}</span>`).join('');
 function renderMenu() {
-  const resume = inProgress()
-    ? `<section class="panel resume"><div><span class="label">${t('Game in progress')}</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><div class="resume-btns"><button class="btn ghost" type="button" data-act="discard">${t('Discard')}</button><button class="btn primary" type="button" data-act="continue">${t('Continue')}</button></div></section>`
+  // A guest's menu always leads back to the shared game, and offers Leave where the host has Discard
+  const resume = isGuest() || inProgress()
+    ? `<section class="panel resume"><div><span class="label">${t('Game in progress')}</span><b>${esc(modeTitle(S.settings.mode))} · ${esc(players().map(p => p.name).join(' vs '))}</b></div><div class="resume-btns"><button class="btn ghost" type="button" data-act="discard">${t(isGuest() ? 'Leave' : 'Discard')}</button><button class="btn primary" type="button" data-act="continue">${t('Continue')}</button></div></section>`
     : '';
   const hero = `<section class="menu-hero"><h2 class="num">${t('Step up to the oche')}<span>.</span></h2><p>${t('Play friends on this device, or bots set to any average from 20 to 120.')}</p></section>`;
   // Joining another phone's game sits with the matches
@@ -1344,8 +1354,8 @@ document.addEventListener('click', e => {
   else if (b.dataset.act === 'new') goMenu();
   else if (b.dataset.pg) pageAct(b.dataset.pg, b.dataset.v);
   else if (b.dataset.nav) goScreen(b.dataset.nav);
-  else if (b.dataset.menu === 'join') openJoin();
-  else if (b.dataset.menu) openSetup(b.dataset.menu);
+  else if (b.dataset.menu === 'join') isGuest() ? confirmLeave(() => openJoin()) : openJoin();
+  else if (b.dataset.menu) isGuest() ? confirmLeave(() => openSetup(b.dataset.menu)) : openSetup(b.dataset.menu);
   else if (b.dataset.act === 'room') { roomOpen = $('roomBar').dataset.open !== 'true'; renderRoomBar(); }
   else if (b.dataset.act === 'claim') claim([+b.dataset.v]);
   else if (b.dataset.act === 'leave') { leaveRoom(); goMenu(); }
