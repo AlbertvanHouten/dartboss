@@ -206,9 +206,9 @@ function hostMessage(msg, peer) {
     const why = canAct({ from, input: msg, room: S.room, turn: currentTurn(), ver: S.room.ver });
     if (why) return reject(why);
     // The host builds the visit again by its own rules, and takes only acts the game's pad offers right now
-    if (msg.type === 'act') return padOffers(msg.a, msg.v) ? gameAct(msg.a, msg.v) : reject('bad');
+    if (msg.type === 'act') return padOffers(msg.a, msg.v) ? gameAct(msg.a, msg.v, true) : reject('bad');
     const v = guestVisit(msg.visit, msg.seat);
-    return v ? commitVisit(v) : reject('bad');
+    return v ? commitVisit(v, null, true) : reject('bad');
   }
   if (msg.type === 'undo') {
     const why = canUndo({ from, seat: msg.seat, room: S.room, acts: S.acts, n: n() });
@@ -219,7 +219,7 @@ function hostMessage(msg, peer) {
 // the darts the next player has thrown so far, and everyone is told.
 function undoFor(seat) {
   const mine = S.acts.findLastIndex(a => a.seat === seat), others = S.acts.length - mine - 1;
-  const step = isGame() ? gameUndo : undo;
+  const step = isGame() ? gameUndo : undo, typed = buffer, turn = currentTurn();
   roomQuiet = true;
   try {
     while (S.acts.length > mine) {
@@ -229,6 +229,8 @@ function undoFor(seat) {
       if (S.acts.length >= len) break;
     }
   } finally { roomQuiet = false; }
+  // What the host was typing stays if it is still the same player's turn (as with a guest's visit)
+  if (currentTurn() !== turn) { if (typed) lostAt = Date.now(); } else if (typed) { buffer = typed; render(); }
   if (others) { roomNote = { tookBack: seat }; toast(t('{name} took back their visit', { name: players()[seat].name })); }
   save();
 }
@@ -244,7 +246,8 @@ async function joinRoomAsGuest(code) {
   localS = S;
   // host: the host's peer id, once it has sent something; want: seats this phone had here before a reload
   const saved = readJSON(ROOM_KEY, null);
-  ROOM = { role: 'guest', code, transport, self: phoneId(), seats: {}, online: {}, mine: [], ver: null, host: null, lost: false,
+  // queue: inputs waiting for the host's answer to the one sent before them (sent while `waiting` holds its version)
+  ROOM = { role: 'guest', code, transport, self: phoneId(), seats: {}, online: {}, mine: [], ver: null, host: null, lost: false, queue: [], waiting: null,
     want: saved?.code === code ? saved.seats || [] : [] };
   const room = ROOM, hello = to => transport.send({ type: 'hello', app: APP_VERSION, phone: room.self }, to);
   const joined = new Promise((ok, no) => {
@@ -275,7 +278,10 @@ function guestMessage(msg, peer) {
   if (msg.type === 'state') {
     ROOM.host = peer;
     clearTimeout(ROOM.lostTimer); ROOM.lostTimer = null; ROOM.lost = false;
+    // What this phone typed goes once the turn it was typed for has passed (or the match changed)
+    const turn = ROOM.joined ? null : currentTurn(), id = S.id;
     S = { ...msg.state, hist: [], screen: 'play' };
+    if (S.id !== id || currentTurn() !== turn) buffer = '';
     ROOM.ver = msg.ver;
     ROOM.seats = S.room.seats; ROOM.online = S.room.online;
     ROOM.mine = Object.keys(S.room.seats).filter(s => S.room.seats[s] === ROOM.self).map(Number);
@@ -285,6 +291,7 @@ function guestMessage(msg, peer) {
     guestRecord();
     render();
     if (msg.note && players()[msg.note.tookBack]) toast(t('{name} took back their visit', { name: players()[msg.note.tookBack].name }));
+    if (ROOM.waiting != null && msg.ver !== ROOM.waiting) nextInput();
     if (ROOM.joined) {
       ROOM.joined.ok();
       // Back after a reload: ask again for any seat the host no longer has down for this phone
@@ -292,6 +299,7 @@ function guestMessage(msg, peer) {
       if (want.length) claim(want);
     }
   } else if (msg.type === 'reject') {
+    if (ROOM.waiting != null) nextInput();
     // turn and seat only happen through a race or a bug: the next state puts the phone right
     if (msg.reason === 'stale') toast(t('Already scored'));
     if (msg.reason === 'undo') toast(t('Too late to undo here: ask the host'));
@@ -304,12 +312,26 @@ function guestRecord() {
   else if (!done && ROOM.recorded === S.id) { forgetHistory(S.id); ROOM.recorded = null; }
 }
 const guestSend = (input, ver = ROOM.ver) => ROOM.transport.send({ ...input, ver, app: APP_VERSION, phone: ROOM.self }, ROOM.host);
+// A guest's inputs go one at a time: each waits for the host's answer to the one before (a new state or a
+// refusal), so quick taps aren't refused as made against an old version. The waiting one goes with the newest.
+function guestInput(input, ver = ROOM.ver) {
+  if (ROOM.waiting != null) return ROOM.queue.push(input);
+  ROOM.waiting = ROOM.ver;
+  guestSend(input, ver);
+  // An answer that never comes holds nothing up for long
+  ROOM.waitTimer = setTimeout(nextInput, 3000);
+}
+function nextInput() {
+  clearTimeout(ROOM.waitTimer);
+  ROOM.waiting = null;
+  if (ROOM.queue.length) guestInput(ROOM.queue.shift());
+}
 const claim = seats => guestSend({ type: 'claim', seats });
 // Undo the latest act of any seat this phone plays
 const guestUndoSeat = () => S.acts?.findLast(a => ROOM.mine.includes(a.seat))?.seat;
 function guestUndo() {
   const seat = guestUndoSeat();
-  if (seat != null) guestSend({ type: 'undo', seat });
+  if (seat != null) guestInput({ type: 'undo', seat });
 }
 // Would the host take this phone's undo? Lights the Undo button on a guest
 function guestCanUndo() {
@@ -320,7 +342,7 @@ function guestCanUndo() {
 function leaveRoom() {
   if (!ROOM) return;
   const { role, transport } = ROOM;
-  clearTimeout(ROOM.lostTimer); clearTimeout(ROOM.connectTimer);
+  clearTimeout(ROOM.lostTimer); clearTimeout(ROOM.connectTimer); clearTimeout(ROOM.waitTimer);
   ROOM.joined?.no(new Error('left'));
   if (role === 'guest') {
     if (ROOM.host) guestSend({ type: 'leave' });

@@ -76,6 +76,7 @@ const STRINGS = {
     // playing on several phones
     'Already scored': 'Al gescoord', 'Too late to undo here: ask the host': 'Te laat om hier terug te nemen: vraag het de host',
     '{name} took back their visit': '{name} heeft de beurt teruggenomen',
+    '{name} scored on their phone': '{name} heeft op de eigen telefoon gescoord',
     'Room': 'Kamer', "Couldn't open the room": 'De kamer kon niet worden geopend',
     'Join a game': 'Meedoen met een spel', 'Score on your own phone in a game another phone is hosting.': 'Scoor op je eigen telefoon in een spel dat op een andere telefoon loopt.',
     'Room code or QR code': 'Kamercode of QR-code', 'Room code': 'Kamercode', 'Join': 'Meedoen', 'Connecting…': 'Verbinden…',
@@ -302,6 +303,7 @@ const STRINGS = {
     // playing on several phones
     'Already scored': 'Schon eingetragen', 'Too late to undo here: ask the host': 'Zu spät, um hier zurückzunehmen: frag den Host',
     '{name} took back their visit': '{name} hat die Aufnahme zurückgenommen',
+    '{name} scored on their phone': '{name} hat auf dem eigenen Handy eingetragen',
     'Room': 'Raum', "Couldn't open the room": 'Der Raum konnte nicht geöffnet werden',
     'Join a game': 'Einem Spiel beitreten', 'Score on your own phone in a game another phone is hosting.': 'Trag deine Punkte auf deinem eigenen Handy ein, in einem Spiel, das ein anderes Handy leitet.',
     'Room code or QR code': 'Raumcode oder QR-Code', 'Room code': 'Raumcode', 'Join': 'Beitreten', 'Connecting…': 'Verbinden…',

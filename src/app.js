@@ -475,13 +475,13 @@ function callVisit(v) {
 ['click', 'keydown'].forEach(t => document.addEventListener(t, () => caller.unlock(), true));
 
 // ---------- game flow ----------
-// ver: the room version the visit was started on (a guest sends it with the visit)
-function commitVisit(v, ver) {
-  if (ROOM?.role === 'guest') { buffer = ''; return guestSend({ type: 'visit', seat: v.p, visit: v }, ver); }
+// ver: the room version the visit was started on (a guest sends it with the visit); remote: a guest's visit, on the host
+function commitVisit(v, ver, remote = false) {
+  if (ROOM?.role === 'guest') { buffer = ''; return guestInput({ type: 'visit', seat: v.p, visit: v }, ver); }
   const leg = curLeg();
   leg.visits.push(v);
-  buffer = '';
-  $('msg').textContent = '';
+  if (remote) remoteDone(v.p);
+  else { buffer = ''; $('msg').textContent = ''; }
   if (v.checkout || v.score === 180) window.ocheNative?.celebrate();
   if (v.checkout) {
     leg.winner = v.p;
@@ -546,6 +546,14 @@ function maybeBot() {
     if (!isBotTurn()) return;
     commitVisit({ p, score: r.score, dartsUsed: r.dartsUsed, dartsAtDouble: r.dartsAtDouble, bust: r.bust, checkout: r.checkout, before: rem, darts: r.darts });
   }, t - 300);
+}
+// A guest's input leaves what the host is typing alone, unless the turn it was typed for has passed. Then it goes,
+// the host is told why, and an empty Score pressed straight after does nothing, so it can't land on the next player.
+let lostAt = 0;
+function remoteDone(seat) {
+  if (currentTurn() === seat) return;
+  if (buffer) { toast(t('{name} scored on their phone', { name: players()[seat].name })); lostAt = Date.now(); }
+  buffer = ''; $('msg').textContent = '';
 }
 function hasHumanVisit() { return S.legs.some(l => l.visits.some(v => players()[v.p].type === 'human')); }
 function popOne() {
@@ -697,7 +705,7 @@ function gameErr(text) {
   m.textContent = text;
   clearTimeout(msgTimer); msgTimer = setTimeout(() => { m.textContent = ''; }, 4000);
 }
-function gameAct(a, v) {
+function gameAct(a, v, remote = false) {
   const G = GAMES[S.settings.mode];
   if (G.done(S.game) || isBotTurn() || !myTurn()) return;
   if (a === 'score') {
@@ -706,13 +714,13 @@ function gameAct(a, v) {
     const problem = G.validate ? G.validate(S.game, s) : (!E.validVisit(s) ? (s > 180 ? t('The most three darts can score is 180.') : t("{n} can't be scored with three darts.", { n: s })) : null);
     if (problem) { buffer = ''; render(); return gameErr(problem); }
   }
-  if (ROOM?.role === 'guest') { buffer = ''; render(); return guestSend({ type: 'act', seat: S.game.turn, a, v }); }
+  if (ROOM?.role === 'guest') { buffer = ''; render(); return guestInput({ type: 'act', seat: S.game.turn, a, v }); }
   S.hist.push(JSON.stringify(S.game));
   if (S.hist.length > 400) { S.hist.shift(); S.acts.shift(); }
   const seat = S.game.turn;
   G.act(S.game, a, v, S.settings);
   S.acts.push({ seat, turnAfter: currentTurn() });
-  buffer = '';
+  if (remote) remoteDone(seat); else buffer = '';
   afterGameChange();
 }
 // Is this a move the game's pad offers right now (or, on a keypad, a score it takes)? The host checks a guest's act by it.
@@ -1310,6 +1318,9 @@ async function doJoin(text = $('joinCode')?.value) {
 // ---------- input ----------
 function press(k) {
   if (!myTurn()) return;
+  // An empty Score just after a guest's visit cleared what was typed
+  if (k === 'ok' && buffer === '' && Date.now() - lostAt < 3000) { lostAt = 0; return; }
+  lostAt = 0;
   if (isGame()) {
     const G = GAMES[S.settings.mode];
     if (!G.keypad || G.done(S.game) || isBotTurn()) return;

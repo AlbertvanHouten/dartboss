@@ -232,7 +232,8 @@ try {
   for (const p of [hostP, guestP]) await p.evaluate(() => localStorage.clear());
   for (const p of [hostP, guestP]) await p.reload({ waitUntil: 'networkidle0' });
   const H = fn => hostP.evaluate(fn), G = fn => guestP.evaluate(fn);
-  const wait = (p, fn, arg) => p.waitForFunction(fn, { timeout: 5000 }, arg);
+  // Polled: a tab in the background gets no animation frames
+  const wait = (p, fn, arg) => p.waitForFunction(fn, { timeout: 5000, polling: 50 }, arg);
   // The guest has the host's latest state
   const sync = async () => wait(guestP, v => ROOM?.ver === v, await H('S.room.ver'));
   // Run an input on the guest, then wait for the host to apply it and the guest to see the result
@@ -242,6 +243,7 @@ try {
     await wait(hostP, v => S.room.ver > v, v);
     await sync();
   };
+  const noToast = p => p.evaluate(() => { document.getElementById('toast').hidden = true; });
   const toastOn = (p, text) => wait(p, s => !document.getElementById('toast').hidden && document.getElementById('toast').textContent.includes(s), text);
 
   // guest joins and sees the host's match
@@ -309,10 +311,30 @@ try {
   assert.deepEqual(await H("[remaining(curLeg(), 1), curLeg().visits.at(-1).before, 'darts' in curLeg().visits.at(-1)]"), [300, 321, false], 'the host keeps its own count');
   assert.deepEqual(errors, [], 'no errors from the tampered messages');
 
+  // The host types Ann's score while her own phone sends it: the host's typed score goes, the host is told
+  // why, and a Score pressed right after doesn't record a no score for Bob
+  await H('submit(45); submit(60)');                      // Bob and You: Ann to throw
+  await sync();
+  await H("press('1'); press('0'); press('0')");
+  await noToast(hostP);
+  await viaGuest('submit(26)');
+  await toastOn(hostP, 'Ann scored on their phone');
+  assert.equal(await H("document.getElementById('readout').textContent"), 'Enter score', 'the typed score is cleared');
+  const bobLeft = await H('remaining(curLeg(), 2)'), visits = await H('curLeg().visits.length');
+  await H("press('ok')");
+  assert.deepEqual(await H('[curLeg().visits.length, remaining(curLeg(), 2)]'), [visits, bobLeft], 'an empty Score right after records nothing for Bob');
+  // Ann types on her phone, but the host scores her visit: her phone's typed score goes too
+  await H('submit(45); submit(60)');                      // Bob and You: Ann to throw
+  await sync();
+  await G("press('8'); press('5')");
+  await H('submit(41)');
+  await sync();
+  assert.equal(await G('buffer'), '', 'the guest\'s typed score goes once its turn has passed');
+  assert.match(await G("document.getElementById('readout').textContent"), /Waiting for Bob/);
+
   // A visit that waits on a question (darts at a double) is checked again when the question is answered:
   // on 40 every visit asks, and anything that lands meanwhile wins
   const ok = "document.querySelector('#overlay [data-act=\"ok\"]').click()";
-  const noToast = p => p.evaluate(() => { document.getElementById('toast').hidden = true; });
   await H(`startMatch({ ...DEFAULT_SETTINGS, start: 40, shared: true, players: ${ann} })`);
   await H(`submit(0); ${ok}`);                            // You
   await sync();
@@ -361,7 +383,11 @@ try {
   await refused(before0 + 5);
   assert.equal(await H('S.acts.length'), 3, 'no refused act counts');
   assert.equal(await H("!!document.querySelector('#gameLeft img, #gameRight img') || !!window.pwned"), false);
-  for (let i = 0; i < 3; i++) await viaGuest("gameAct('dart', 0)"); // Ann: three misses on her phone
+  // Ann taps three misses as fast as she can: each waits for the host's answer to the one before, and all three count
+  await G("for (let i = 0; i < 3; i++) gameAct('dart', 0)");
+  await wait(hostP, () => S.acts.length === 6);
+  await sync();
+  assert.equal(await H('S.game.turn'), 2, 'three quick darts finish Ann\'s visit');
   await H("gameAct('dart', 0)");                                 // Bob's first dart, on the host
   await sync();
   assert.equal(await H('S.acts.length'), 7);
