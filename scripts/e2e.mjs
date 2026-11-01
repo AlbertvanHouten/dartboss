@@ -518,6 +518,10 @@ try {
   await sync();
   assert.equal(await G('S.id'), await H('S.id'), 'the guest follows the rematch');
   assert.deepEqual(await G('ROOM.mine'), [1], 'Play again keeps the guest\'s seat');
+  // A guest can't pass itself off as the host: You's visit, out of turn for Ann's phone, is ignored
+  await G("ROOM.transport.send({ type: 'visit', seat: 0, ver: ROOM.ver, app: APP_VERSION, phone: 'host', visit: { p: 0, before: 101, score: 60, dartsUsed: 3, dartsAtDouble: 0, bust: false, checkout: false } }, ROOM.host)");
+  await new Promise(r => setTimeout(r, 300));
+  assert.equal(await H('remaining(curLeg(), 0)'), 101, 'a guest calling itself host is ignored');
   // Restart keeps the room too (a rematch); Continue later keeps it; Discard ends it
   await H('submit(20)');
   await H("confirmRestart(); document.querySelector('#overlay [data-act=\"go\"]').click()");
@@ -557,7 +561,19 @@ try {
   await wait(guestP, () => /Couldn't reach the room/.test(document.getElementById('page').innerText));
   assert.equal(await G("document.querySelector('#joinForm [type=submit]').textContent"), 'Retry');
   assert.equal(await G('ROOM'), null, 'a join that timed out leaves no room');
+  // A join link opened at boot ends this phone's own hosted room: it doesn't come back after leaving and a reload
+  await G(`startMatch(${short})`);
+  await wait(guestP, () => ROOM?.role === 'host');
+  const codeB = await G('ROOM.code');
+  await hostP.goto(`${url}?join=${codeB}&transport=local`, { waitUntil: 'networkidle0' });
+  await wait(hostP, () => ROOM?.role === 'guest' && ROOM.ver != null);
+  assert.equal(await H('localS.room'), undefined, 'the old room is dropped from this phone\'s own game');
+  assert.equal(await H('JSON.parse(localStorage.getItem(STORE_KEY)).room'), undefined, 'and from its saved game');
   await H('leaveRoom()');
+  await hostP.reload({ waitUntil: 'networkidle0' });
+  await new Promise(r => setTimeout(r, 300));
+  assert.equal(await H('ROOM'), null, 'the old room does not reopen');
+  await G('leaveRoom()');
   assert.deepEqual(errors, [], 'no errors while reconnecting');
 
   // no network without a room: single-phone play only talks to the page's own origin

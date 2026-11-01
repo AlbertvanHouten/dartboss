@@ -172,8 +172,9 @@ function hostMessage(msg, peer) {
   const reject = reason => ROOM.transport.send({ type: 'reject', app: APP_VERSION, reason }, peer);
   // A guest on another version is told so when it says hello, and not answered after that
   if (!versionOk(msg, APP_VERSION)) return msg.type === 'hello' && reject('version');
+  // 'host' is the host's own name in the rules, so no guest may use it
   const from = msg.phone;
-  if (!from) return;
+  if (!from || from === 'host') return;
   if (ROOM.peers[peer] !== from) {
     ROOM.peers[peer] = from; S.room.online[from] = true;
     if (msg.type !== 'hello' && msg.type !== 'claim') { sendState(); if (S.screen === 'play') render(); }
@@ -223,6 +224,9 @@ function undoFor(seat) {
 // Resolves once the host has sent its match; rejects after ROOM_TIMES.connect without one, or with 'version'
 async function joinRoomAsGuest(code) {
   if (ROOM?.role === 'host') endRoom(); else if (ROOM) leaveRoom();
+  // A hosted room that isn't open right now (a join link at boot comes before it reopens) ends too,
+  // so it doesn't come back with this phone's own game
+  else if (S?.room) { delete S.room; save(); }
   const transport = pickTransport();
   cancelBot(); botBusy = false; buffer = '';
   localS = S;
